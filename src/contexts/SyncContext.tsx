@@ -40,19 +40,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Auto-sync interval if online
-  useEffect(() => {
-    if (!isOnline) return
-    const interval = setInterval(() => {
-      const pending = db.getPendingItems()
-      if (pending.lotes.length > 0 && !isSyncing) {
-        triggerSync()
-      }
-    }, 60000 * 5) // Every 5 minutes
-    return () => clearInterval(interval)
-  }, [isOnline, isSyncing])
-
-  const triggerSync = async () => {
+  const triggerSync = useCallback(async () => {
     if (!isOnline) {
       toast({
         title: 'Sem conexão',
@@ -134,7 +122,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(false)
       refreshStats()
     }
-  }
+  }, [isOnline, isSyncing, refreshStats, toast])
+
+  // Auto-sync interval if online
+  useEffect(() => {
+    if (!isOnline) return
+    const interval = setInterval(() => {
+      const pending = db.getPendingItems()
+      if (pending.lotes.length > 0 && !isSyncing) {
+        triggerSync()
+      }
+    }, 60000 * 5) // Every 5 minutes
+    return () => clearInterval(interval)
+  }, [isOnline, isSyncing, triggerSync])
 
   return (
     <SyncContext.Provider
