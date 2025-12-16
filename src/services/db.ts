@@ -1,0 +1,269 @@
+import { Project, Quadra, Lote, SyncLogEntry, DashboardStats } from '@/types'
+import { v4 as uuidv4 } from 'uuid'
+
+// Initial Seed Data
+const SEED_PROJECTS: Project[] = [
+  {
+    id: 1,
+    local_id: 'proj-1',
+    sync_status: 'synchronized',
+    date_added: Date.now(),
+    date_updated: Date.now(),
+    field_348: 'Jardim das Flores',
+    field_350: 'Levantamento Topográfico 2024',
+    field_351: 'https://img.usecurling.com/p/200/200?q=map&color=blue',
+  },
+]
+
+const SEED_QUADRAS: Quadra[] = [
+  {
+    id: 101,
+    local_id: 'quad-1',
+    sync_status: 'synchronized',
+    date_added: Date.now(),
+    date_updated: Date.now(),
+    field_329: 'Quadra A',
+    field_330: '5000m²',
+    parent_item_id: 'proj-1',
+    field_349: 'Jardim das Flores',
+  },
+  {
+    id: 102,
+    local_id: 'quad-2',
+    sync_status: 'synchronized',
+    date_added: Date.now(),
+    date_updated: Date.now(),
+    field_329: 'Quadra B',
+    field_330: '4500m²',
+    parent_item_id: 'proj-1',
+    field_349: 'Jardim das Flores',
+  },
+]
+
+const SEED_LOTES: Lote[] = [
+  {
+    id: 1001,
+    local_id: 'lote-1',
+    sync_status: 'synchronized',
+    date_added: Date.now(),
+    date_updated: Date.now(),
+    field_338: 'Lote 01',
+    field_339: '250m²',
+    field_340: 'Terreno plano, sem benfeitorias.',
+    field_352: [],
+    parent_item_id: 'quad-1',
+  },
+  {
+    id: 0,
+    local_id: 'lote-2',
+    sync_status: 'pending',
+    date_added: Date.now(),
+    date_updated: Date.now(),
+    field_338: 'Lote 02',
+    field_339: '255m²',
+    field_340: 'Contém pequena construção.',
+    field_352: [],
+    parent_item_id: 'quad-1',
+  },
+]
+
+const STORAGE_KEYS = {
+  PROJECTS: 'reurb_projects',
+  QUADRAS: 'reurb_quadras',
+  LOTES: 'reurb_lotes',
+  LOGS: 'reurb_logs',
+}
+
+class DBService {
+  constructor() {
+    this.init()
+  }
+
+  private init() {
+    if (!localStorage.getItem(STORAGE_KEYS.PROJECTS)) {
+      localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(SEED_PROJECTS))
+      localStorage.setItem(STORAGE_KEYS.QUADRAS, JSON.stringify(SEED_QUADRAS))
+      localStorage.setItem(STORAGE_KEYS.LOTES, JSON.stringify(SEED_LOTES))
+      localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify([]))
+    }
+  }
+
+  // Generic Getters
+  private getItems<T>(key: string): T[] {
+    const items = localStorage.getItem(key)
+    return items ? JSON.parse(items) : []
+  }
+
+  private saveItems<T>(key: string, items: T[]) {
+    localStorage.setItem(key, JSON.stringify(items))
+  }
+
+  // Projects
+  getProjects(): Project[] {
+    return this.getItems<Project>(STORAGE_KEYS.PROJECTS)
+  }
+
+  getProject(id: string): Project | undefined {
+    return this.getProjects().find((p) => p.local_id === id)
+  }
+
+  // Quadras
+  getQuadrasByProject(projectId: string): Quadra[] {
+    return this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).filter(
+      (q) => q.parent_item_id === projectId,
+    )
+  }
+
+  getQuadra(id: string): Quadra | undefined {
+    return this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).find(
+      (q) => q.local_id === id,
+    )
+  }
+
+  // Lotes
+  getLotesByQuadra(quadraId: string): Lote[] {
+    return this.getItems<Lote>(STORAGE_KEYS.LOTES).filter(
+      (l) => l.parent_item_id === quadraId,
+    )
+  }
+
+  getLote(id: string): Lote | undefined {
+    return this.getItems<Lote>(STORAGE_KEYS.LOTES).find(
+      (l) => l.local_id === id,
+    )
+  }
+
+  saveLote(loteData: Partial<Lote>, quadraId: string): Lote {
+    const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
+    const now = Date.now()
+    let savedLote: Lote
+
+    if (loteData.local_id) {
+      // Update
+      const index = lotes.findIndex((l) => l.local_id === loteData.local_id)
+      if (index !== -1) {
+        savedLote = {
+          ...lotes[index],
+          ...loteData,
+          sync_status: 'pending', // Mark as pending on update
+          date_updated: now,
+          parent_item_id: quadraId,
+        } as Lote
+        lotes[index] = savedLote
+      } else {
+        throw new Error('Lote not found')
+      }
+    } else {
+      // Create
+      savedLote = {
+        ...loteData,
+        id: 0,
+        local_id: uuidv4(),
+        sync_status: 'pending',
+        date_added: now,
+        date_updated: now,
+        parent_item_id: quadraId,
+        field_352: loteData.field_352 || [],
+      } as Lote
+      lotes.push(savedLote)
+    }
+
+    this.saveItems(STORAGE_KEYS.LOTES, lotes)
+    this.logActivity(
+      'Lote',
+      loteData.local_id ? 'Atualizado' : 'Criado',
+      `Lote ${savedLote.field_338} salvo localmente.`,
+    )
+    return savedLote
+  }
+
+  deleteLote(localId: string) {
+    const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
+    const filtered = lotes.filter((l) => l.local_id !== localId)
+    this.saveItems(STORAGE_KEYS.LOTES, filtered)
+    this.logActivity('Lote', 'Removido', `Lote removido localmente.`)
+  }
+
+  // Stats
+  getDashboardStats(): DashboardStats {
+    const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
+    const logs = this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
+
+    const collected = lotes.length
+    const synced = lotes.filter((l) => l.sync_status === 'synchronized').length
+    const pending = lotes.filter(
+      (l) => l.sync_status === 'pending' || l.sync_status === 'failed',
+    ).length
+    // Count pending images (simplified: counting lots with images that are pending)
+    const pendingImages = lotes
+      .filter((l) => l.sync_status !== 'synchronized')
+      .reduce((acc, l) => acc + (l.field_352?.length || 0), 0)
+
+    const lastSyncLog = logs.find((l) => l.status === 'Sucesso')
+
+    return {
+      collected,
+      synced,
+      pending,
+      pendingImages,
+      lastSync: lastSyncLog ? lastSyncLog.timestamp : undefined,
+    }
+  }
+
+  // Sync Logic
+  getPendingItems() {
+    return {
+      lotes: this.getItems<Lote>(STORAGE_KEYS.LOTES).filter(
+        (l) => l.sync_status === 'pending' || l.sync_status === 'failed',
+      ),
+      projects: this.getItems<Project>(STORAGE_KEYS.PROJECTS).filter(
+        (p) => p.sync_status === 'pending',
+      ),
+      quadras: this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).filter(
+        (q) => q.sync_status === 'pending',
+      ),
+    }
+  }
+
+  updateLoteStatus(
+    localId: string,
+    status: 'synchronized' | 'failed',
+    remoteId?: number,
+  ) {
+    const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
+    const index = lotes.findIndex((l) => l.local_id === localId)
+    if (index !== -1) {
+      lotes[index].sync_status = status
+      if (remoteId) lotes[index].id = remoteId
+      this.saveItems(STORAGE_KEYS.LOTES, lotes)
+    }
+  }
+
+  // Logs
+  getLogs(): SyncLogEntry[] {
+    return this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS).sort(
+      (a, b) => b.timestamp - a.timestamp,
+    )
+  }
+
+  logActivity(type: SyncLogEntry['type'], status: string, message: string) {
+    const logs = this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
+    const entry: SyncLogEntry = {
+      id: uuidv4(),
+      timestamp: Date.now(),
+      type,
+      status: status as any,
+      message,
+    }
+    logs.unshift(entry)
+    // Keep only last 100 logs
+    if (logs.length > 100) logs.pop()
+    this.saveItems(STORAGE_KEYS.LOGS, logs)
+  }
+
+  clearLogs() {
+    this.saveItems(STORAGE_KEYS.LOGS, [])
+  }
+}
+
+export const db = new DBService()
