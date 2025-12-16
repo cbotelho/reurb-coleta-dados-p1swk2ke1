@@ -5,7 +5,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
   CardFooter,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,6 +15,8 @@ import {
   Database,
   Image as ImageIcon,
   ArrowRight,
+  RefreshCw,
+  Folder,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
