@@ -1,93 +1,114 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '@/services/db'
 import { Project } from '@/types'
-import { Card, CardHeader, CardContent } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Search } from 'lucide-react'
+import { Building2, Calendar, FileText, Map } from 'lucide-react'
+import { format } from 'date-fns'
 
 export default function Projetos() {
   const [projects, setProjects] = useState<Project[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     setProjects(db.getProjects())
   }, [])
 
-  const filteredProjects = projects.filter(
-    (p) =>
-      p.field_348.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.field_350.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const getProjectImageUrl = (imageName?: string) => {
+    if (!imageName)
+      return 'https://img.usecurling.com/p/400/250?q=city%20map&color=blue'
+    if (imageName.startsWith('http')) return imageName
+    // Return placeholder for local filenames
+    return `https://img.usecurling.com/p/400/250?q=project%20map&color=blue`
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar projetos..."
-          className="pl-9"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Projetos</h2>
+          <p className="text-muted-foreground mt-1">
+            Gerencie os projetos e loteamentos disponíveis.
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredProjects.length > 0 ? (
-          filteredProjects.map((project) => (
-            <Link key={project.local_id} to={`/projetos/${project.local_id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                <CardHeader className="flex flex-row items-start gap-4 pb-2">
-                  <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
-                    {project.field_351 ? (
-                      <img
-                        src={project.field_351}
-                        alt="Project"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs font-bold text-slate-400">
-                        IMG
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="font-bold text-lg leading-tight">
-                      {project.field_348}
-                    </h3>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {project.field_350}
-                    </p>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex justify-between items-center text-xs text-muted-foreground mt-2">
-                    <Badge
-                      variant={
-                        project.sync_status === 'synchronized'
-                          ? 'secondary'
-                          : 'outline'
-                      }
-                      className="capitalize"
-                    >
-                      {project.sync_status === 'synchronized'
-                        ? 'Sincronizado'
-                        : 'Pendente'}
-                    </Badge>
-                    <span>
-                      {new Date(project.date_updated).toLocaleDateString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-10 text-muted-foreground">
-            {searchTerm
-              ? 'Nenhum projeto encontrado para sua busca.'
-              : 'Nenhum projeto disponível.'}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {projects.map((project) => (
+          <Card
+            key={project.local_id}
+            className="overflow-hidden flex flex-col"
+          >
+            <div className="aspect-video w-full overflow-hidden bg-muted relative">
+              <img
+                src={getProjectImageUrl(project.field_351)}
+                alt={`Imagem do projeto ${project.field_348}`}
+                className="w-full h-full object-cover transition-transform hover:scale-105 duration-500"
+              />
+              <div className="absolute top-2 right-2">
+                <Badge
+                  variant={
+                    project.sync_status === 'synchronized'
+                      ? 'default'
+                      : 'secondary'
+                  }
+                >
+                  {project.sync_status === 'synchronized'
+                    ? 'Sincronizado'
+                    : 'Pendente'}
+                </Badge>
+              </div>
+            </div>
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-xl">
+                    Loteamento {project.field_348}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                    <Map className="w-3 h-3" /> ID:{' '}
+                    {project.id || project.local_id.slice(0, 8)}
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 pb-2">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <FileText className="w-4 h-4" />
+                  <span className="truncate max-w-[200px]">
+                    {project.field_350 ? project.field_350 : 'Sem levantamento'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="w-4 h-4" />
+                  <span>
+                    Adicionado:{' '}
+                    {format(new Date(project.date_added), 'dd/MM/yyyy')}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-4 border-t bg-muted/20">
+              <Button asChild className="w-full">
+                <Link to={`/projetos/${project.local_id}`}>
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Ver Detalhes
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+        {projects.length === 0 && (
+          <div className="col-span-full text-center py-10">
+            <p className="text-muted-foreground">Nenhum projeto encontrado.</p>
           </div>
         )}
       </div>

@@ -12,6 +12,11 @@ export interface Project extends BaseEntity {
   field_348: string // Loteamento
   field_350: string // Levantamento
   field_351?: string // Nome da Imagem (URL)
+  parent_id?: number
+  parent_item_id?: number
+  linked_id?: number
+  created_by?: number
+  sort_order?: number
 }
 
 export interface Quadra extends BaseEntity {
