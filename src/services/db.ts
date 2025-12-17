@@ -31,7 +31,6 @@ const STORAGE_KEYS = {
   SETTINGS: 'reurb_settings',
 }
 
-// Seed Data for Auth
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -109,7 +108,6 @@ class DBService {
     if (!users || users.length === 0) {
       this.saveItems(STORAGE_KEYS.USERS, SEED_USERS)
     } else {
-      // Migration for old user structure if needed
       const migrated = users.map((u: any) => ({
         ...u,
         groupIds: u.groupIds || (u.groupId ? [u.groupId] : []),
@@ -188,14 +186,12 @@ class DBService {
     localStorage.setItem(key, JSON.stringify(items))
   }
 
-  // Auth Methods
   authenticate(username: string, pass: string): User | null {
     const users = this.getItems<User>(STORAGE_KEYS.USERS)
     const user = users.find((u) => u.username === username && u.active)
     if (user && pass === '@#Cvb75195364#@') {
       return user
     }
-    // Simple password check for all demo users
     if (user && pass === 'password') {
       return user
     }
@@ -207,12 +203,11 @@ class DBService {
   }
 
   saveUser(user: User): User {
-    // Constraint: carlos.botelho (u1) must maintain 'g1'
     if (user.id === 'u1' || user.username === 'carlos.botelho') {
       if (!user.groupIds.includes('g1')) {
         user.groupIds.push('g1')
       }
-      user.active = true // Ensure always active
+      user.active = true
     }
 
     const users = this.getItems<User>(STORAGE_KEYS.USERS)
@@ -228,7 +223,6 @@ class DBService {
   }
 
   deleteUser(userId: string) {
-    // Constraint: cannot delete protected user
     if (userId === 'u1') {
       throw new Error('Não é possível excluir o usuário mestre.')
     }
@@ -249,7 +243,6 @@ class DBService {
   }
 
   saveGroup(group: UserGroup): UserGroup {
-    // Constraint: Administrador Master (g1) permissions cannot be reduced
     if (group.id === 'g1') {
       if (!group.permissions.includes('all')) {
         group.permissions = ['all']
@@ -269,17 +262,14 @@ class DBService {
   }
 
   deleteGroup(groupId: string) {
-    // Constraint: Cannot delete Administrador Master
     if (groupId === 'g1') {
       throw new Error('Não é possível excluir o grupo Administrador Master.')
     }
 
-    // Remove group
     const groups = this.getItems<UserGroup>(STORAGE_KEYS.GROUPS)
     const filteredGroups = groups.filter((g) => g.id !== groupId)
     this.saveItems(STORAGE_KEYS.GROUPS, filteredGroups)
 
-    // Remove group from all users
     const users = this.getItems<User>(STORAGE_KEYS.USERS)
     const updatedUsers = users.map((u) => ({
       ...u,
@@ -289,7 +279,6 @@ class DBService {
   }
 
   updateGroupMembers(groupId: string, userIds: string[]) {
-    // Constraint check for protected user removal from g1
     if (groupId === 'g1' && !userIds.includes('u1')) {
       userIds.push('u1')
     }
@@ -309,7 +298,6 @@ class DBService {
     this.saveItems(STORAGE_KEYS.USERS, updatedUsers)
   }
 
-  // Settings
   getSettings(): AppSettings {
     const settings = localStorage.getItem(STORAGE_KEYS.SETTINGS)
     return settings ? JSON.parse(settings) : DEFAULT_SETTINGS
@@ -330,7 +318,6 @@ class DBService {
     this.seedAll()
   }
 
-  // Projects
   getProjects(): Project[] {
     return this.getItems<Project>(STORAGE_KEYS.PROJECTS)
   }
@@ -339,7 +326,27 @@ class DBService {
     return this.getProjects().find((p) => p.local_id === id)
   }
 
-  // Quadras
+  updateProject(project: Project): Project {
+    const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
+    const index = projects.findIndex((p) => p.local_id === project.local_id)
+    if (index !== -1) {
+      const updatedProject = {
+        ...project,
+        sync_status: 'pending',
+        date_updated: Date.now(),
+      } as Project
+      projects[index] = updatedProject
+      this.saveItems(STORAGE_KEYS.PROJECTS, projects)
+      this.logActivity(
+        'Projeto',
+        'Iniciado',
+        `Projeto ${project.field_348} atualizado localmente.`,
+      )
+      return updatedProject
+    }
+    throw new Error('Project not found')
+  }
+
   getQuadrasByProject(projectId: string): Quadra[] {
     return this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).filter(
       (q) => q.parent_item_id === projectId,
@@ -352,7 +359,6 @@ class DBService {
     )
   }
 
-  // Lotes
   getLotesByQuadra(quadraId: string): Lote[] {
     return this.getItems<Lote>(STORAGE_KEYS.LOTES).filter(
       (l) => l.parent_item_id === quadraId,
@@ -377,7 +383,6 @@ class DBService {
     if (loteData.local_id) {
       const index = lotes.findIndex((l) => l.local_id === loteData.local_id)
       if (index !== -1) {
-        // Simple conflict resolution: Last Write Wins (local wins over server status for now)
         savedLote = {
           ...lotes[index],
           ...loteData,
@@ -420,7 +425,6 @@ class DBService {
     this.logActivity('Lote', 'Iniciado', `Lote removido localmente.`)
   }
 
-  // Stats
   getDashboardStats(): DashboardStats {
     const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
     const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
@@ -441,7 +445,6 @@ class DBService {
     }
   }
 
-  // Sync Logic
   getPendingItems() {
     return {
       lotes: this.getItems<Lote>(STORAGE_KEYS.LOTES).filter(
@@ -470,7 +473,6 @@ class DBService {
     }
   }
 
-  // Logs
   getLogs(): SyncLogEntry[] {
     return this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS).sort(
       (a, b) => b.timestamp - a.timestamp,

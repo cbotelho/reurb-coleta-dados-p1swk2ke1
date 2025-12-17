@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { db } from '@/services/db'
 import { exporter } from '@/utils/exporter'
+import { useAuth } from '@/contexts/AuthContext'
 import { Project, Quadra } from '@/types'
 import { Button } from '@/components/ui/button'
+import { ProjectMapUpdateDialog } from '@/components/ProjectMapUpdateDialog'
 import {
   Card,
   CardContent,
@@ -34,6 +36,7 @@ import {
 
 export default function ProjetoDetails() {
   const { projectId } = useParams()
+  const { hasPermission } = useAuth()
   const [project, setProject] = useState<Project | undefined>()
   const [quadras, setQuadras] = useState<Quadra[]>([])
 
@@ -128,6 +131,13 @@ export default function ProjetoDetails() {
         </div>
 
         <div className="flex gap-2">
+          {hasPermission('all') && (
+            <ProjectMapUpdateDialog
+              project={project}
+              onUpdate={(updatedProject) => setProject(updatedProject)}
+            />
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">
