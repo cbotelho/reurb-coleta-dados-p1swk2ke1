@@ -9,7 +9,7 @@ const SEED_PROJECTS: Project[] = [
     sync_status: 'synchronized',
     date_added: 1762453923000,
     date_updated: 1762455377000,
-    field_348: '130',
+    field_348: 'Marabaixo 1',
     field_350: '1762455359_PLANTA_GERAL_REUB_MARABAIXO_I-modelo2.pdf',
     field_351: '1762455374_Marabaixo_1.jpg',
     parent_id: 0,
@@ -24,7 +24,7 @@ const SEED_PROJECTS: Project[] = [
     sync_status: 'synchronized',
     date_added: 1762692888000,
     date_updated: 0,
-    field_348: '134',
+    field_348: 'Oiapoque',
     field_350: '',
     field_351: '',
     parent_id: 0,
@@ -45,7 +45,7 @@ const SEED_QUADRAS: Quadra[] = [
     field_329: 'Quadra A',
     field_330: '5000m²',
     parent_item_id: 'proj-1',
-    field_349: '130',
+    field_349: 'Marabaixo 1',
   },
   {
     id: 102,
@@ -56,7 +56,7 @@ const SEED_QUADRAS: Quadra[] = [
     field_329: 'Quadra B',
     field_330: '4500m²',
     parent_item_id: 'proj-1',
-    field_349: '130',
+    field_349: 'Marabaixo 1',
   },
 ]
 
@@ -105,6 +105,52 @@ class DBService {
       localStorage.setItem(STORAGE_KEYS.QUADRAS, JSON.stringify(SEED_QUADRAS))
       localStorage.setItem(STORAGE_KEYS.LOTES, JSON.stringify(SEED_LOTES))
       localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify([]))
+    } else {
+      this.enforceProjectNaming()
+    }
+  }
+
+  private enforceProjectNaming() {
+    const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
+    let projectsUpdated = false
+    const projectMap = new Map<string, string>()
+
+    projects.forEach((p) => {
+      let changed = false
+      if (p.id === 1 && p.field_348 !== 'Marabaixo 1') {
+        p.field_348 = 'Marabaixo 1'
+        changed = true
+      } else if (p.id === 2 && p.field_348 !== 'Oiapoque') {
+        p.field_348 = 'Oiapoque'
+        changed = true
+      }
+
+      if (changed) projectsUpdated = true
+
+      // Build map for quadras update
+      if (p.id === 1) projectMap.set(p.local_id, 'Marabaixo 1')
+      if (p.id === 2) projectMap.set(p.local_id, 'Oiapoque')
+    })
+
+    if (projectsUpdated) {
+      this.saveItems(STORAGE_KEYS.PROJECTS, projects)
+    }
+
+    const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
+    let quadrasUpdated = false
+
+    quadras.forEach((q) => {
+      if (projectMap.has(q.parent_item_id)) {
+        const correctName = projectMap.get(q.parent_item_id)
+        if (correctName && q.field_349 !== correctName) {
+          q.field_349 = correctName
+          quadrasUpdated = true
+        }
+      }
+    })
+
+    if (quadrasUpdated) {
+      this.saveItems(STORAGE_KEYS.QUADRAS, quadras)
     }
   }
 
@@ -214,7 +260,6 @@ class DBService {
     const pending = lotes.filter(
       (l) => l.sync_status === 'pending' || l.sync_status === 'failed',
     ).length
-    // Count pending images (simplified: counting lots with images that are pending)
     const pendingImages = lotes
       .filter((l) => l.sync_status !== 'synchronized')
       .reduce((acc, l) => acc + (l.field_352?.length || 0), 0)
