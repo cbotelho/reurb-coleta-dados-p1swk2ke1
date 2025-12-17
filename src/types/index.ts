@@ -24,6 +24,8 @@ export interface Quadra extends BaseEntity {
   field_330: string // Area
   parent_item_id: string // Local ID of Project
   field_349?: string // Project Name (denormalized for display)
+  field_331?: string // Document
+  field_332?: string // Image
 }
 
 export interface Lote extends BaseEntity {

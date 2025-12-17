@@ -46,30 +46,28 @@ const SEED_PROJECTS: Project[] = [
   },
 ]
 
-const SEED_QUADRAS: Quadra[] = [
-  {
-    id: 101,
-    local_id: 'quad-1',
+// Generate 40 Quadras
+const SEED_QUADRAS: Quadra[] = Array.from({ length: 40 }, (_, i) => {
+  const index = i + 1
+  const isMarabaixo = index <= 20
+  const projectId = isMarabaixo ? 'proj-1' : 'proj-2'
+  const projectName = isMarabaixo ? 'Marabaixo 1' : 'Oiapoque'
+  const quadraNum = isMarabaixo ? index : index - 20
+
+  return {
+    id: 100 + index,
+    local_id: `quad-${index}`,
     sync_status: 'synchronized',
     date_added: Date.now(),
     date_updated: Date.now(),
-    field_329: 'Quadra A',
-    field_330: '5000m²',
-    parent_item_id: 'proj-1',
-    field_349: 'Marabaixo 1',
-  },
-  {
-    id: 102,
-    local_id: 'quad-2',
-    sync_status: 'synchronized',
-    date_added: Date.now(),
-    date_updated: Date.now(),
-    field_329: 'Quadra B',
-    field_330: '4500m²',
-    parent_item_id: 'proj-1',
-    field_349: 'Marabaixo 1',
-  },
-]
+    field_329: `Quadra ${quadraNum}`,
+    field_330: `${Math.floor(Math.random() * 2000) + 3000}m²`,
+    parent_item_id: projectId,
+    field_349: projectName,
+    field_331: `planta_quadra_${quadraNum}_${isMarabaixo ? 'marabaixo' : 'oiapoque'}.pdf`,
+    field_332: `vista_aerea_${quadraNum}_${isMarabaixo ? 'marabaixo' : 'oiapoque'}.jpg`,
+  }
+})
 
 const SEED_LOTES: Lote[] = [
   {
@@ -153,10 +151,30 @@ class DBService {
       this.saveItems(STORAGE_KEYS.PROJECTS, projects)
     }
 
-    // Update Quadras based on Project names (legacy fix)
+    // Update Quadras
     const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
     let quadrasUpdated = false
 
+    // Check if we need to seed the 40 quadras (if they don't exist by ID)
+    SEED_QUADRAS.forEach((seedQ) => {
+      const existing = quadras.find((q) => q.id === seedQ.id)
+      if (!existing) {
+        quadras.push(seedQ)
+        quadrasUpdated = true
+      } else {
+        // Update fields if missing
+        if (seedQ.field_331 && !existing.field_331) {
+          existing.field_331 = seedQ.field_331
+          quadrasUpdated = true
+        }
+        if (seedQ.field_332 && !existing.field_332) {
+          existing.field_332 = seedQ.field_332
+          quadrasUpdated = true
+        }
+      }
+    })
+
+    // Also update project names in Quadras
     quadras.forEach((q) => {
       if (projectMap.has(q.parent_item_id)) {
         const correctName = projectMap.get(q.parent_item_id)

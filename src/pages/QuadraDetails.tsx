@@ -9,7 +9,15 @@ import {
   CardDescription,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Plus, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import {
+  Plus,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  FileText,
+  Image as ImageIcon,
+} from 'lucide-react'
+import { Separator } from '@/components/ui/separator'
 
 export default function QuadraDetails() {
   const { quadraId } = useParams<{ quadraId: string }>()
@@ -39,11 +47,34 @@ export default function QuadraDetails() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="bg-white p-6 rounded-lg border shadow-sm space-y-2">
-        <h2 className="text-2xl font-bold">{quadra.field_329}</h2>
-        <p className="text-muted-foreground">
-          Projeto: {quadra.field_349} • Área: {quadra.field_330}
-        </p>
+      <div className="bg-white p-6 rounded-lg border shadow-sm space-y-4">
+        <div>
+          <h2 className="text-2xl font-bold">{quadra.field_329}</h2>
+          <p className="text-muted-foreground">
+            Projeto: {quadra.field_349} • Área: {quadra.field_330}
+          </p>
+        </div>
+
+        <Separator />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="space-y-1">
+            <span className="font-medium text-muted-foreground flex items-center gap-2">
+              <FileText className="w-4 h-4" /> Arquivo de Documento
+            </span>
+            <p className="font-mono bg-muted p-2 rounded break-all">
+              {quadra.field_331 || 'Nenhum documento anexado'}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <span className="font-medium text-muted-foreground flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" /> Imagem da Quadra
+            </span>
+            <p className="font-mono bg-muted p-2 rounded break-all">
+              {quadra.field_332 || 'Nenhuma imagem definida'}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-4">
