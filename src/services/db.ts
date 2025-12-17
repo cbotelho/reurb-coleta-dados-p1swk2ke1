@@ -62,8 +62,13 @@ class DBService {
     let quadrasUpdated = false
 
     SEED_QUADRAS.forEach((seedQ) => {
-      if (!quadras.find((q) => q.local_id === seedQ.local_id)) {
+      const existing = quadras.find((q) => q.local_id === seedQ.local_id)
+      if (!existing) {
         quadras.push(seedQ)
+        quadrasUpdated = true
+      } else if (existing.id !== seedQ.id) {
+        // Ensure ID is updated if seed changed (e.g. from 101 to 1)
+        existing.id = seedQ.id
         quadrasUpdated = true
       }
     })

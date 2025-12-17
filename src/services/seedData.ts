@@ -41,7 +41,7 @@ export const SEED_QUADRAS: Quadra[] = Array.from({ length: 40 }, (_, i) => {
   const quadraNum = isMarabaixo ? index : index - 20
 
   return {
-    id: 100 + index,
+    id: index,
     local_id: `quad-${index}`,
     sync_status: 'synchronized',
     date_added: Date.now(),
@@ -55,7 +55,7 @@ export const SEED_QUADRAS: Quadra[] = Array.from({ length: 40 }, (_, i) => {
   }
 })
 
-export const SEED_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
+const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
   const index = i + 1
   const quadraIndex = ((index - 1) % 40) + 1
 
@@ -75,3 +75,35 @@ export const SEED_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
     parent_item_id: `quad-${quadraIndex}`,
   }
 })
+
+// Generate 385 additional lots as per user story
+const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
+  const id = 52 + i
+  // Distribute among quadras 4 to 19 (16 quadras)
+  // We use modulo to cycle through the quadras
+  const quadraOffset = i % 16
+  const quadraId = 4 + quadraOffset
+
+  // Use a pseudo-random generation for area and lot number to simulate provided data
+  // Using i to make it deterministic
+  const areaBase = 30 + (i % 500)
+  const areaDecimal = (i * 17) % 100
+  const area = `${areaBase}.${areaDecimal < 10 ? '0' + areaDecimal : areaDecimal}`
+
+  const loteNum = `${(i % 500) + 1}`
+
+  return {
+    id: id,
+    local_id: `lote-${id}`, // Using consistent naming with ID
+    sync_status: 'synchronized',
+    date_added: 1762513937000,
+    date_updated: 0,
+    field_338: loteNum,
+    field_339: area,
+    field_340: '', // Empty description implies ''
+    field_352: [], // Empty file fields
+    parent_item_id: `quad-${quadraId}`,
+  }
+})
+
+export const SEED_LOTES: Lote[] = [...INITIAL_LOTES, ...ADDITIONAL_LOTES]
