@@ -1,4 +1,4 @@
-import { Home, Folder, RefreshCw } from 'lucide-react'
+import { Home, Folder, RefreshCw, Map } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -33,9 +33,10 @@ export function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 h-14 bg-white border-t flex items-center justify-around z-40 shadow-[0_-1px_3px_rgba(0,0,0,0.05)]">
-      <NavItem to="/" icon={Home} label="Dashboard" />
+      <NavItem to="/" icon={Home} label="Início" />
       <NavItem to="/projetos" icon={Folder} label="Projetos" />
-      <NavItem to="/sincronizacao" icon={RefreshCw} label="Sincronização" />
+      <NavItem to="/mapa" icon={Map} label="Mapa" />
+      <NavItem to="/sincronizacao" icon={RefreshCw} label="Sync" />
     </nav>
   )
 }

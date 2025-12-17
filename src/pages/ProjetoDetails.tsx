@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { db } from '@/services/db'
+import { reportService } from '@/services/report'
 import { Project, Quadra } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,6 +20,7 @@ import {
   FileText,
   CheckCircle2,
   Clock,
+  Printer,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -36,6 +38,17 @@ export default function ProjetoDetails() {
       }
     }
   }, [projectId])
+
+  const handlePrint = () => {
+    if (project) {
+      // Need full lotes for report?
+      const allQuadraIds = quadras.map((q) => q.local_id)
+      const allLotes = db
+        .getAllLotes()
+        .filter((l) => allQuadraIds.includes(l.parent_item_id))
+      reportService.generateProjectReport(project, quadras, allLotes)
+    }
+  }
 
   if (!project) {
     return (
@@ -57,31 +70,39 @@ export default function ProjetoDetails() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/projetos">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-        </Button>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">
-            Loteamento {project.field_348}
-          </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge variant="outline" className="text-xs">
-              ID: {project.id}
-            </Badge>
-            <Badge
-              variant={
-                project.sync_status === 'synchronized' ? 'secondary' : 'default'
-              }
-            >
-              {project.sync_status === 'synchronized'
-                ? 'Sincronizado'
-                : 'Pendente'}
-            </Badge>
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link to="/projetos">
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+          </Button>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">
+              Loteamento {project.field_348}
+            </h2>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="text-xs">
+                ID: {project.id}
+              </Badge>
+              <Badge
+                variant={
+                  project.sync_status === 'synchronized'
+                    ? 'secondary'
+                    : 'default'
+                }
+              >
+                {project.sync_status === 'synchronized'
+                  ? 'Sincronizado'
+                  : 'Pendente'}
+              </Badge>
+            </div>
           </div>
         </div>
+        <Button variant="outline" onClick={handlePrint}>
+          <Printer className="w-4 h-4 mr-2" />
+          Imprimir Relatório
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">

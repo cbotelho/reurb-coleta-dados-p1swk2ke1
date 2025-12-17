@@ -1,8 +1,8 @@
 export type SyncStatus = 'pending' | 'synchronized' | 'failed'
 
 export interface BaseEntity {
-  id: number // Remote ID (can be null if not synced, but using number for simplicity in types, 0 if null)
-  local_id: string // UUID for local management
+  id: number
+  local_id: string
   sync_status: SyncStatus
   date_added: number
   date_updated: number
@@ -32,18 +32,19 @@ export interface Lote extends BaseEntity {
   field_338: string // Lote Name/Number
   field_339: string // Area Lote
   field_340: string // Memorial Descritivo
-  field_352: string[] // Array of image paths/data (simplified from comma-separated string)
+  field_352: string[] // Array of image paths/data
   parent_item_id: string // Local ID of Quadra
   created_by?: number
   deleted?: number
   status?: string
+  coordinates?: { x: number; y: number } // Percentage 0-100 for map placement
 }
 
 export interface SyncLogEntry {
   id: string
   timestamp: number
-  type: 'Lote' | 'Imagem' | 'Quadra' | 'Projeto'
-  status: 'Sucesso' | 'Falha' | 'Pendente' | 'Iniciado'
+  type: 'Lote' | 'Imagem' | 'Quadra' | 'Projeto' | 'Sistema'
+  status: 'Sucesso' | 'Falha' | 'Pendente' | 'Iniciado' | 'Alerta'
   message: string
 }
 
@@ -54,4 +55,25 @@ export interface DashboardStats {
   pendingImages: number
   totalProjects: number
   lastSync?: number
+}
+
+export interface UserGroup {
+  id: string
+  name: string
+  role: 'admin' | 'manager' | 'viewer'
+  permissions: string[]
+}
+
+export interface User {
+  id: string
+  username: string
+  name: string
+  groupId: string
+}
+
+export interface AppSettings {
+  apiEndpoint: string
+  cacheEnabled: boolean
+  syncFrequency: 'manual' | 'auto-5m' | 'auto-15m' | 'auto-1h'
+  pushNotifications: boolean
 }

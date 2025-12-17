@@ -8,6 +8,7 @@ import React, {
 import { db } from '@/services/db'
 import { DashboardStats } from '@/types'
 import { useToast } from '@/hooks/use-toast'
+import { notificationService } from '@/services/notification'
 
 interface SyncContextType {
   isOnline: boolean
@@ -30,8 +31,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
+    const handleOnline = () => {
+      setIsOnline(true)
+      notificationService.send(
+        'Conectado',
+        'Conexão com internet restabelecida.',
+        'success',
+      )
+    }
+    const handleOffline = () => {
+      setIsOnline(false)
+      notificationService.send(
+        'Sem Conexão',
+        'O aplicativo está operando em modo offline.',
+        'warning',
+      )
+    }
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
     return () => {
@@ -52,7 +67,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (isSyncing) return
 
     setIsSyncing(true)
-    db.logActivity('Projeto', 'Iniciado', 'Iniciando sincronização...')
+    db.logActivity('Sistema', 'Iniciado', 'Iniciando sincronização...')
     toast({
       title: 'Sincronização iniciada',
       description: 'Enviando dados para o servidor...',
@@ -92,19 +107,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       refreshStats()
 
-      if (failCount === 0 && successCount > 0) {
-        toast({
-          title: 'Sincronização concluída',
-          description: `${successCount} itens enviados com sucesso.`,
-          variant: 'default',
-          className: 'bg-green-600 text-white',
-        })
-      } else if (failCount > 0) {
-        toast({
-          title: 'Sincronização parcial',
-          description: `${successCount} enviados, ${failCount} falharam.`,
-          variant: 'destructive',
-        })
+      if (failCount > 0) {
+        notificationService.send(
+          'Falha na Sincronização',
+          `${failCount} itens falharam ao enviar. Verifique sua conexão.`,
+          'error',
+        )
+      } else if (successCount > 0) {
+        notificationService.send(
+          'Sincronização Concluída',
+          `${successCount} itens enviados com sucesso.`,
+          'success',
+        )
       } else if (successCount === 0 && pending.lotes.length === 0) {
         toast({
           title: 'Tudo atualizado',
@@ -113,11 +127,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error(error)
-      toast({
-        title: 'Erro na sincronização',
-        description: 'Ocorreu um erro inesperado.',
-        variant: 'destructive',
-      })
+      notificationService.send(
+        'Erro Crítico',
+        'Falha inesperada na sincronização.',
+        'error',
+      )
     } finally {
       setIsSyncing(false)
       refreshStats()
