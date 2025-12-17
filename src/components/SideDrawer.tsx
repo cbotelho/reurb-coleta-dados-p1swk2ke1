@@ -14,6 +14,7 @@ import {
   LogOut,
   Map,
   Users,
+  Shield,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -56,6 +57,9 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
     )
   }
 
+  const canManageUsers = hasPermission('all') || hasPermission('manage_users')
+  const canManageGroups = hasPermission('all') || hasPermission('manage_groups')
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent
@@ -75,8 +79,12 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
           <NavItem to="/mapa" icon={Map} label="Mapa Interativo" />
           <NavItem to="/sincronizacao" icon={RefreshCw} label="Sincronização" />
 
-          {hasPermission('all') && (
+          {canManageUsers && (
             <NavItem to="/users" icon={Users} label="Gerenciar Usuários" />
+          )}
+
+          {canManageGroups && (
+            <NavItem to="/groups" icon={Shield} label="Grupos de Usuários" />
           )}
         </div>
 

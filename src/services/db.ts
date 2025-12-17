@@ -43,7 +43,7 @@ const SEED_GROUPS: UserGroup[] = [
     id: 'g2',
     name: 'Administrador do Sistema',
     role: 'admin',
-    permissions: ['manage_users', 'view_reports'],
+    permissions: ['manage_users', 'manage_groups', 'view_reports'],
   },
   {
     id: 'g3',
@@ -207,12 +207,20 @@ class DBService {
   }
 
   saveUser(user: User): User {
+    // Constraint: carlos.botelho (u1) must maintain 'g1'
+    if (user.id === 'u1' || user.username === 'carlos.botelho') {
+      if (!user.groupIds.includes('g1')) {
+        user.groupIds.push('g1')
+      }
+      user.active = true // Ensure always active
+    }
+
     const users = this.getItems<User>(STORAGE_KEYS.USERS)
     const index = users.findIndex((u) => u.id === user.id)
     if (index !== -1) {
       users[index] = user
     } else {
-      user.id = generateUUID()
+      user.id = user.id || generateUUID()
       users.push(user)
     }
     this.saveItems(STORAGE_KEYS.USERS, users)
@@ -220,6 +228,11 @@ class DBService {
   }
 
   deleteUser(userId: string) {
+    // Constraint: cannot delete protected user
+    if (userId === 'u1') {
+      throw new Error('Não é possível excluir o usuário mestre.')
+    }
+
     const users = this.getItems<User>(STORAGE_KEYS.USERS)
     const filtered = users.filter((u) => u.id !== userId)
     this.saveItems(STORAGE_KEYS.USERS, filtered)
@@ -233,6 +246,67 @@ class DBService {
     return this.getItems<UserGroup>(STORAGE_KEYS.GROUPS).find(
       (g) => g.id === groupId,
     )
+  }
+
+  saveGroup(group: UserGroup): UserGroup {
+    // Constraint: Administrador Master (g1) permissions cannot be reduced
+    if (group.id === 'g1') {
+      if (!group.permissions.includes('all')) {
+        group.permissions = ['all']
+      }
+    }
+
+    const groups = this.getItems<UserGroup>(STORAGE_KEYS.GROUPS)
+    const index = groups.findIndex((g) => g.id === group.id)
+    if (index !== -1) {
+      groups[index] = group
+    } else {
+      group.id = group.id || generateUUID()
+      groups.push(group)
+    }
+    this.saveItems(STORAGE_KEYS.GROUPS, groups)
+    return group
+  }
+
+  deleteGroup(groupId: string) {
+    // Constraint: Cannot delete Administrador Master
+    if (groupId === 'g1') {
+      throw new Error('Não é possível excluir o grupo Administrador Master.')
+    }
+
+    // Remove group
+    const groups = this.getItems<UserGroup>(STORAGE_KEYS.GROUPS)
+    const filteredGroups = groups.filter((g) => g.id !== groupId)
+    this.saveItems(STORAGE_KEYS.GROUPS, filteredGroups)
+
+    // Remove group from all users
+    const users = this.getItems<User>(STORAGE_KEYS.USERS)
+    const updatedUsers = users.map((u) => ({
+      ...u,
+      groupIds: u.groupIds.filter((gid) => gid !== groupId),
+    }))
+    this.saveItems(STORAGE_KEYS.USERS, updatedUsers)
+  }
+
+  updateGroupMembers(groupId: string, userIds: string[]) {
+    // Constraint check for protected user removal from g1
+    if (groupId === 'g1' && !userIds.includes('u1')) {
+      userIds.push('u1')
+    }
+
+    const users = this.getItems<User>(STORAGE_KEYS.USERS)
+    const updatedUsers = users.map((u) => {
+      const isMember = userIds.includes(u.id)
+      const hasGroup = u.groupIds.includes(groupId)
+
+      if (isMember && !hasGroup) {
+        return { ...u, groupIds: [...u.groupIds, groupId] }
+      } else if (!isMember && hasGroup) {
+        return { ...u, groupIds: u.groupIds.filter((id) => id !== groupId) }
+      }
+      return u
+    })
+    this.saveItems(STORAGE_KEYS.USERS, updatedUsers)
   }
 
   // Settings

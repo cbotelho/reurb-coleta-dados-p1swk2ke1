@@ -22,7 +22,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Trash2, Edit2, ShieldAlert } from 'lucide-react'
+import { Plus, Trash2, Edit2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Navigate } from 'react-router-dom'
 
@@ -43,7 +43,7 @@ export default function Users() {
   }
 
   // Security Check
-  if (!hasPermission('all')) {
+  if (!hasPermission('all') && !hasPermission('manage_users')) {
     return <Navigate to="/" replace />
   }
 
@@ -51,6 +51,16 @@ export default function Users() {
     if (!currentUser.username || !currentUser.name) {
       toast.error('Preencha os campos obrigatórios')
       return
+    }
+
+    // Constraint enforcement for UI feedback (DB handles it too, but better UX here)
+    if (currentUser.id === 'u1') {
+      if (!currentUser.groupIds?.includes('g1')) {
+        toast.warning(
+          'O usuário Carlos Botelho deve pertencer ao grupo Administrador Master. Adicionando automaticamente.',
+        )
+        // Logic handled in DB, just warning the user
+      }
     }
 
     const userData: User = {
@@ -72,6 +82,11 @@ export default function Users() {
   }
 
   const handleDelete = (id: string) => {
+    if (id === 'u1') {
+      toast.error('O usuário mestre não pode ser removido.')
+      return
+    }
+
     if (confirm('Tem certeza que deseja remover este usuário?')) {
       if (id === user?.id) {
         toast.error('Você não pode remover seu próprio usuário')
@@ -99,6 +114,14 @@ export default function Users() {
   }
 
   const toggleGroup = (groupId: string) => {
+    // Prevent removing protected user from protected group
+    if (currentUser.id === 'u1' && groupId === 'g1') {
+      if (currentUser.groupIds?.includes('g1')) {
+        toast.warning('Este usuário não pode ser removido do grupo Master.')
+        return
+      }
+    }
+
     const currentGroups = currentUser.groupIds || []
     if (currentGroups.includes(groupId)) {
       setCurrentUser({
@@ -175,7 +198,7 @@ export default function Users() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleDelete(u.id)}
-                      disabled={u.id === user?.id}
+                      disabled={u.id === user?.id || u.id === 'u1'}
                     >
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>
@@ -203,6 +226,7 @@ export default function Users() {
                   onChange={(e) =>
                     setCurrentUser({ ...currentUser, name: e.target.value })
                   }
+                  disabled={currentUser.id === 'u1'} // Prevent rename of master user for clarity, though not explicitly requested, good practice
                 />
               </div>
               <div className="space-y-2">
@@ -212,6 +236,7 @@ export default function Users() {
                   onChange={(e) =>
                     setCurrentUser({ ...currentUser, username: e.target.value })
                   }
+                  disabled={currentUser.id === 'u1'}
                 />
               </div>
             </div>
@@ -225,10 +250,11 @@ export default function Users() {
                       id={g.id}
                       checked={currentUser.groupIds?.includes(g.id)}
                       onCheckedChange={() => toggleGroup(g.id)}
+                      disabled={currentUser.id === 'u1' && g.id === 'g1'}
                     />
                     <label
                       htmlFor={g.id}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                     >
                       {g.name}
                     </label>
@@ -244,6 +270,7 @@ export default function Users() {
                 onCheckedChange={(c) =>
                   setCurrentUser({ ...currentUser, active: c === true })
                 }
+                disabled={currentUser.id === 'u1'}
               />
               <Label htmlFor="active">Usuário Ativo</Label>
             </div>

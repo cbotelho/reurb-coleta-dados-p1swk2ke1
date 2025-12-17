@@ -16,6 +16,7 @@ import Login from './pages/Login'
 import MapPage from './pages/MapPage'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
+import UserGroups from './pages/UserGroups'
 import ReportConfig from './pages/ReportConfig'
 
 // Private Route Wrapper
@@ -68,6 +69,7 @@ const App = () => (
               <Route path="/mapa" element={<MapPage />} />
               <Route path="/configuracoes" element={<Settings />} />
               <Route path="/users" element={<Users />} />
+              <Route path="/groups" element={<UserGroups />} />
               <Route path="/relatorios/:projectId" element={<ReportConfig />} />
             </Route>
 
