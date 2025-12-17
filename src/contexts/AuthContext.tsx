@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 
 interface AuthContextType {
   user: User | null
-  group: UserGroup | null
+  groups: UserGroup[]
   isAuthenticated: boolean
   isLoading: boolean
   login: (username: string, pass: string) => Promise<boolean>
@@ -17,29 +17,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [group, setGroup] = useState<UserGroup | null>(null)
+  const [groups, setGroups] = useState<UserGroup[]>([])
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check local storage or session for persisted login (simplified: assume session storage for user id)
-    const savedUserId = sessionStorage.getItem('reurb_user_id')
-    if (savedUserId) {
-      // In a real app we would re-fetch user from DB
-      // For this mock, we don't have a direct "getUserById" exposed publicly but let's assume we can get it
-      // I'll skip complexity and force re-login on refresh for security unless I add getUserById to DB.
-      // Actually let's add simple re-hydration:
-      // Since I can't easily add methods to DB without editing it again and I already wrote it,
-      // I'll rely on Login page for now or simple "Auto login" if I had the user object.
-      // Let's implement logout on refresh for security in this sensitive app context,
-      // OR better, store user object in session storage.
-      const savedUserStr = sessionStorage.getItem('reurb_user')
-      if (savedUserStr) {
+    const savedUserStr = sessionStorage.getItem('reurb_user')
+    if (savedUserStr) {
+      try {
         const u = JSON.parse(savedUserStr)
-        const g = db.getUserGroup(u.groupId)
+        const allGroups = db.getGroups()
+        const userGroups = allGroups.filter((g) => u.groupIds.includes(g.id))
         setUser(u)
-        setGroup(g || null)
+        setGroups(userGroups)
         setIsAuthenticated(true)
+      } catch (e) {
+        console.error('Failed to parse saved user', e)
+        sessionStorage.removeItem('reurb_user')
       }
     }
     setIsLoading(false)
@@ -47,14 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (username: string, pass: string) => {
     setIsLoading(true)
-    // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 800))
 
     const user = db.authenticate(username, pass)
     if (user) {
-      const userGroup = db.getUserGroup(user.groupId)
+      const allGroups = db.getGroups()
+      const userGroups = allGroups.filter((g) => user.groupIds.includes(g.id))
       setUser(user)
-      setGroup(userGroup || null)
+      setGroups(userGroups)
       setIsAuthenticated(true)
       sessionStorage.setItem('reurb_user', JSON.stringify(user))
       toast.success(`Bem-vindo, ${user.name}!`)
@@ -69,23 +63,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setUser(null)
-    setGroup(null)
+    setGroups([])
     setIsAuthenticated(false)
     sessionStorage.removeItem('reurb_user')
     toast.info('Sessão encerrada.')
   }
 
   const hasPermission = (permission: string) => {
-    if (!group) return false
-    if (group.permissions.includes('all')) return true
-    return group.permissions.includes(permission)
+    if (!groups.length) return false
+    // Check if any group has the permission or 'all'
+    return groups.some(
+      (g) =>
+        g.permissions.includes('all') || g.permissions.includes(permission),
+    )
   }
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        group,
+        groups,
         isAuthenticated,
         isLoading,
         login,

@@ -43,7 +43,7 @@ export interface Lote extends BaseEntity {
 export interface SyncLogEntry {
   id: string
   timestamp: number
-  type: 'Lote' | 'Imagem' | 'Quadra' | 'Projeto' | 'Sistema'
+  type: 'Lote' | 'Imagem' | 'Quadra' | 'Projeto' | 'Sistema' | 'Usuario'
   status: 'Sucesso' | 'Falha' | 'Pendente' | 'Iniciado' | 'Alerta'
   message: string
 }
@@ -68,7 +68,8 @@ export interface User {
   id: string
   username: string
   name: string
-  groupId: string
+  groupIds: string[]
+  active: boolean
 }
 
 export interface AppSettings {

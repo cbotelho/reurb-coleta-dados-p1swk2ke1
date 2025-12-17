@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { db } from '@/services/db'
-import { reportService } from '@/services/report'
+import { exporter } from '@/utils/exporter'
 import { Project, Quadra } from '@/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,8 +21,16 @@ import {
   CheckCircle2,
   Clock,
   Printer,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export default function ProjetoDetails() {
   const { projectId } = useParams()
@@ -39,14 +47,33 @@ export default function ProjetoDetails() {
     }
   }, [projectId])
 
-  const handlePrint = () => {
-    if (project) {
-      // Need full lotes for report?
-      const allQuadraIds = quadras.map((q) => q.local_id)
-      const allLotes = db
-        .getAllLotes()
-        .filter((l) => allQuadraIds.includes(l.parent_item_id))
-      reportService.generateProjectReport(project, quadras, allLotes)
+  const handleExport = (type: 'csv' | 'excel') => {
+    if (!project) return
+    const projectQuadras = db.getQuadrasByProject(project.local_id)
+    const projectQuadraIds = projectQuadras.map((q) => q.local_id)
+    const allLotes = db
+      .getAllLotes()
+      .filter((l) => projectQuadraIds.includes(l.parent_item_id))
+      .map((l) => ({
+        ...l,
+        projectName: project.field_348,
+        quadraName: projectQuadras.find((q) => q.local_id === l.parent_item_id)
+          ?.field_329,
+      }))
+
+    const columns = [
+      { key: 'local_id', label: 'ID' },
+      { key: 'field_338', label: 'Nome do Lote' },
+      { key: 'quadraName', label: 'Quadra' },
+      { key: 'projectName', label: 'Projeto' },
+      { key: 'field_339', label: 'Área' },
+      { key: 'sync_status', label: 'Status' },
+    ]
+
+    if (type === 'csv') {
+      exporter.toCSV(allLotes, `lotes_${project.field_348}.csv`, columns)
+    } else {
+      exporter.toExcel(allLotes, `lotes_${project.field_348}.xls`, columns)
     }
   }
 
@@ -99,10 +126,32 @@ export default function ProjetoDetails() {
             </div>
           </div>
         </div>
-        <Button variant="outline" onClick={handlePrint}>
-          <Printer className="w-4 h-4 mr-2" />
-          Imprimir Relatório
-        </Button>
+
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="w-4 h-4 mr-2" />
+                Exportar Dados
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => handleExport('csv')}>
+                <FileText className="w-4 h-4 mr-2" /> CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('excel')}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" asChild>
+            <Link to={`/relatorios/${project.local_id}`}>
+              <Printer className="w-4 h-4 mr-2" />
+              Relatório Avançado
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">

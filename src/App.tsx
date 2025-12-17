@@ -15,6 +15,8 @@ import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
 import Settings from './pages/Settings'
+import Users from './pages/Users'
+import ReportConfig from './pages/ReportConfig'
 
 // Private Route Wrapper
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
@@ -65,6 +67,8 @@ const App = () => (
               <Route path="/sincronizacao" element={<SyncStatus />} />
               <Route path="/mapa" element={<MapPage />} />
               <Route path="/configuracoes" element={<Settings />} />
+              <Route path="/users" element={<Users />} />
+              <Route path="/relatorios/:projectId" element={<ReportConfig />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

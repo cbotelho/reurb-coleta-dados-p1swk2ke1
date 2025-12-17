@@ -6,7 +6,15 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { Home, Folder, RefreshCw, Settings, LogOut, Map } from 'lucide-react'
+import {
+  Home,
+  Folder,
+  RefreshCw,
+  Settings,
+  LogOut,
+  Map,
+  Users,
+} from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -18,7 +26,7 @@ interface SideDrawerProps {
 
 export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
   const location = useLocation()
-  const { logout, user } = useAuth()
+  const { logout, user, hasPermission } = useAuth()
 
   const NavItem = ({
     to,
@@ -66,6 +74,10 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
           <NavItem to="/projetos" icon={Folder} label="Projetos" />
           <NavItem to="/mapa" icon={Map} label="Mapa Interativo" />
           <NavItem to="/sincronizacao" icon={RefreshCw} label="Sincronização" />
+
+          {hasPermission('all') && (
+            <NavItem to="/users" icon={Users} label="Gerenciar Usuários" />
+          )}
         </div>
 
         <div className="mt-auto border-t p-4 space-y-2">

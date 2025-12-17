@@ -65,7 +65,8 @@ const SEED_USERS: User[] = [
     id: 'u1',
     username: 'carlos.botelho',
     name: 'Carlos Botelho',
-    groupId: 'g1',
+    groupIds: ['g1'],
+    active: true,
   },
 ]
 
@@ -104,8 +105,19 @@ class DBService {
     if (!localStorage.getItem(STORAGE_KEYS.GROUPS)) {
       this.saveItems(STORAGE_KEYS.GROUPS, SEED_GROUPS)
     }
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+    const users = this.getItems<User>(STORAGE_KEYS.USERS)
+    if (!users || users.length === 0) {
       this.saveItems(STORAGE_KEYS.USERS, SEED_USERS)
+    } else {
+      // Migration for old user structure if needed
+      const migrated = users.map((u: any) => ({
+        ...u,
+        groupIds: u.groupIds || (u.groupId ? [u.groupId] : []),
+        active: u.active ?? true,
+      }))
+      if (JSON.stringify(migrated) !== JSON.stringify(users)) {
+        this.saveItems(STORAGE_KEYS.USERS, migrated)
+      }
     }
     if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
       this.saveItems(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
@@ -154,7 +166,6 @@ class DBService {
       }
     })
 
-    // Ensure coords
     lotes.forEach((l) => {
       if (!l.coordinates) {
         l.coordinates = {
@@ -179,14 +190,43 @@ class DBService {
 
   // Auth Methods
   authenticate(username: string, pass: string): User | null {
-    // In a real app, verify hash. Here we check the hardcoded specific user or generic for others if we had them.
-    // Spec: carlos.botelho / @#Cvb75195364#@
-    if (username === 'carlos.botelho' && pass === '@#Cvb75195364#@') {
-      const users = this.getItems<User>(STORAGE_KEYS.USERS)
-      return users.find((u) => u.username === username) || null
+    const users = this.getItems<User>(STORAGE_KEYS.USERS)
+    const user = users.find((u) => u.username === username && u.active)
+    if (user && pass === '@#Cvb75195364#@') {
+      return user
     }
-    // Allow demo login for other seeded users if we add them later, simplified
+    // Simple password check for all demo users
+    if (user && pass === 'password') {
+      return user
+    }
     return null
+  }
+
+  getUsers(): User[] {
+    return this.getItems<User>(STORAGE_KEYS.USERS)
+  }
+
+  saveUser(user: User): User {
+    const users = this.getItems<User>(STORAGE_KEYS.USERS)
+    const index = users.findIndex((u) => u.id === user.id)
+    if (index !== -1) {
+      users[index] = user
+    } else {
+      user.id = generateUUID()
+      users.push(user)
+    }
+    this.saveItems(STORAGE_KEYS.USERS, users)
+    return user
+  }
+
+  deleteUser(userId: string) {
+    const users = this.getItems<User>(STORAGE_KEYS.USERS)
+    const filtered = users.filter((u) => u.id !== userId)
+    this.saveItems(STORAGE_KEYS.USERS, filtered)
+  }
+
+  getGroups(): UserGroup[] {
+    return this.getItems<UserGroup>(STORAGE_KEYS.GROUPS)
   }
 
   getUserGroup(groupId: string): UserGroup | undefined {
@@ -206,7 +246,6 @@ class DBService {
   }
 
   clearCache() {
-    // Keeps Auth and Settings, clears data
     const settings = this.getSettings()
     const users = this.getItems(STORAGE_KEYS.USERS)
     const groups = this.getItems(STORAGE_KEYS.GROUPS)
@@ -214,7 +253,7 @@ class DBService {
     this.saveItems(STORAGE_KEYS.SETTINGS, settings)
     this.saveItems(STORAGE_KEYS.USERS, users)
     this.saveItems(STORAGE_KEYS.GROUPS, groups)
-    this.seedAll() // Reseed initial data
+    this.seedAll()
   }
 
   // Projects
@@ -264,6 +303,7 @@ class DBService {
     if (loteData.local_id) {
       const index = lotes.findIndex((l) => l.local_id === loteData.local_id)
       if (index !== -1) {
+        // Simple conflict resolution: Last Write Wins (local wins over server status for now)
         savedLote = {
           ...lotes[index],
           ...loteData,
