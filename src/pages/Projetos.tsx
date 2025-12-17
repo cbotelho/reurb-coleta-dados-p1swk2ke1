@@ -33,7 +33,9 @@ export default function Projetos() {
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Projetos</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Projetos ({projects.length})
+          </h2>
           <p className="text-muted-foreground mt-1">
             Gerencie os projetos e loteamentos disponíveis.
           </p>

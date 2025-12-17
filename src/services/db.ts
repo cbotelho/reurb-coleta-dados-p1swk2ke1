@@ -117,36 +117,43 @@ class DBService {
       localStorage.setItem(STORAGE_KEYS.LOTES, JSON.stringify(SEED_LOTES))
       localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify([]))
     } else {
-      this.enforceProjectNaming()
+      this.ensureSeedData()
     }
   }
 
-  private enforceProjectNaming() {
+  private ensureSeedData() {
     const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
     let projectsUpdated = false
     const projectMap = new Map<string, string>()
 
-    projects.forEach((p) => {
-      let changed = false
-      if (p.id === 1 && p.field_348 !== 'Marabaixo 1') {
-        p.field_348 = 'Marabaixo 1'
-        changed = true
-      } else if (p.id === 2 && p.field_348 !== 'Oiapoque') {
-        p.field_348 = 'Oiapoque'
-        changed = true
+    // Ensure specific seed projects exist and have correct names
+    const requiredProjects = SEED_PROJECTS.filter(
+      (p) => p.id === 1 || p.id === 2,
+    ) // Marabaixo 1 and Oiapoque
+
+    requiredProjects.forEach((seedP) => {
+      const existingIndex = projects.findIndex((p) => p.id === seedP.id)
+      if (existingIndex === -1) {
+        // Missing, add it
+        projects.push(seedP)
+        projectsUpdated = true
+        projectMap.set(seedP.local_id, seedP.field_348)
+      } else {
+        // Exists, check name
+        const p = projects[existingIndex]
+        if (p.field_348 !== seedP.field_348) {
+          p.field_348 = seedP.field_348
+          projectsUpdated = true
+        }
+        projectMap.set(p.local_id, p.field_348)
       }
-
-      if (changed) projectsUpdated = true
-
-      // Build map for quadras update
-      if (p.id === 1) projectMap.set(p.local_id, 'Marabaixo 1')
-      if (p.id === 2) projectMap.set(p.local_id, 'Oiapoque')
     })
 
     if (projectsUpdated) {
       this.saveItems(STORAGE_KEYS.PROJECTS, projects)
     }
 
+    // Update Quadras based on Project names (legacy fix)
     const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
     let quadrasUpdated = false
 
@@ -264,6 +271,7 @@ class DBService {
   // Stats
   getDashboardStats(): DashboardStats {
     const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
+    const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
     const logs = this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
 
     const collected = lotes.length
@@ -282,6 +290,7 @@ class DBService {
       synced,
       pending,
       pendingImages,
+      totalProjects: projects.length,
       lastSync: lastSyncLog ? lastSyncLog.timestamp : undefined,
     }
   }

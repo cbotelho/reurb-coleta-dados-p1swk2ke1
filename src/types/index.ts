@@ -47,5 +47,6 @@ export interface DashboardStats {
   synced: number
   pending: number
   pendingImages: number
+  totalProjects: number
   lastSync?: number
 }

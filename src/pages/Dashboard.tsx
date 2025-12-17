@@ -49,12 +49,40 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Projetos Ativos */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Projetos Ativos
+            </CardTitle>
+            <Folder className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-gray-900">
+              {stats.totalProjects}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Disponíveis para coleta
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Link to="/projetos" className="w-full">
+              <Button
+                variant="ghost"
+                className="w-full justify-between text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+              >
+                Ver Lista <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+
         {/* Lotes Coletados */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de Lotes Coletados
+              Total de Lotes
             </CardTitle>
             <Database className="h-4 w-4 text-blue-600" />
           </CardHeader>
@@ -92,7 +120,7 @@ export default function Dashboard() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {stats.lastSync
-                ? `Última sincronização: ${new Date(stats.lastSync).toLocaleTimeString()}`
+                ? `Última: ${new Date(stats.lastSync).toLocaleTimeString()}`
                 : 'Nunca sincronizado'}
             </p>
           </CardContent>
@@ -101,7 +129,7 @@ export default function Dashboard() {
               variant="ghost"
               className="w-full justify-start text-green-600 cursor-default hover:bg-transparent"
             >
-              Dados seguros no servidor
+              Dados seguros
             </Button>
           </CardFooter>
         </Card>
@@ -114,7 +142,7 @@ export default function Dashboard() {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pendentes de Sincronização
+              Pendentes
             </CardTitle>
             <RefreshCw className="h-4 w-4 text-orange-600" />
           </CardHeader>
@@ -124,7 +152,7 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
               <ImageIcon className="h-3 w-3" />
-              {stats.pendingImages} imagens pendentes
+              {stats.pendingImages} imagens
             </div>
           </CardContent>
           <CardFooter>
@@ -133,7 +161,7 @@ export default function Dashboard() {
               onClick={triggerSync}
               disabled={isSyncing || stats.pending === 0 || !isOnline}
             >
-              {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
+              {isSyncing ? 'Enviando...' : 'Sincronizar'}
             </Button>
           </CardFooter>
         </Card>
