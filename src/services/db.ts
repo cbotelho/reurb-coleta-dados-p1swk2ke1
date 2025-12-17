@@ -8,6 +8,8 @@ import {
   UserGroup,
   AppSettings,
   SavedCoordinate,
+  MapKey,
+  MarkerConfig,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 
@@ -31,6 +33,8 @@ const STORAGE_KEYS = {
   GROUPS: 'reurb_groups',
   SETTINGS: 'reurb_settings',
   SAVED_COORDS: 'reurb_saved_coords',
+  MAP_KEYS: 'reurb_map_keys',
+  MARKER_CONFIGS: 'reurb_marker_configs',
 }
 
 const SEED_GROUPS: UserGroup[] = [
@@ -94,6 +98,18 @@ const SEED_SAVED_COORDS: SavedCoordinate[] = [
   },
 ]
 
+const DEFAULT_MARKER_CONFIGS: MarkerConfig[] = [
+  {
+    id: 'synchronized',
+    label: 'Sincronizado',
+    color: '#22c55e',
+    icon: 'circle',
+  },
+  { id: 'pending', label: 'Pendente', color: '#f97316', icon: 'circle' },
+  { id: 'failed', label: 'Falha', color: '#ef4444', icon: 'circle' },
+  { id: 'default', label: 'Padrão', color: '#3b82f6', icon: 'circle' },
+]
+
 class DBService {
   constructor() {
     this.init()
@@ -106,6 +122,7 @@ class DBService {
       this.ensureSeedData()
       this.ensureAuthData()
       this.ensureSavedCoords()
+      this.ensureMapData()
     }
   }
 
@@ -118,6 +135,8 @@ class DBService {
     this.saveItems(STORAGE_KEYS.USERS, SEED_USERS)
     this.saveItems(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
     this.saveItems(STORAGE_KEYS.SAVED_COORDS, SEED_SAVED_COORDS)
+    this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, DEFAULT_MARKER_CONFIGS)
+    this.saveItems(STORAGE_KEYS.MAP_KEYS, [])
   }
 
   private ensureAuthData() {
@@ -145,6 +164,15 @@ class DBService {
   private ensureSavedCoords() {
     if (!localStorage.getItem(STORAGE_KEYS.SAVED_COORDS)) {
       this.saveItems(STORAGE_KEYS.SAVED_COORDS, SEED_SAVED_COORDS)
+    }
+  }
+
+  private ensureMapData() {
+    if (!localStorage.getItem(STORAGE_KEYS.MARKER_CONFIGS)) {
+      this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, DEFAULT_MARKER_CONFIGS)
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.MAP_KEYS)) {
+      this.saveItems(STORAGE_KEYS.MAP_KEYS, [])
     }
   }
 
@@ -337,10 +365,15 @@ class DBService {
     const settings = this.getSettings()
     const users = this.getItems(STORAGE_KEYS.USERS)
     const groups = this.getItems(STORAGE_KEYS.GROUPS)
+    const mapKeys = this.getItems(STORAGE_KEYS.MAP_KEYS)
+    const markerConfigs = this.getItems(STORAGE_KEYS.MARKER_CONFIGS)
+
     localStorage.clear()
     this.saveItems(STORAGE_KEYS.SETTINGS, settings)
     this.saveItems(STORAGE_KEYS.USERS, users)
     this.saveItems(STORAGE_KEYS.GROUPS, groups)
+    this.saveItems(STORAGE_KEYS.MAP_KEYS, mapKeys)
+    this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, markerConfigs)
     this.seedAll()
   }
 
@@ -541,6 +574,58 @@ class DBService {
     const coords = this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
     const filtered = coords.filter((c) => c.id !== id)
     this.saveItems(STORAGE_KEYS.SAVED_COORDS, filtered)
+  }
+
+  // Map Keys
+  getMapKeys(): MapKey[] {
+    return this.getItems<MapKey>(STORAGE_KEYS.MAP_KEYS)
+  }
+
+  getActiveMapKey(): MapKey | undefined {
+    return this.getMapKeys().find((k) => k.isActive)
+  }
+
+  saveMapKey(key: MapKey): MapKey {
+    const keys = this.getMapKeys()
+    const index = keys.findIndex((k) => k.id === key.id)
+
+    // If making active, deactivate others
+    if (key.isActive) {
+      keys.forEach((k) => (k.isActive = false))
+    }
+
+    if (index !== -1) {
+      keys[index] = key
+    } else {
+      key.id = key.id || generateUUID()
+      key.createdAt = Date.now()
+      keys.push(key)
+    }
+    this.saveItems(STORAGE_KEYS.MAP_KEYS, keys)
+    return key
+  }
+
+  deleteMapKey(id: string) {
+    const keys = this.getMapKeys()
+    const filtered = keys.filter((k) => k.id !== id)
+    this.saveItems(STORAGE_KEYS.MAP_KEYS, filtered)
+  }
+
+  // Marker Configs
+  getMarkerConfigs(): MarkerConfig[] {
+    const configs = this.getItems<MarkerConfig>(STORAGE_KEYS.MARKER_CONFIGS)
+    return configs.length ? configs : DEFAULT_MARKER_CONFIGS
+  }
+
+  saveMarkerConfig(config: MarkerConfig) {
+    const configs = this.getMarkerConfigs()
+    const index = configs.findIndex((c) => c.id === config.id)
+    if (index !== -1) {
+      configs[index] = config
+    } else {
+      configs.push(config)
+    }
+    this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, configs)
   }
 }
 

@@ -6,6 +6,7 @@ const formatKML = (
     description: string
     latitude: string
     longitude: string
+    extendedData?: Record<string, string | number>
   }>,
 ) => {
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -17,6 +18,17 @@ const formatKML = (
     <Placemark>
       <name>${item.name}</name>
       <description>${item.description}</description>
+      ${
+        item.extendedData
+          ? `<ExtendedData>
+        ${Object.entries(item.extendedData)
+          .map(
+            ([key, val]) => `<Data name="${key}"><value>${val}</value></Data>`,
+          )
+          .join('')}
+      </ExtendedData>`
+          : ''
+      }
       <Point>
         <coordinates>${item.longitude},${item.latitude},0</coordinates>
       </Point>
@@ -33,6 +45,7 @@ const formatGeoJSON = (
     description: string
     latitude: string
     longitude: string
+    extendedData?: Record<string, string | number>
   }>,
 ) => {
   return JSON.stringify(
@@ -43,6 +56,7 @@ const formatGeoJSON = (
         properties: {
           name: item.name,
           description: item.description,
+          ...item.extendedData,
         },
         geometry: {
           type: 'Point',
@@ -77,6 +91,11 @@ export const geoExporter = {
         description: `ID: ${project.local_id}`,
         latitude: project.latitude,
         longitude: project.longitude,
+        extendedData: {
+          type: 'Project',
+          status: project.sync_status,
+          date_added: project.date_added,
+        },
       })
     }
 
@@ -88,6 +107,12 @@ export const geoExporter = {
           description: `Área: ${lote.field_339} | ${lote.field_340 || ''}`,
           latitude: lote.latitude,
           longitude: lote.longitude,
+          extendedData: {
+            type: 'Lote',
+            status: lote.sync_status,
+            area: lote.field_339,
+            quadra_id: lote.parent_item_id,
+          },
         })
       }
     })
@@ -109,6 +134,11 @@ export const geoExporter = {
         description: `ID: ${project.local_id}`,
         latitude: project.latitude,
         longitude: project.longitude,
+        extendedData: {
+          type: 'Project',
+          status: project.sync_status,
+          date_added: project.date_added,
+        },
       })
     }
 
@@ -119,6 +149,12 @@ export const geoExporter = {
           description: `Área: ${lote.field_339} | ${lote.field_340 || ''}`,
           latitude: lote.latitude,
           longitude: lote.longitude,
+          extendedData: {
+            type: 'Lote',
+            status: lote.sync_status,
+            area: lote.field_339,
+            quadra_id: lote.parent_item_id,
+          },
         })
       }
     })

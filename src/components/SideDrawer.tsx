@@ -15,6 +15,7 @@ import {
   Map,
   Users,
   Shield,
+  PieChart,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -59,6 +60,7 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
 
   const canManageUsers = hasPermission('all') || hasPermission('manage_users')
   const canManageGroups = hasPermission('all') || hasPermission('manage_groups')
+  const canViewReports = hasPermission('all') || hasPermission('view_reports')
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -73,10 +75,19 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-col gap-1 p-4">
+        <div className="flex flex-col gap-1 p-4 overflow-y-auto">
           <NavItem to="/" icon={Home} label="Dashboard" />
           <NavItem to="/projetos" icon={Folder} label="Projetos" />
           <NavItem to="/mapa" icon={Map} label="Mapa Interativo" />
+
+          {canViewReports && (
+            <NavItem
+              to="/geo-analise"
+              icon={PieChart}
+              label="Análise Geográfica"
+            />
+          )}
+
           <NavItem to="/sincronizacao" icon={RefreshCw} label="Sincronização" />
 
           {canManageUsers && (

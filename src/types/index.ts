@@ -15,6 +15,21 @@ export interface SavedCoordinate {
   longitude: string
 }
 
+export interface MapKey {
+  id: string
+  name: string
+  key: string
+  isActive: boolean
+  createdAt: number
+}
+
+export interface MarkerConfig {
+  id: string // e.g., 'synchronized', 'pending', 'failed', 'default'
+  label: string
+  color: string
+  icon: 'circle' | 'square' | 'triangle'
+}
+
 export interface Project extends BaseEntity {
   field_348: string // Loteamento
   field_350: string // Levantamento
@@ -90,5 +105,5 @@ export interface AppSettings {
   cacheEnabled: boolean
   syncFrequency: 'manual' | 'auto-5m' | 'auto-15m' | 'auto-1h'
   pushNotifications: boolean
-  googleMapsApiKey?: string
+  googleMapsApiKey?: string // Deprecated, kept for backward compatibility logic
 }

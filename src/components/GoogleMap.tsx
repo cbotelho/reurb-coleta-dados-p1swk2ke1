@@ -14,6 +14,13 @@ interface Marker {
   title?: string
   status?: string
   id?: string
+  color?: string
+}
+
+interface CustomLayer {
+  id: string
+  data: any
+  visible: boolean
 }
 
 interface GoogleMapProps {
@@ -21,6 +28,7 @@ interface GoogleMapProps {
   center?: { lat: number; lng: number }
   zoom?: number
   markers?: Marker[]
+  customLayers?: CustomLayer[]
   className?: string
   onMarkerClick?: (marker: Marker) => void
   mapType?: 'roadmap' | 'satellite' | 'hybrid' | 'terrain'
@@ -31,6 +39,7 @@ export function GoogleMap({
   center,
   zoom = 15,
   markers = [],
+  customLayers = [],
   className = '',
   onMarkerClick,
   mapType = 'roadmap',
@@ -58,13 +67,17 @@ export function GoogleMap({
     }
 
     // Load script
-    const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`
-    script.async = true
-    script.defer = true
-    script.onload = () => setIsLoaded(true)
-    script.onerror = () => setError('Falha ao carregar o Google Maps SDK.')
-    document.head.appendChild(script)
+    if (apiKey) {
+      const script = document.createElement('script')
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry`
+      script.async = true
+      script.defer = true
+      script.onload = () => setIsLoaded(true)
+      script.onerror = () => setError('Falha ao carregar o Google Maps SDK.')
+      document.head.appendChild(script)
+    } else {
+      setError('API Key não configurada.')
+    }
 
     return () => {
       // Clean up if component unmounts before load (optional, usually we keep the script)
@@ -113,7 +126,7 @@ export function GoogleMap({
           position: { lat: markerData.lat, lng: markerData.lng },
           map: map,
           title: markerData.title,
-          icon: getMarkerIcon(markerData.status),
+          icon: getMarkerIcon(markerData.status, markerData.color),
         })
 
         if (onMarkerClick) {
@@ -132,16 +145,41 @@ export function GoogleMap({
     }
   }, [map, markers, onMarkerClick, center])
 
-  const getMarkerIcon = (status?: string) => {
-    // Return colored pins based on status using Google Charts API or similar for custom pins
-    // Or standard pins with different colors if available.
-    // Simpler: use standard red pin for now, or use SVGs.
-    // Using standard Google Maps pins, they are red.
-    // We can use symbols.
-    let color = 'red'
-    if (status === 'synchronized') color = 'green'
-    if (status === 'pending') color = 'orange'
-    if (status === 'failed') color = 'red'
+  // Handle Custom Layers
+  useEffect(() => {
+    if (map && customLayers) {
+      // Reset Data Layers - simplistic approach, remove all features then add visible ones
+      // In prod, we'd manage by ID, but Data layer is global for the map instance usually
+      // unless we instantiate multiple Data layers (which is possible).
+      // For simplicity, we use map.data and clear/add.
+      map.data.forEach((feature: any) => {
+        map.data.remove(feature)
+      })
+
+      customLayers.forEach((layer) => {
+        if (layer.visible && layer.data) {
+          map.data.addGeoJson(layer.data)
+        }
+      })
+
+      // Style Data Layer
+      map.data.setStyle((feature: any) => {
+        return {
+          fillColor: 'blue',
+          strokeColor: 'blue',
+          strokeWeight: 2,
+        }
+      })
+    }
+  }, [map, customLayers])
+
+  const getMarkerIcon = (status?: string, customColor?: string) => {
+    let color = customColor || 'red'
+    if (!customColor) {
+      if (status === 'synchronized') color = 'green'
+      if (status === 'pending') color = 'orange'
+      if (status === 'failed') color = 'red'
+    }
 
     return {
       path: window.google.maps.SymbolPath.CIRCLE,
