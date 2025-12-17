@@ -1,5 +1,16 @@
 import { Project, Quadra, Lote, SyncLogEntry, DashboardStats } from '@/types'
-import { v4 as uuidv4 } from 'uuid'
+
+// UUID Generator since 'uuid' package is not available
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0,
+      v = c == 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
 
 // Initial Seed Data
 const SEED_PROJECTS: Project[] = [
@@ -13,7 +24,7 @@ const SEED_PROJECTS: Project[] = [
     field_350: '1762455359_PLANTA_GERAL_REUB_MARABAIXO_I-modelo2.pdf',
     field_351: '1762455374_Marabaixo_1.jpg',
     parent_id: 0,
-    parent_item_id: 0,
+    parent_item_id: 1, // Matches Acceptance Criteria
     linked_id: 0,
     created_by: 1,
     sort_order: 0,
@@ -28,7 +39,7 @@ const SEED_PROJECTS: Project[] = [
     field_350: '',
     field_351: '',
     parent_id: 0,
-    parent_item_id: 0,
+    parent_item_id: 2, // Matches Acceptance Criteria
     linked_id: 0,
     created_by: 1,
     sort_order: 0,
@@ -224,7 +235,7 @@ class DBService {
       savedLote = {
         ...loteData,
         id: 0,
-        local_id: uuidv4(),
+        local_id: generateUUID(),
         sync_status: 'pending',
         date_added: now,
         date_updated: now,
@@ -314,7 +325,7 @@ class DBService {
   logActivity(type: SyncLogEntry['type'], status: string, message: string) {
     const logs = this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
     const entry: SyncLogEntry = {
-      id: uuidv4(),
+      id: generateUUID(),
       timestamp: Date.now(),
       type,
       status: status as any,

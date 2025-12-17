@@ -30,7 +30,7 @@ export default function Projetos() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Projetos</h2>
@@ -44,7 +44,7 @@ export default function Projetos() {
         {projects.map((project) => (
           <Card
             key={project.local_id}
-            className="overflow-hidden flex flex-col"
+            className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow"
           >
             <div className="aspect-video w-full overflow-hidden bg-muted relative">
               <img
@@ -59,6 +59,7 @@ export default function Projetos() {
                       ? 'default'
                       : 'secondary'
                   }
+                  className="bg-white/90 text-black hover:bg-white"
                 >
                   {project.sync_status === 'synchronized'
                     ? 'Sincronizado'
