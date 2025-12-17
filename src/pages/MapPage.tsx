@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '@/services/db'
 import {
   Project,
@@ -79,12 +79,9 @@ export default function MapPage() {
   // Real implementation would track full history
   const [history, setHistory] = useState<MapDrawing[]>([])
 
-  useEffect(() => {
-    refreshData()
-  }, [])
-
-  const refreshData = () => {
-    setProjects(db.getProjects())
+  const refreshData = useCallback(() => {
+    const projs = db.getProjects()
+    setProjects(projs)
     setLotes(db.getAllLotes())
     setActiveKey(db.getActiveMapKey())
     setMarkerConfigs(db.getMarkerConfigs())
@@ -92,19 +89,21 @@ export default function MapPage() {
     setDrawings(db.getMapDrawings())
 
     // Initial center
-    const projs = db.getProjects()
-    if (
-      projs.length > 0 &&
-      projs[0].latitude &&
-      projs[0].longitude &&
-      !mapCenter
-    ) {
-      setMapCenter({
-        lat: parseFloat(projs[0].latitude),
-        lng: parseFloat(projs[0].longitude),
-      })
-    }
-  }
+    setMapCenter((prev) => {
+      if (prev) return prev
+      if (projs.length > 0 && projs[0].latitude && projs[0].longitude) {
+        return {
+          lat: parseFloat(projs[0].latitude),
+          lng: parseFloat(projs[0].longitude),
+        }
+      }
+      return prev
+    })
+  }, [])
+
+  useEffect(() => {
+    refreshData()
+  }, [refreshData])
 
   const handleLayerChange = (layer: 'street' | 'satellite' | 'terrain') => {
     if (!layer) return
