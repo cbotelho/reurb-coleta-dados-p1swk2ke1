@@ -30,6 +30,35 @@ export interface MarkerConfig {
   icon: 'circle' | 'square' | 'triangle'
 }
 
+export interface CustomLayer {
+  id: string
+  name: string
+  data: any // GeoJSON
+  visible: boolean
+  zIndex: number
+  opacity?: number
+}
+
+export type DrawingType = 'marker' | 'polyline' | 'polygon'
+
+export interface MapDrawing {
+  id: string
+  type: DrawingType
+  coordinates: any // lat/lng object or array of them
+  options?: any // color, stroke, etc.
+  createdAt: number
+}
+
+export interface GeoAlert {
+  id: string
+  name: string
+  enabled: boolean
+  condition: 'enter' | 'exit'
+  geometryId: string // ID of a MapDrawing (Polygon)
+  targetProjectId?: string
+  lastTriggered?: number
+}
+
 export interface Project extends BaseEntity {
   field_348: string // Loteamento
   field_350: string // Levantamento

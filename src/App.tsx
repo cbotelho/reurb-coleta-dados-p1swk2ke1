@@ -14,6 +14,7 @@ import SyncStatus from './pages/SyncStatus'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
+import GeoAlerts from './pages/GeoAlerts'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
 import UserGroups from './pages/UserGroups'
@@ -69,6 +70,7 @@ const App = () => (
               />
               <Route path="/sincronizacao" element={<SyncStatus />} />
               <Route path="/mapa" element={<MapPage />} />
+              <Route path="/geo-alerts" element={<GeoAlerts />} />
               <Route path="/geo-analise" element={<GeoAnalysis />} />
               <Route path="/configuracoes" element={<Settings />} />
               <Route

@@ -17,7 +17,7 @@ const formatKML = (
         (item) => `
     <Placemark>
       <name>${item.name}</name>
-      <description>${item.description}</description>
+      <description><![CDATA[${item.description}]]></description>
       ${
         item.extendedData
           ? `<ExtendedData>
@@ -88,23 +88,25 @@ export const geoExporter = {
     if (project.latitude && project.longitude) {
       items.push({
         name: `Projeto: ${project.field_348}`,
-        description: `ID: ${project.local_id}`,
+        description: `Levantamento: ${project.field_350}\nID: ${project.local_id}`,
         latitude: project.latitude,
         longitude: project.longitude,
         extendedData: {
           type: 'Project',
           status: project.sync_status,
           date_added: project.date_added,
+          created_by: project.created_by || '',
+          local_id: project.local_id,
         },
       })
     }
 
-    // Add lots
+    // Add lots with full attributes
     lotes.forEach((lote) => {
       if (lote.latitude && lote.longitude) {
         items.push({
           name: lote.field_338,
-          description: `Área: ${lote.field_339} | ${lote.field_340 || ''}`,
+          description: `Área: ${lote.field_339}\nDescrição: ${lote.field_340 || 'N/A'}\nImagens: ${lote.field_352.length}`,
           latitude: lote.latitude,
           longitude: lote.longitude,
           extendedData: {
@@ -112,6 +114,10 @@ export const geoExporter = {
             status: lote.sync_status,
             area: lote.field_339,
             quadra_id: lote.parent_item_id,
+            memorial: lote.field_340,
+            image_count: lote.field_352.length,
+            local_id: lote.local_id,
+            parent_project_id: project.local_id,
           },
         })
       }
@@ -120,7 +126,7 @@ export const geoExporter = {
     const kml = formatKML(items)
     downloadFile(
       kml,
-      `projeto_${project.field_348}.kml`,
+      `projeto_${project.field_348.replace(/\s+/g, '_')}_advanced.kml`,
       'application/vnd.google-earth.kml+xml',
     )
   },
@@ -131,13 +137,15 @@ export const geoExporter = {
     if (project.latitude && project.longitude) {
       items.push({
         name: `Projeto: ${project.field_348}`,
-        description: `ID: ${project.local_id}`,
+        description: `Levantamento: ${project.field_350}`,
         latitude: project.latitude,
         longitude: project.longitude,
         extendedData: {
           type: 'Project',
           status: project.sync_status,
           date_added: project.date_added,
+          created_by: project.created_by,
+          local_id: project.local_id,
         },
       })
     }
@@ -146,7 +154,7 @@ export const geoExporter = {
       if (lote.latitude && lote.longitude) {
         items.push({
           name: lote.field_338,
-          description: `Área: ${lote.field_339} | ${lote.field_340 || ''}`,
+          description: lote.field_340 || '',
           latitude: lote.latitude,
           longitude: lote.longitude,
           extendedData: {
@@ -154,6 +162,9 @@ export const geoExporter = {
             status: lote.sync_status,
             area: lote.field_339,
             quadra_id: lote.parent_item_id,
+            image_count: lote.field_352.length,
+            local_id: lote.local_id,
+            parent_project_id: project.local_id,
           },
         })
       }
@@ -162,7 +173,7 @@ export const geoExporter = {
     const geojson = formatGeoJSON(items)
     downloadFile(
       geojson,
-      `projeto_${project.field_348}.geojson`,
+      `projeto_${project.field_348.replace(/\s+/g, '_')}_advanced.geojson`,
       'application/geo+json',
     )
   },

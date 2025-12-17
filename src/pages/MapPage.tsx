@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '@/services/db'
-import { Project, Lote, MapKey, MarkerConfig } from '@/types'
+import {
+  Project,
+  Lote,
+  MapKey,
+  MarkerConfig,
+  CustomLayer,
+  MapDrawing,
+} from '@/types'
 import {
   Select,
   SelectContent,
@@ -11,7 +18,23 @@ import {
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Navigation, Layers, Search, Upload, Eye, EyeOff } from 'lucide-react'
+import {
+  Navigation,
+  Layers,
+  Search,
+  Upload,
+  Eye,
+  EyeOff,
+  MapPin,
+  PenTool,
+  MousePointer2,
+  Trash,
+  Undo,
+  Save,
+  ArrowUp,
+  ArrowDown,
+  Bell,
+} from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -24,13 +47,7 @@ import { Label } from '@/components/ui/label'
 import { GoogleMap } from '@/components/GoogleMap'
 import { parseKML } from '@/utils/kmlParser'
 import { toast } from 'sonner'
-
-interface CustomLayer {
-  id: string
-  name: string
-  data: any
-  visible: boolean
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export default function MapPage() {
   const navigate = useNavigate()
@@ -51,24 +68,43 @@ export default function MapPage() {
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>()
   const [mapZoom, setMapZoom] = useState(15)
 
-  // Custom Layers
+  // Advanced Layers & Drawing
   const [customLayers, setCustomLayers] = useState<CustomLayer[]>([])
+  const [drawings, setDrawings] = useState<MapDrawing[]>([])
+  const [drawingMode, setDrawingMode] = useState<
+    'marker' | 'polygon' | 'polyline' | null
+  >(null)
+
+  // Undo/Redo Stacks (Simplified: only track last added drawing for undo)
+  // Real implementation would track full history
+  const [history, setHistory] = useState<MapDrawing[]>([])
 
   useEffect(() => {
+    refreshData()
+  }, [])
+
+  const refreshData = () => {
     setProjects(db.getProjects())
     setLotes(db.getAllLotes())
     setActiveKey(db.getActiveMapKey())
     setMarkerConfigs(db.getMarkerConfigs())
+    setCustomLayers(db.getCustomLayers().sort((a, b) => a.zIndex - b.zIndex))
+    setDrawings(db.getMapDrawings())
 
-    // Initial center (use first project if available)
+    // Initial center
     const projs = db.getProjects()
-    if (projs.length > 0 && projs[0].latitude && projs[0].longitude) {
+    if (
+      projs.length > 0 &&
+      projs[0].latitude &&
+      projs[0].longitude &&
+      !mapCenter
+    ) {
       setMapCenter({
         lat: parseFloat(projs[0].latitude),
         lng: parseFloat(projs[0].longitude),
       })
     }
-  }, [])
+  }
 
   const handleLayerChange = (layer: 'street' | 'satellite' | 'terrain') => {
     if (!layer) return
@@ -96,8 +132,6 @@ export default function MapPage() {
 
   const handleSearch = () => {
     if (!searchTerm) return
-
-    // Check for coordinates
     const coordMatch = searchTerm.match(/^(-?\d+(\.\d+)?),\s*(-?\d+(\.\d+)?)$/)
     if (coordMatch) {
       setMapCenter({
@@ -108,8 +142,6 @@ export default function MapPage() {
       toast.success('Movendo para coordenadas.')
       return
     }
-
-    // Search Project Name
     const project = projects.find((p) =>
       p.field_348.toLowerCase().includes(searchTerm.toLowerCase()),
     )
@@ -145,15 +177,17 @@ export default function MapPage() {
         }
 
         if (geoJsonData) {
-          setCustomLayers((prev) => [
-            ...prev,
-            {
-              id: Date.now().toString(),
-              name: file.name,
-              data: geoJsonData,
-              visible: true,
-            },
-          ])
+          const newLayer: CustomLayer = {
+            id: Date.now().toString(),
+            name: file.name,
+            data: geoJsonData,
+            visible: true,
+            zIndex: customLayers.length + 1,
+          }
+          db.saveCustomLayer(newLayer)
+          setCustomLayers((prev) =>
+            [...prev, newLayer].sort((a, b) => a.zIndex - b.zIndex),
+          )
           toast.success('Camada importada com sucesso!')
         } else {
           toast.error('Formato não suportado.')
@@ -167,17 +201,77 @@ export default function MapPage() {
   }
 
   const toggleLayerVisibility = (id: string) => {
-    setCustomLayers((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)),
-    )
+    const layer = customLayers.find((l) => l.id === id)
+    if (layer) {
+      layer.visible = !layer.visible
+      db.saveCustomLayer(layer)
+      setCustomLayers((prev) => prev.map((l) => (l.id === id ? layer : l)))
+    }
+  }
+
+  const handleReorderLayer = (id: string, direction: 'up' | 'down') => {
+    const index = customLayers.findIndex((l) => l.id === id)
+    if (index === -1) return
+    if (direction === 'up' && index < customLayers.length - 1) {
+      // Swap with next
+      const layerA = customLayers[index]
+      const layerB = customLayers[index + 1]
+      layerA.zIndex = index + 2 // crude
+      layerB.zIndex = index + 1
+      db.saveCustomLayer(layerA)
+      db.saveCustomLayer(layerB)
+    } else if (direction === 'down' && index > 0) {
+      const layerA = customLayers[index]
+      const layerB = customLayers[index - 1]
+      layerA.zIndex = index
+      layerB.zIndex = index + 1
+      db.saveCustomLayer(layerA)
+      db.saveCustomLayer(layerB)
+    }
+    setCustomLayers(db.getCustomLayers().sort((a, b) => a.zIndex - b.zIndex))
+  }
+
+  const deleteLayer = (id: string) => {
+    db.deleteCustomLayer(id)
+    setCustomLayers((prev) => prev.filter((l) => l.id !== id))
+  }
+
+  // Drawing Handlers
+  const handleDrawingComplete = (newDrawingData: any) => {
+    const newDrawing: MapDrawing = {
+      id: crypto.randomUUID(),
+      type: newDrawingData.type,
+      coordinates: newDrawingData.coordinates,
+      createdAt: Date.now(),
+    }
+    db.saveMapDrawing(newDrawing)
+    setDrawings((prev) => [...prev, newDrawing])
+    setHistory((prev) => [...prev, newDrawing]) // For simplified undo
+    setDrawingMode(null) // Exit drawing mode
+    toast.success('Desenho salvo!')
+  }
+
+  const handleUndo = () => {
+    if (history.length === 0) return
+    const last = history[history.length - 1]
+    db.deleteMapDrawing(last.id)
+    setDrawings((prev) => prev.filter((d) => d.id !== last.id))
+    setHistory((prev) => prev.slice(0, -1))
+    toast.info('Desfeito.')
+  }
+
+  const handleDeleteAllDrawings = () => {
+    if (confirm('Limpar todos os desenhos?')) {
+      drawings.forEach((d) => db.deleteMapDrawing(d.id))
+      setDrawings([])
+      setHistory([])
+    }
   }
 
   const filteredProjects = projects.filter((p) => {
     if (statusFilter === 'all') return true
     return p.sync_status === statusFilter
   })
-
-  // Filter markers based on filtered projects
   const filteredProjectIds = filteredProjects.map((p) => p.local_id)
   const displayLotes = lotes.filter((l) => {
     const quadra = db.getQuadra(l.parent_item_id)
@@ -206,16 +300,49 @@ export default function MapPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Status</SelectItem>
-              <SelectItem value="synchronized">Sincronizados</SelectItem>
-              <SelectItem value="pending">Pendentes</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Drawing Tools */}
+          <div className="flex items-center gap-1 border-r pr-2 mr-2">
+            <ToggleGroup
+              type="single"
+              value={drawingMode || ''}
+              onValueChange={(v: any) => setDrawingMode(v || null)}
+            >
+              <ToggleGroupItem value="marker" title="Ponto">
+                <MapPin className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="polyline" title="Linha">
+                <PenTool className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="polygon" title="Polígono">
+                <MousePointer2 className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleUndo}
+              disabled={history.length === 0}
+              title="Desfazer"
+            >
+              <Undo className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDeleteAllDrawings}
+              title="Limpar Desenhos"
+            >
+              <Trash className="h-4 w-4 text-red-500" />
+            </Button>
+          </div>
+
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => navigate('/geo-alerts')}
+          >
+            <Bell className="h-4 w-4" /> Alertas
+          </Button>
 
           <Popover>
             <PopoverTrigger asChild>
@@ -224,86 +351,139 @@ export default function MapPage() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80" align="end">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Tipo de Mapa</h4>
-                  <ToggleGroup
-                    type="single"
-                    value={mapLayer}
-                    onValueChange={handleLayerChange}
-                    className="justify-start"
-                  >
-                    <ToggleGroupItem value="street">Ruas</ToggleGroupItem>
-                    <ToggleGroupItem value="satellite">
-                      Satélite
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
+              <Tabs defaultValue="layers">
+                <TabsList className="w-full">
+                  <TabsTrigger value="layers" className="flex-1">
+                    Gerenciar
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" className="flex-1">
+                    Opções
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="layers" className="space-y-4">
+                  <div className="space-y-2 mt-2">
+                    <h4 className="font-medium text-sm">
+                      Camadas Personalizadas
+                    </h4>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {customLayers
+                        .slice()
+                        .reverse()
+                        .map(
+                          (
+                            layer, // Show top zIndex first
+                          ) => (
+                            <div
+                              key={layer.id}
+                              className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded"
+                            >
+                              <div className="flex items-center gap-2 truncate max-w-[120px]">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  onClick={() =>
+                                    handleReorderLayer(layer.id, 'up')
+                                  }
+                                >
+                                  <ArrowUp className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-5 w-5"
+                                  onClick={() =>
+                                    handleReorderLayer(layer.id, 'down')
+                                  }
+                                >
+                                  <ArrowDown className="h-3 w-3" />
+                                </Button>
+                                <span className="truncate" title={layer.name}>
+                                  {layer.name}
+                                </span>
+                              </div>
+                              <div className="flex items-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() =>
+                                    toggleLayerVisibility(layer.id)
+                                  }
+                                >
+                                  {layer.visible ? (
+                                    <Eye className="h-3 w-3" />
+                                  ) : (
+                                    <EyeOff className="h-3 w-3 text-gray-400" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => deleteLayer(layer.id)}
+                                >
+                                  <Trash className="h-3 w-3 text-red-500" />
+                                </Button>
+                              </div>
+                            </div>
+                          ),
+                        )}
+                      {customLayers.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Nenhuma camada.
+                        </p>
+                      )}
+                    </div>
 
-                <div className="space-y-2">
-                  <h4 className="font-medium">Marcadores</h4>
-                  <ToggleGroup
-                    type="single"
-                    value={markerMode}
-                    onValueChange={(v: any) => v && setMarkerMode(v)}
-                    className="justify-start"
-                  >
-                    <ToggleGroupItem value="status">Status</ToggleGroupItem>
-                    <ToggleGroupItem value="default">Padrão</ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-
-                <div className="space-y-2 border-t pt-2">
-                  <h4 className="font-medium">Camadas Personalizadas</h4>
-                  <div className="space-y-2 max-h-[150px] overflow-y-auto">
-                    {customLayers.map((layer) => (
-                      <div
-                        key={layer.id}
-                        className="flex items-center justify-between text-sm"
+                    <div className="pt-2 border-t">
+                      <Label
+                        htmlFor="layer-upload"
+                        className="cursor-pointer flex items-center justify-center gap-2 w-full p-2 border border-dashed rounded-md hover:bg-slate-50 text-xs text-blue-600"
                       >
-                        <span
-                          className="truncate max-w-[180px]"
-                          title={layer.name}
-                        >
-                          {layer.name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => toggleLayerVisibility(layer.id)}
-                        >
-                          {layer.visible ? (
-                            <Eye className="h-3 w-3" />
-                          ) : (
-                            <EyeOff className="h-3 w-3 text-gray-400" />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                    {customLayers.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Nenhuma camada importada.
-                      </p>
-                    )}
+                        <Upload className="h-3 w-3" /> Importar KML/GeoJSON
+                      </Label>
+                      <input
+                        id="layer-upload"
+                        type="file"
+                        accept=".kml,.json,.geojson"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                    </div>
                   </div>
-                  <div className="pt-2">
-                    <Label
-                      htmlFor="layer-upload"
-                      className="cursor-pointer flex items-center justify-center gap-2 w-full p-2 border border-dashed rounded-md hover:bg-slate-50 text-xs"
+                </TabsContent>
+
+                <TabsContent value="settings" className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Tipo de Mapa</h4>
+                    <ToggleGroup
+                      type="single"
+                      value={mapLayer}
+                      onValueChange={handleLayerChange}
+                      className="justify-start"
                     >
-                      <Upload className="h-3 w-3" /> Importar KML/GeoJSON
-                    </Label>
-                    <input
-                      id="layer-upload"
-                      type="file"
-                      accept=".kml,.json,.geojson"
-                      className="hidden"
-                      onChange={handleFileUpload}
-                    />
+                      <ToggleGroupItem value="street">Ruas</ToggleGroupItem>
+                      <ToggleGroupItem value="satellite">
+                        Satélite
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="terrain">Relevo</ToggleGroupItem>
+                    </ToggleGroup>
                   </div>
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Marcadores de Lotes</h4>
+                    <ToggleGroup
+                      type="single"
+                      value={markerMode}
+                      onValueChange={(v: any) => v && setMarkerMode(v)}
+                      className="justify-start"
+                    >
+                      <ToggleGroupItem value="status">Status</ToggleGroupItem>
+                      <ToggleGroupItem value="default">Padrão</ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </PopoverContent>
           </Popover>
         </div>
@@ -328,22 +508,19 @@ export default function MapPage() {
                   color: getMarkerColor(l),
                 }))}
               customLayers={customLayers}
+              drawings={drawings}
               onMarkerClick={(m) => {
                 if (m.id) navigate(`/lotes/${m.id}`)
               }}
+              drawingMode={drawingMode}
+              onDrawingComplete={handleDrawingComplete}
             />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
-            <div className="bg-white p-6 rounded-full shadow-lg">
-              <Navigation className="h-12 w-12 text-blue-300" />
-            </div>
-            <h3 className="text-xl font-semibold">
-              Mapa Interativo Indisponível
-            </h3>
+            <h3 className="text-xl font-semibold">Mapa Indisponível</h3>
             <p className="text-muted-foreground max-w-md">
-              Para visualizar o mapa interativo, você precisa configurar uma
-              Chave de API do Google Maps nas configurações.
+              Configure uma Chave de API nas configurações.
             </p>
             <Button asChild>
               <Link to="/configuracoes">Configurar Agora</Link>

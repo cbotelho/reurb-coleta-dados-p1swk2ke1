@@ -16,6 +16,7 @@ import {
   Users,
   Shield,
   PieChart,
+  Bell,
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -79,6 +80,7 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
           <NavItem to="/" icon={Home} label="Dashboard" />
           <NavItem to="/projetos" icon={Folder} label="Projetos" />
           <NavItem to="/mapa" icon={Map} label="Mapa Interativo" />
+          <NavItem to="/geo-alerts" icon={Bell} label="Alertas Geográficos" />
 
           {canViewReports && (
             <NavItem

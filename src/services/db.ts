@@ -10,6 +10,9 @@ import {
   SavedCoordinate,
   MapKey,
   MarkerConfig,
+  CustomLayer,
+  MapDrawing,
+  GeoAlert,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 
@@ -35,8 +38,12 @@ const STORAGE_KEYS = {
   SAVED_COORDS: 'reurb_saved_coords',
   MAP_KEYS: 'reurb_map_keys',
   MARKER_CONFIGS: 'reurb_marker_configs',
+  CUSTOM_LAYERS: 'reurb_custom_layers',
+  MAP_DRAWINGS: 'reurb_map_drawings',
+  GEO_ALERTS: 'reurb_geo_alerts',
 }
 
+// ... Keep existing SEED constants ...
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -137,6 +144,9 @@ class DBService {
     this.saveItems(STORAGE_KEYS.SAVED_COORDS, SEED_SAVED_COORDS)
     this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, DEFAULT_MARKER_CONFIGS)
     this.saveItems(STORAGE_KEYS.MAP_KEYS, [])
+    this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, [])
+    this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, [])
+    this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
   }
 
   private ensureAuthData() {
@@ -173,6 +183,15 @@ class DBService {
     }
     if (!localStorage.getItem(STORAGE_KEYS.MAP_KEYS)) {
       this.saveItems(STORAGE_KEYS.MAP_KEYS, [])
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.CUSTOM_LAYERS)) {
+      this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, [])
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.MAP_DRAWINGS)) {
+      this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, [])
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.GEO_ALERTS)) {
+      this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
     }
   }
 
@@ -626,6 +645,75 @@ class DBService {
       configs.push(config)
     }
     this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, configs)
+  }
+
+  // Custom Layers
+  getCustomLayers(): CustomLayer[] {
+    return this.getItems<CustomLayer>(STORAGE_KEYS.CUSTOM_LAYERS)
+  }
+
+  saveCustomLayer(layer: CustomLayer): CustomLayer {
+    const layers = this.getCustomLayers()
+    const index = layers.findIndex((l) => l.id === layer.id)
+    if (index !== -1) {
+      layers[index] = layer
+    } else {
+      layers.push(layer)
+    }
+    this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, layers)
+    return layer
+  }
+
+  deleteCustomLayer(id: string) {
+    const layers = this.getCustomLayers()
+    const filtered = layers.filter((l) => l.id !== id)
+    this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, filtered)
+  }
+
+  // Map Drawings
+  getMapDrawings(): MapDrawing[] {
+    return this.getItems<MapDrawing>(STORAGE_KEYS.MAP_DRAWINGS)
+  }
+
+  saveMapDrawing(drawing: MapDrawing): MapDrawing {
+    const drawings = this.getMapDrawings()
+    const index = drawings.findIndex((d) => d.id === drawing.id)
+    if (index !== -1) {
+      drawings[index] = drawing
+    } else {
+      drawings.push(drawing)
+    }
+    this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, drawings)
+    return drawing
+  }
+
+  deleteMapDrawing(id: string) {
+    const drawings = this.getMapDrawings()
+    const filtered = drawings.filter((d) => d.id !== id)
+    this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, filtered)
+  }
+
+  // Geo Alerts
+  getGeoAlerts(): GeoAlert[] {
+    return this.getItems<GeoAlert>(STORAGE_KEYS.GEO_ALERTS)
+  }
+
+  saveGeoAlert(alert: GeoAlert): GeoAlert {
+    const alerts = this.getGeoAlerts()
+    const index = alerts.findIndex((a) => a.id === alert.id)
+    if (index !== -1) {
+      alerts[index] = alert
+    } else {
+      alerts.push(alert)
+    }
+    this.saveItems(STORAGE_KEYS.GEO_ALERTS, alerts)
+    return alert
+  }
+
+  deleteGeoAlert(id: string) {
+    const alerts = this.getGeoAlerts()
+    const filtered = alerts.filter((a) => a.id !== id)
+    this.saveItems(STORAGE_KEYS.GEO_ALERTS, filtered)
   }
 }
 
