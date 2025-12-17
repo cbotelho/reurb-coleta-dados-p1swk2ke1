@@ -76,7 +76,7 @@ const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
   }
 })
 
-// Generate 385 additional lots as per user story
+// Generate 385 additional lots as per previous requirements
 const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
   const id = 52 + i
   // Distribute among quadras 4 to 19 (16 quadras)
@@ -106,4 +106,34 @@ const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
   }
 })
 
-export const SEED_LOTES: Lote[] = [...INITIAL_LOTES, ...ADDITIONAL_LOTES]
+// Generate 186 additional lots as per user story (IDs 526-711)
+const NEW_LOTES_186: Lote[] = Array.from({ length: 186 }, (_, i) => {
+  const id = 526 + i
+  // Distribute evenly among all 40 quadras
+  const quadraId = (i % 40) + 1
+
+  const loteNum = `Lote ${(i % 100) + 1}`
+  const area = `250.00m²`
+
+  return {
+    id: id,
+    local_id: `lote-${id}`,
+    sync_status: 'synchronized',
+    date_added: 1735689600000,
+    date_updated: 0,
+    created_by: 0,
+    deleted: 1,
+    status: '',
+    field_338: loteNum,
+    field_339: area,
+    field_340: '',
+    field_352: [],
+    parent_item_id: `quad-${quadraId}`,
+  }
+})
+
+export const SEED_LOTES: Lote[] = [
+  ...INITIAL_LOTES,
+  ...ADDITIONAL_LOTES,
+  ...NEW_LOTES_186,
+]

@@ -34,6 +34,9 @@ export interface Lote extends BaseEntity {
   field_340: string // Memorial Descritivo
   field_352: string[] // Array of image paths/data (simplified from comma-separated string)
   parent_item_id: string // Local ID of Quadra
+  created_by?: number
+  deleted?: number
+  status?: string
 }
 
 export interface SyncLogEntry {
