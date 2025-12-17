@@ -4,7 +4,7 @@ import { db } from '@/services/db'
 import { exporter } from '@/utils/exporter'
 import { geoExporter } from '@/utils/geoExporter'
 import { useAuth } from '@/contexts/AuthContext'
-import { Project, Quadra } from '@/types'
+import { Project, Quadra, AppSettings } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ProjectMapUpdateDialog } from '@/components/ProjectMapUpdateDialog'
 import {
@@ -46,6 +46,11 @@ export default function ProjetoDetails() {
   const [project, setProject] = useState<Project | undefined>()
   const [quadras, setQuadras] = useState<Quadra[]>([])
   const [isUpdatingMap, setIsUpdatingMap] = useState(false)
+  const [settings, setSettings] = useState<AppSettings>(db.getSettings())
+
+  useEffect(() => {
+    setSettings(db.getSettings())
+  }, [])
 
   useEffect(() => {
     if (projectId) {
@@ -132,6 +137,16 @@ export default function ProjetoDetails() {
   }
 
   const getProjectImageUrl = (imageName?: string) => {
+    if (
+      settings.googleMapsApiKey &&
+      project.latitude &&
+      project.longitude &&
+      project.latitude !== '0' &&
+      project.longitude !== '0'
+    ) {
+      return `https://maps.googleapis.com/maps/api/staticmap?center=${project.latitude},${project.longitude}&zoom=16&size=800x400&maptype=satellite&key=${settings.googleMapsApiKey}`
+    }
+
     if (!imageName)
       return 'https://img.usecurling.com/p/800/400?q=city%20map&color=blue'
     if (imageName.startsWith('http')) return imageName

@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { notificationService } from '@/services/notification'
-import { Trash2, Save, MapPin } from 'lucide-react'
+import { Trash2, Save, MapPin, Globe } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,10 +79,36 @@ export default function Settings() {
         <CardHeader>
           <CardTitle>Geolocalização</CardTitle>
           <CardDescription>
-            Gerencie locais e configurações de mapa.
+            Gerencie locais, mapas e configurações de GPS.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="google-maps-key">Chave da API do Google Maps</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Globe className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="google-maps-key"
+                  value={settings.googleMapsApiKey || ''}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      googleMapsApiKey: e.target.value,
+                    })
+                  }
+                  placeholder="Cole sua API Key aqui (AIza...)"
+                  className="pl-9"
+                  type="password"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Necessário para exibir mapas interativos e imagens de satélite
+              atualizadas.
+            </p>
+          </div>
+
           <Button variant="outline" className="w-full justify-start" asChild>
             <Link to="/configuracoes/coordenadas">
               <MapPin className="w-4 h-4 mr-2" />

@@ -76,6 +76,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   cacheEnabled: true,
   syncFrequency: 'auto-15m',
   pushNotifications: true,
+  googleMapsApiKey: '',
 }
 
 const SEED_SAVED_COORDS: SavedCoordinate[] = [

@@ -90,4 +90,5 @@ export interface AppSettings {
   cacheEnabled: boolean
   syncFrequency: 'manual' | 'auto-5m' | 'auto-15m' | 'auto-1h'
   pushNotifications: boolean
+  googleMapsApiKey?: string
 }

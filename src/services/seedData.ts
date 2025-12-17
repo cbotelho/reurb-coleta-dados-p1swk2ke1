@@ -10,6 +10,8 @@ export const SEED_PROJECTS: Project[] = [
     field_348: 'Marabaixo 1',
     field_350: '1762455359_PLANTA_GERAL_REUB_MARABAIXO_I-modelo2.pdf',
     field_351: '1762455374_Marabaixo_1.jpg',
+    latitude: '0.042057',
+    longitude: '-51.124770',
     parent_id: 0,
     parent_item_id: 1,
     linked_id: 0,
@@ -25,6 +27,8 @@ export const SEED_PROJECTS: Project[] = [
     field_348: 'Oiapoque',
     field_350: '',
     field_351: '',
+    latitude: '3.8427',
+    longitude: '-51.8344',
     parent_id: 0,
     parent_item_id: 2,
     linked_id: 0,
@@ -55,9 +59,27 @@ export const SEED_QUADRAS: Quadra[] = Array.from({ length: 40 }, (_, i) => {
   }
 })
 
+const generateLoteCoords = (
+  projectLat: number,
+  projectLng: number,
+  index: number,
+) => {
+  // Generate a small grid pattern around the project center
+  const offsetLat = ((Math.floor(index / 10) - 5) * 0.0005).toFixed(6)
+  const offsetLng = (((index % 10) - 5) * 0.0005).toFixed(6)
+  return {
+    latitude: (projectLat + parseFloat(offsetLat)).toString(),
+    longitude: (projectLng + parseFloat(offsetLng)).toString(),
+  }
+}
+
 const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
   const index = i + 1
   const quadraIndex = ((index - 1) % 40) + 1
+  const isMarabaixo = quadraIndex <= 20
+  const baseLat = isMarabaixo ? 0.042057 : 3.8427
+  const baseLng = isMarabaixo ? -51.12477 : -51.8344
+  const coords = generateLoteCoords(baseLat, baseLng, i)
 
   return {
     id: 1000 + index,
@@ -73,6 +95,8 @@ const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
         : 'Contém pequena construção.',
     field_352: [],
     parent_item_id: `quad-${quadraIndex}`,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
   }
 })
 
@@ -80,17 +104,20 @@ const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
 const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
   const id = 52 + i
   // Distribute among quadras 4 to 19 (16 quadras)
-  // We use modulo to cycle through the quadras
   const quadraOffset = i % 16
   const quadraId = 4 + quadraOffset
 
   // Use a pseudo-random generation for area and lot number to simulate provided data
-  // Using i to make it deterministic
   const areaBase = 30 + (i % 500)
   const areaDecimal = (i * 17) % 100
   const area = `${areaBase}.${areaDecimal < 10 ? '0' + areaDecimal : areaDecimal}`
 
   const loteNum = `${(i % 500) + 1}`
+
+  const isMarabaixo = quadraId <= 20
+  const baseLat = isMarabaixo ? 0.042057 : 3.8427
+  const baseLng = isMarabaixo ? -51.12477 : -51.8344
+  const coords = generateLoteCoords(baseLat, baseLng, i + 100)
 
   return {
     id: id,
@@ -103,6 +130,8 @@ const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
     field_340: '', // Empty description implies ''
     field_352: [], // Empty file fields
     parent_item_id: `quad-${quadraId}`,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
   }
 })
 
@@ -114,6 +143,11 @@ const NEW_LOTES_186: Lote[] = Array.from({ length: 186 }, (_, i) => {
 
   const loteNum = `Lote ${(i % 100) + 1}`
   const area = `250.00m²`
+
+  const isMarabaixo = quadraId <= 20
+  const baseLat = isMarabaixo ? 0.042057 : 3.8427
+  const baseLng = isMarabaixo ? -51.12477 : -51.8344
+  const coords = generateLoteCoords(baseLat, baseLng, i + 500)
 
   return {
     id: id,
@@ -129,6 +163,8 @@ const NEW_LOTES_186: Lote[] = Array.from({ length: 186 }, (_, i) => {
     field_340: '',
     field_352: [],
     parent_item_id: `quad-${quadraId}`,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
   }
 })
 

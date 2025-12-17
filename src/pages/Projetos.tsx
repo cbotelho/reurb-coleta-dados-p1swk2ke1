@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { db } from '@/services/db'
-import { Project } from '@/types'
+import { Project, AppSettings } from '@/types'
 import {
   Card,
   CardContent,
@@ -16,16 +16,28 @@ import { format } from 'date-fns'
 
 export default function Projetos() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [settings, setSettings] = useState<AppSettings>(db.getSettings())
 
   useEffect(() => {
     setProjects(db.getProjects())
+    setSettings(db.getSettings())
   }, [])
 
-  const getProjectImageUrl = (imageName?: string) => {
-    if (!imageName)
+  const getProjectImageUrl = (project: Project) => {
+    // If API Key is present and project has coordinates, use Google Static Maps
+    if (
+      settings.googleMapsApiKey &&
+      project.latitude &&
+      project.longitude &&
+      project.latitude !== '0' &&
+      project.longitude !== '0'
+    ) {
+      return `https://maps.googleapis.com/maps/api/staticmap?center=${project.latitude},${project.longitude}&zoom=15&size=400x250&maptype=satellite&key=${settings.googleMapsApiKey}`
+    }
+
+    if (!project.field_351)
       return 'https://img.usecurling.com/p/400/250?q=city%20map&color=blue'
-    if (imageName.startsWith('http')) return imageName
-    // Return placeholder for local filenames
+    if (project.field_351.startsWith('http')) return project.field_351
     return `https://img.usecurling.com/p/400/250?q=project%20map&color=blue`
   }
 
@@ -50,7 +62,7 @@ export default function Projetos() {
           >
             <div className="aspect-video w-full overflow-hidden bg-muted relative">
               <img
-                src={getProjectImageUrl(project.field_351)}
+                src={getProjectImageUrl(project)}
                 alt={`Imagem do projeto ${project.field_348}`}
                 className="w-full h-full object-cover transition-transform hover:scale-105 duration-500"
               />
