@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { notificationService } from '@/services/notification'
-import { Trash2, Save } from 'lucide-react'
+import { Trash2, Save, MapPin } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Link } from 'react-router-dom'
 
 export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(db.getSettings())
@@ -73,6 +74,23 @@ export default function Settings() {
           Gerencie o comportamento e preferências do aplicativo.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Geolocalização</CardTitle>
+          <CardDescription>
+            Gerencie locais e configurações de mapa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" className="w-full justify-start" asChild>
+            <Link to="/configuracoes/coordenadas">
+              <MapPin className="w-4 h-4 mr-2" />
+              Gerenciar Coordenadas Salvas
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

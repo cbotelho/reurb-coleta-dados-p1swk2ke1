@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/form'
 import { PhotoCapture } from '@/components/PhotoCapture'
 import { useToast } from '@/hooks/use-toast'
-import { Save, X as XIcon, Trash2, Printer } from 'lucide-react'
+import { Save, X as XIcon, Trash2, Printer, MapPin } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +37,8 @@ const formSchema = z.object({
   field_338: z.string().min(1, 'Nome do lote é obrigatório'),
   field_339: z.string().min(1, 'Área é obrigatória'),
   field_340: z.string().optional(),
+  latitude: z.string().optional(),
+  longitude: z.string().optional(),
   field_352: z.array(z.string()).optional(),
 })
 
@@ -64,6 +66,8 @@ export default function LoteForm() {
       field_338: '',
       field_339: '',
       field_340: '',
+      latitude: '',
+      longitude: '',
       field_352: [],
     },
   })
@@ -79,6 +83,8 @@ export default function LoteForm() {
           field_338: lote.field_338,
           field_339: lote.field_339,
           field_340: lote.field_340,
+          latitude: lote.latitude || '',
+          longitude: lote.longitude || '',
           field_352: lote.field_352 || [],
         })
       } else {
@@ -122,6 +128,8 @@ export default function LoteForm() {
           field_338: values.field_338,
           field_339: values.field_339,
           field_340: values.field_340 || '',
+          latitude: values.latitude,
+          longitude: values.longitude,
           field_352: values.field_352 || [],
         },
         parentQuadraId,
@@ -158,6 +166,34 @@ export default function LoteForm() {
         quadra?.field_329 || 'Desconhecida',
         project?.field_348 || 'Desconhecido',
       )
+    }
+  }
+
+  const getCurrentLocation = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          form.setValue('latitude', position.coords.latitude.toFixed(6))
+          form.setValue('longitude', position.coords.longitude.toFixed(6))
+          toast({
+            title: 'Localização obtida',
+            description: 'Coordenadas atualizadas.',
+          })
+        },
+        (error) => {
+          toast({
+            title: 'Erro',
+            description: 'Não foi possível obter a localização.',
+            variant: 'destructive',
+          })
+        },
+      )
+    } else {
+      toast({
+        title: 'Erro',
+        description: 'Geolocalização não suportada.',
+        variant: 'destructive',
+      })
     }
   }
 
@@ -254,6 +290,59 @@ export default function LoteForm() {
                 </FormItem>
               )}
             />
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-sm font-semibold text-gray-700">
+                Geolocalização
+              </h3>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={getCurrentLocation}
+                disabled={!canEdit}
+              >
+                <MapPin className="w-3 h-3 mr-2" /> Obter Atual
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="latitude"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Latitude</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="0.000000"
+                        {...field}
+                        disabled={!canEdit}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="longitude"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Longitude</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="-00.000000"
+                        {...field}
+                        disabled={!canEdit}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
 
           <FormField

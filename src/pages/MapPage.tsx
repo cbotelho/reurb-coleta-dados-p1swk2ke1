@@ -27,9 +27,9 @@ export default function MapPage() {
   const [lotes, setLotes] = useState<Lote[]>([])
   const [selectedProject, setSelectedProject] = useState<Project | undefined>()
 
-  // Map Controls
+  // Map Controls - Load from session if available
   const [mapLayer, setMapLayer] = useState<'street' | 'satellite' | 'terrain'>(
-    'street',
+    (sessionStorage.getItem('map_layer') as any) || 'street',
   )
   const [markerMode, setMarkerMode] = useState<'status' | 'default'>('status')
 
@@ -53,6 +53,12 @@ export default function MapPage() {
     }
   }, [selectedProjectId])
 
+  const handleLayerChange = (layer: 'street' | 'satellite' | 'terrain') => {
+    if (!layer) return
+    setMapLayer(layer)
+    sessionStorage.setItem('map_layer', layer)
+  }
+
   const getProjectImage = (p?: Project) => {
     let query = 'city map top view'
     let color = 'blue'
@@ -65,8 +71,19 @@ export default function MapPage() {
       color = 'orange'
     }
 
-    if (p?.field_351 && mapLayer === 'street') return p.field_351
+    // Use dynamic image if available and mode is street (default static image is usually map style)
+    // Or if update mechanism updated field_351 based on new coords.
+    // However, field_351 contains a URL that might have query params. We need to respect the layer choice visually.
 
+    // If project has auto-updated URL (which is satellite usually), and we are in satellite mode, use it.
+    if (
+      p?.field_351 &&
+      p.field_351.includes('satellite') &&
+      mapLayer === 'satellite'
+    )
+      return p.field_351
+
+    // Fallback to placeholder generation for different styles
     return `https://img.usecurling.com/p/1200/800?q=${encodeURIComponent(query)}&color=${color}`
   }
 
@@ -129,7 +146,7 @@ export default function MapPage() {
                   <ToggleGroup
                     type="single"
                     value={mapLayer}
-                    onValueChange={(v: any) => v && setMapLayer(v)}
+                    onValueChange={handleLayerChange}
                   >
                     <ToggleGroupItem value="street" aria-label="Ruas">
                       Ruas

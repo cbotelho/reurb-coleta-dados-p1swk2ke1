@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { db } from '@/services/db'
 import { exporter } from '@/utils/exporter'
+import { geoExporter } from '@/utils/geoExporter'
 import { useAuth } from '@/contexts/AuthContext'
 import { Project, Quadra } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,8 @@ import {
   Printer,
   Download,
   FileSpreadsheet,
+  Globe,
+  RefreshCw,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -32,13 +35,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
+import { toast } from 'sonner'
 
 export default function ProjetoDetails() {
   const { projectId } = useParams()
   const { hasPermission } = useAuth()
   const [project, setProject] = useState<Project | undefined>()
   const [quadras, setQuadras] = useState<Quadra[]>([])
+  const [isUpdatingMap, setIsUpdatingMap] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -46,11 +53,33 @@ export default function ProjetoDetails() {
       setProject(p)
       if (p) {
         setQuadras(db.getQuadrasByProject(projectId))
+
+        // Simulate auto-update check on load
+        if (p.auto_update_map && p.last_map_update) {
+          const hoursSinceUpdate =
+            (Date.now() - p.last_map_update) / (1000 * 60 * 60)
+          if (hoursSinceUpdate > 24) {
+            handleForceMapUpdate(p)
+          }
+        }
       }
     }
   }, [projectId])
 
-  const handleExport = (type: 'csv' | 'excel') => {
+  const handleForceMapUpdate = async (p: Project) => {
+    setIsUpdatingMap(true)
+    // Simulate update
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    const updated = db.updateProject({
+      ...p,
+      last_map_update: Date.now(),
+    })
+    setProject(updated)
+    setIsUpdatingMap(false)
+    toast.success('Mapa atualizado automaticamente.')
+  }
+
+  const handleExport = (type: 'csv' | 'excel' | 'kml' | 'geojson') => {
     if (!project) return
     const projectQuadras = db.getQuadrasByProject(project.local_id)
     const projectQuadraIds = projectQuadras.map((q) => q.local_id)
@@ -64,12 +93,23 @@ export default function ProjetoDetails() {
           ?.field_329,
       }))
 
+    if (type === 'kml') {
+      geoExporter.exportProjectKML(project, allLotes)
+      return
+    }
+    if (type === 'geojson') {
+      geoExporter.exportProjectGeoJSON(project, allLotes)
+      return
+    }
+
     const columns = [
       { key: 'local_id', label: 'ID' },
       { key: 'field_338', label: 'Nome do Lote' },
       { key: 'quadraName', label: 'Quadra' },
       { key: 'projectName', label: 'Projeto' },
       { key: 'field_339', label: 'Área' },
+      { key: 'latitude', label: 'Latitude' },
+      { key: 'longitude', label: 'Longitude' },
       { key: 'sync_status', label: 'Status' },
     ]
 
@@ -146,11 +186,20 @@ export default function ProjetoDetails() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
+              <DropdownMenuLabel>Formatos Tabulares</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => handleExport('csv')}>
                 <FileText className="w-4 h-4 mr-2" /> CSV
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleExport('excel')}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" /> Excel
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Dados Geográficos</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => handleExport('kml')}>
+                <Globe className="w-4 h-4 mr-2" /> KML (Google Earth)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('geojson')}>
+                <MapPin className="w-4 h-4 mr-2" /> GeoJSON
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -168,15 +217,48 @@ export default function ProjetoDetails() {
         {/* Main Info */}
         <div className="md:col-span-2 space-y-6">
           <Card className="overflow-hidden">
-            <div className="aspect-video w-full bg-muted relative">
+            <div className="aspect-video w-full bg-muted relative group">
               <img
                 src={getProjectImageUrl(project.field_351)}
                 alt={`Mapa do ${project.field_348}`}
                 className="w-full h-full object-cover"
               />
+              {project.auto_update_map && (
+                <div className="absolute top-2 right-2">
+                  <Badge className="bg-blue-600 hover:bg-blue-700">
+                    Auto Update
+                  </Badge>
+                </div>
+              )}
+              <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => handleForceMapUpdate(project)}
+                  disabled={isUpdatingMap}
+                >
+                  {isUpdatingMap ? (
+                    <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                  )}
+                  Atualizar
+                </Button>
+              </div>
             </div>
             <CardHeader>
-              <CardTitle>Informações Gerais</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle>Informações Gerais</CardTitle>
+                {project.last_map_update && (
+                  <span className="text-xs text-muted-foreground">
+                    Mapa atualizado:{' '}
+                    {format(
+                      new Date(project.last_map_update),
+                      'dd/MM/yyyy HH:mm',
+                    )}
+                  </span>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -190,10 +272,12 @@ export default function ProjetoDetails() {
                 </div>
                 <div className="space-y-1">
                   <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Imagem do Loteamento
+                    <MapPin className="w-4 h-4" /> Coordenadas do Projeto
                   </span>
                   <p className="text-sm break-all font-mono bg-muted p-2 rounded">
-                    {project.field_351 || 'Nenhuma imagem definida'}
+                    {project.latitude && project.longitude
+                      ? `${project.latitude}, ${project.longitude}`
+                      : 'Não definidas'}
                   </p>
                 </div>
               </div>

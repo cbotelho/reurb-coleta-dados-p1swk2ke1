@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Map, Loader2 } from 'lucide-react'
-import { Project } from '@/types'
+import { Project, SavedCoordinate } from '@/types'
 import { db } from '@/services/db'
 import { toast } from 'sonner'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface ProjectMapUpdateDialogProps {
   project: Project
@@ -26,9 +34,28 @@ export function ProjectMapUpdateDialog({
   onUpdate,
 }: ProjectMapUpdateDialogProps) {
   const [open, setOpen] = useState(false)
-  const [lat, setLat] = useState('')
-  const [lng, setLng] = useState('')
+  const [lat, setLat] = useState(project.latitude || '')
+  const [lng, setLng] = useState(project.longitude || '')
+  const [autoUpdate, setAutoUpdate] = useState(project.auto_update_map || false)
   const [loading, setLoading] = useState(false)
+  const [savedCoords, setSavedCoords] = useState<SavedCoordinate[]>([])
+
+  useEffect(() => {
+    if (open) {
+      setSavedCoords(db.getSavedCoordinates())
+      setLat(project.latitude || '')
+      setLng(project.longitude || '')
+      setAutoUpdate(project.auto_update_map || false)
+    }
+  }, [open, project])
+
+  const handleSavedCoordSelect = (val: string) => {
+    const coord = savedCoords.find((c) => c.id === val)
+    if (coord) {
+      setLat(coord.latitude)
+      setLng(coord.longitude)
+    }
+  }
 
   const handleUpdate = async () => {
     if (!lat || !lng) {
@@ -42,12 +69,15 @@ export function ProjectMapUpdateDialog({
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
     // Generate URL (Using allowed placeholder service to mock Google Maps Static)
-    // We add lat/lng to the query to make the image URL specific to the inputs
     const mapUrl = `https://img.usecurling.com/p/800/400?q=satellite%20map%20${lat}%20${lng}&color=green`
 
     const updatedProject = {
       ...project,
       field_351: mapUrl,
+      latitude: lat,
+      longitude: lng,
+      auto_update_map: autoUpdate,
+      last_map_update: Date.now(),
     }
 
     try {
@@ -55,9 +85,6 @@ export function ProjectMapUpdateDialog({
       onUpdate(result)
       toast.success('Imagem do projeto atualizada com sucesso!')
       setOpen(false)
-      // Clear inputs
-      setLat('')
-      setLng('')
     } catch (error) {
       toast.error('Erro ao atualizar o projeto.')
       console.error(error)
@@ -78,11 +105,28 @@ export function ProjectMapUpdateDialog({
         <DialogHeader>
           <DialogTitle>Atualizar Mapa do Projeto</DialogTitle>
           <DialogDescription>
-            Informe as coordenadas geográficas para gerar uma nova imagem
-            estática do mapa.
+            Informe as coordenadas ou selecione um local salvo.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Local Salvo</Label>
+            <div className="col-span-3">
+              <Select onValueChange={handleSavedCoordSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedCoords.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="lat" className="text-right">
               Latitude
@@ -106,6 +150,19 @@ export function ProjectMapUpdateDialog({
               onChange={(e) => setLng(e.target.value)}
               className="col-span-3"
             />
+          </div>
+
+          <div className="grid grid-cols-4 items-center gap-4">
+            <div className="col-start-2 col-span-3 flex items-center space-x-2">
+              <Checkbox
+                id="autoUpdate"
+                checked={autoUpdate}
+                onCheckedChange={(c) => setAutoUpdate(!!c)}
+              />
+              <Label htmlFor="autoUpdate">
+                Atualização Automática de Imagem
+              </Label>
+            </div>
           </div>
         </div>
         <DialogFooter>

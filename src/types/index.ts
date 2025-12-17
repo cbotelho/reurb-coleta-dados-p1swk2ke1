@@ -8,10 +8,21 @@ export interface BaseEntity {
   date_updated: number
 }
 
+export interface SavedCoordinate {
+  id: string
+  name: string
+  latitude: string
+  longitude: string
+}
+
 export interface Project extends BaseEntity {
   field_348: string // Loteamento
   field_350: string // Levantamento
   field_351?: string // Nome da Imagem (URL)
+  latitude?: string
+  longitude?: string
+  auto_update_map?: boolean
+  last_map_update?: number
   parent_id?: number
   parent_item_id?: number
   linked_id?: number
@@ -33,6 +44,8 @@ export interface Lote extends BaseEntity {
   field_339: string // Area Lote
   field_340: string // Memorial Descritivo
   field_352: string[] // Array of image paths/data
+  latitude?: string
+  longitude?: string
   parent_item_id: string // Local ID of Quadra
   created_by?: number
   deleted?: number

@@ -7,6 +7,7 @@ import {
   User,
   UserGroup,
   AppSettings,
+  SavedCoordinate,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 
@@ -29,6 +30,7 @@ const STORAGE_KEYS = {
   USERS: 'reurb_users',
   GROUPS: 'reurb_groups',
   SETTINGS: 'reurb_settings',
+  SAVED_COORDS: 'reurb_saved_coords',
 }
 
 const SEED_GROUPS: UserGroup[] = [
@@ -76,6 +78,21 @@ const DEFAULT_SETTINGS: AppSettings = {
   pushNotifications: true,
 }
 
+const SEED_SAVED_COORDS: SavedCoordinate[] = [
+  {
+    id: 'sc1',
+    name: 'Praça Central',
+    latitude: '0.0420571',
+    longitude: '-51.1247705',
+  },
+  {
+    id: 'sc2',
+    name: 'Prefeitura',
+    latitude: '0.038521',
+    longitude: '-51.070012',
+  },
+]
+
 class DBService {
   constructor() {
     this.init()
@@ -87,6 +104,7 @@ class DBService {
     } else {
       this.ensureSeedData()
       this.ensureAuthData()
+      this.ensureSavedCoords()
     }
   }
 
@@ -98,6 +116,7 @@ class DBService {
     this.saveItems(STORAGE_KEYS.GROUPS, SEED_GROUPS)
     this.saveItems(STORAGE_KEYS.USERS, SEED_USERS)
     this.saveItems(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
+    this.saveItems(STORAGE_KEYS.SAVED_COORDS, SEED_SAVED_COORDS)
   }
 
   private ensureAuthData() {
@@ -119,6 +138,12 @@ class DBService {
     }
     if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
       this.saveItems(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
+    }
+  }
+
+  private ensureSavedCoords() {
+    if (!localStorage.getItem(STORAGE_KEYS.SAVED_COORDS)) {
+      this.saveItems(STORAGE_KEYS.SAVED_COORDS, SEED_SAVED_COORDS)
     }
   }
 
@@ -491,6 +516,30 @@ class DBService {
     logs.unshift(entry)
     if (logs.length > 100) logs.pop()
     this.saveItems(STORAGE_KEYS.LOGS, logs)
+  }
+
+  // Saved Coordinates Methods
+  getSavedCoordinates(): SavedCoordinate[] {
+    return this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
+  }
+
+  saveSavedCoordinate(coord: SavedCoordinate): SavedCoordinate {
+    const coords = this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
+    const index = coords.findIndex((c) => c.id === coord.id)
+    if (index !== -1) {
+      coords[index] = coord
+    } else {
+      coord.id = coord.id || generateUUID()
+      coords.push(coord)
+    }
+    this.saveItems(STORAGE_KEYS.SAVED_COORDS, coords)
+    return coord
+  }
+
+  deleteSavedCoordinate(id: string) {
+    const coords = this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
+    const filtered = coords.filter((c) => c.id !== id)
+    this.saveItems(STORAGE_KEYS.SAVED_COORDS, filtered)
   }
 }
 

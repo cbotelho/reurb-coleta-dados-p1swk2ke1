@@ -18,6 +18,7 @@ import Settings from './pages/Settings'
 import Users from './pages/Users'
 import UserGroups from './pages/UserGroups'
 import ReportConfig from './pages/ReportConfig'
+import SavedCoordinates from './pages/SavedCoordinates'
 
 // Private Route Wrapper
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
@@ -68,6 +69,10 @@ const App = () => (
               <Route path="/sincronizacao" element={<SyncStatus />} />
               <Route path="/mapa" element={<MapPage />} />
               <Route path="/configuracoes" element={<Settings />} />
+              <Route
+                path="/configuracoes/coordenadas"
+                element={<SavedCoordinates />}
+              />
               <Route path="/users" element={<Users />} />
               <Route path="/groups" element={<UserGroups />} />
               <Route path="/relatorios/:projectId" element={<ReportConfig />} />
