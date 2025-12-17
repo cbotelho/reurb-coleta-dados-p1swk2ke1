@@ -8,16 +8,9 @@ import {
   CustomLayer,
   MapDrawing,
 } from '@/types'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Card } from '@/components/ui/card'
 import {
   Navigation,
   Layers,
@@ -30,10 +23,11 @@ import {
   MousePointer2,
   Trash,
   Undo,
-  Save,
   ArrowUp,
   ArrowDown,
   Bell,
+  Maximize,
+  Minimize,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -75,9 +69,12 @@ export default function MapPage() {
     'marker' | 'polygon' | 'polyline' | null
   >(null)
 
-  // Undo/Redo Stacks (Simplified: only track last added drawing for undo)
-  // Real implementation would track full history
+  // Undo/Redo Stacks
   const [history, setHistory] = useState<MapDrawing[]>([])
+
+  // Full Screen
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
 
   const refreshData = useCallback(() => {
     const projs = db.getProjects()
@@ -104,6 +101,16 @@ export default function MapPage() {
   useEffect(() => {
     refreshData()
   }, [refreshData])
+
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', handleFullScreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange)
+    }
+  }, [])
 
   const handleLayerChange = (layer: 'street' | 'satellite' | 'terrain') => {
     if (!layer) return
@@ -267,6 +274,18 @@ export default function MapPage() {
     }
   }
 
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      mapContainerRef.current?.requestFullscreen().catch((err) => {
+        console.error(
+          `Error attempting to enable full-screen mode: ${err.message}`,
+        )
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
+
   const filteredProjects = projects.filter((p) => {
     if (statusFilter === 'all') return true
     return p.sync_status === statusFilter
@@ -332,6 +351,19 @@ export default function MapPage() {
               title="Limpar Desenhos"
             >
               <Trash className="h-4 w-4 text-red-500" />
+            </Button>
+            <div className="w-px h-6 bg-gray-200 mx-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleFullScreen}
+              title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+            >
+              {isFullscreen ? (
+                <Minimize className="h-4 w-4" />
+              ) : (
+                <Maximize className="h-4 w-4" />
+              )}
             </Button>
           </div>
 
@@ -488,7 +520,13 @@ export default function MapPage() {
         </div>
       </div>
 
-      <Card className="flex-1 overflow-hidden relative bg-slate-100 border-2 border-slate-200">
+      <Card
+        ref={mapContainerRef}
+        className={cn(
+          'flex-1 overflow-hidden relative bg-slate-100 border-2 border-slate-200',
+          isFullscreen && 'rounded-none border-0',
+        )}
+      >
         {activeKey ? (
           <div className="absolute inset-0">
             <GoogleMap
@@ -513,6 +551,7 @@ export default function MapPage() {
               }}
               drawingMode={drawingMode}
               onDrawingComplete={handleDrawingComplete}
+              fullscreenControl={false}
             />
           </div>
         ) : (

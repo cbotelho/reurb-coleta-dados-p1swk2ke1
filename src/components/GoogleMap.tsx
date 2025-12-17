@@ -30,6 +30,7 @@ interface GoogleMapProps {
   mapType?: 'roadmap' | 'satellite' | 'hybrid' | 'terrain'
   drawingMode?: 'marker' | 'polygon' | 'polyline' | null
   onDrawingComplete?: (drawing: any) => void
+  fullscreenControl?: boolean
 }
 
 export function GoogleMap({
@@ -44,6 +45,7 @@ export function GoogleMap({
   mapType = 'roadmap',
   drawingMode = null,
   onDrawingComplete,
+  fullscreenControl = true,
 }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
@@ -94,7 +96,10 @@ export function GoogleMap({
         zoom,
         mapTypeId: mapType,
         streetViewControl: false,
-        fullscreenControl: true,
+        fullscreenControl: fullscreenControl,
+        fullscreenControlOptions: {
+          position: window.google.maps.ControlPosition.RIGHT_TOP,
+        },
         styles: [
           {
             featureType: 'poi',
@@ -194,6 +199,13 @@ export function GoogleMap({
       }
     }
   }, [map, center, mapType])
+
+  // Update Fullscreen Control
+  useEffect(() => {
+    if (map) {
+      map.setOptions({ fullscreenControl })
+    }
+  }, [map, fullscreenControl])
 
   // Efficient Marker Updates
   useEffect(() => {
