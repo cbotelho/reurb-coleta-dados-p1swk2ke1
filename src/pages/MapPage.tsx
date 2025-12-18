@@ -182,6 +182,9 @@ export default function MapPage() {
       if (!isNaN(lat) && !isNaN(lng)) {
         setMapCenter({ lat, lng })
         setMapZoom(18)
+        if (mapRef.current) {
+          mapRef.current.panTo(lat, lng)
+        }
         toast.success(`Localizado: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)
         return
       }
@@ -198,6 +201,9 @@ export default function MapPage() {
       if (!isNaN(lat) && !isNaN(lng)) {
         setMapCenter({ lat, lng })
         setMapZoom(16)
+        if (mapRef.current) {
+          mapRef.current.panTo(lat, lng)
+        }
         toast.success(`Projeto localizado: ${project.field_348}`)
         return
       }
@@ -213,6 +219,9 @@ export default function MapPage() {
       if (!isNaN(lat) && !isNaN(lng)) {
         setMapCenter({ lat, lng })
         setMapZoom(19)
+        if (mapRef.current) {
+          mapRef.current.panTo(lat, lng)
+        }
         toast.success(`Lote localizado: ${lote.field_338}`)
         return
       }

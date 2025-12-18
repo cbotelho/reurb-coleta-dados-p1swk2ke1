@@ -31,6 +31,7 @@ interface Marker {
 
 export interface GoogleMapHandle {
   fitBounds: (points: { lat: number; lng: number }[]) => void
+  panTo: (lat: number, lng: number) => void
 }
 
 interface GoogleMapProps {
@@ -74,7 +75,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       center,
       zoom = 15,
       markers = [],
-      customLayers = [],
       drawings = [],
       className = '',
       onMarkerClick,
@@ -102,13 +102,14 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     const markersRef = useRef<any[]>([])
     const drawingManagerRef = useRef<any>(null)
     const drawnShapesRef = useRef<Map<string, any>>(new Map())
-    const customLayerFeaturesRef = useRef<Map<string, any[]>>(new Map())
     const infoWindowRef = useRef<any>(null)
     const googleRef = useRef<any>(null)
 
-    // Classes needed for Advanced Markers
+    // Classes needed for Advanced Markers & Map
     const AdvancedMarkerElementRef = useRef<any>(null)
     const PinElementRef = useRef<any>(null)
+    const MapClassRef = useRef<any>(null)
+    const ControlPositionRef = useRef<any>(null)
 
     useImperativeHandle(ref, () => ({
       fitBounds: (points) => {
@@ -116,6 +117,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         const bounds = new googleRef.current.maps.LatLngBounds()
         points.forEach((p) => bounds.extend(p))
         map.fitBounds(bounds)
+      },
+      panTo: (lat, lng) => {
+        if (!map) return
+        map.panTo({ lat, lng })
+        map.setZoom(18)
       },
     }))
 
@@ -126,76 +132,83 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         return
       }
 
+      const initialize = async () => {
+        try {
+          if (!window.google?.maps) {
+            // If script tag doesn't exist or hasn't loaded 'maps' object yet
+            // We can wait or rely on the script tag logic below.
+            // But let's assume if window.google exists we try to import.
+          }
+
+          // Wait for libraries to load. This ensures constants like ControlPosition are available.
+          const { Map: GoogleMapClass, ControlPosition } =
+            (await window.google.maps.importLibrary(
+              'maps',
+            )) as google.maps.MapsLibrary
+          const { AdvancedMarkerElement, PinElement } =
+            (await window.google.maps.importLibrary(
+              'marker',
+            )) as google.maps.MarkerLibrary
+          // Drawing library might not be importable via importLibrary in all versions yet, but let's try or fallback
+          try {
+            await window.google.maps.importLibrary('drawing')
+          } catch (e) {
+            console.warn('Drawing library import via importLibrary failed', e)
+          }
+          await window.google.maps.importLibrary('geometry')
+
+          MapClassRef.current = GoogleMapClass
+          ControlPositionRef.current = ControlPosition
+          AdvancedMarkerElementRef.current = AdvancedMarkerElement
+          PinElementRef.current = PinElement
+
+          googleRef.current = window.google
+          setIsLoaded(true)
+        } catch (e) {
+          console.error('Failed to load Google Maps libraries', e)
+          setError('Falha ao inicializar bibliotecas do Google Maps.')
+        }
+      }
+
       if (window.google && window.google.maps) {
-        googleRef.current = window.google
-        loadLibraries().then(() => setIsLoaded(true))
+        initialize()
         return
       }
 
       // Check for existing script to avoid duplicates
-      const existingScript = document.querySelector(
+      let script = document.querySelector(
         'script[src*="maps.googleapis.com/maps/api/js"]',
-      )
+      ) as HTMLScriptElement
 
-      if (existingScript) {
-        // Wait for it to load
-        const checkGoogle = setInterval(() => {
-          if (window.google && window.google.maps) {
-            clearInterval(checkGoogle)
-            googleRef.current = window.google
-            loadLibraries().then(() => setIsLoaded(true))
-          }
-        }, 100)
-        return
+      if (!script) {
+        script = document.createElement('script')
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=geometry,drawing,marker,maps`
+        script.async = true
+        script.defer = true
+        script.onerror = () => setError('Falha ao carregar o Google Maps SDK.')
+        document.head.appendChild(script)
       }
 
-      const script = document.createElement('script')
-      // Ensure we request the necessary libraries
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=geometry,drawing,marker`
-      script.async = true
-      script.defer = true
-      script.onerror = () => setError('Falha ao carregar o Google Maps SDK.')
-
-      // Define callback
-      window.initMap = () => {
-        googleRef.current = window.google
-        loadLibraries().then(() => setIsLoaded(true))
-      }
-      // Although loading=async often works without callback if we poll or use promises,
-      // appending callback param is safer for the legacy script tag method if used mixed.
-      // But standard async loading just needs us to wait for window.google
-      script.onload = () => {
-        // Just in case initMap isn't called automatically by some weird conflict
+      // Poll for google object availability if not using callback
+      const interval = setInterval(() => {
         if (window.google && window.google.maps) {
-          googleRef.current = window.google
-          loadLibraries().then(() => setIsLoaded(true))
+          clearInterval(interval)
+          initialize()
         }
-      }
+      }, 100)
 
-      document.head.appendChild(script)
-
-      return () => {
-        // Cleanup if needed
-      }
+      return () => clearInterval(interval)
     }, [apiKey])
-
-    const loadLibraries = async () => {
-      if (!googleRef.current) return
-
-      // Load Advanced Marker Library
-      try {
-        const { AdvancedMarkerElement, PinElement } =
-          await googleRef.current.maps.importLibrary('marker')
-        AdvancedMarkerElementRef.current = AdvancedMarkerElement
-        PinElementRef.current = PinElement
-      } catch (e) {
-        console.warn('Advanced Markers library failed to load', e)
-      }
-    }
 
     // Init Map
     useEffect(() => {
-      if (isLoaded && mapRef.current && !map && googleRef.current) {
+      if (
+        isLoaded &&
+        mapRef.current &&
+        !map &&
+        MapClassRef.current &&
+        ControlPositionRef.current
+      ) {
         const mapOptions: any = {
           center: center || { lat: 0, lng: 0 },
           zoom,
@@ -204,14 +217,14 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           fullscreenControl: fullscreenControl && !presentationMode,
           zoomControl: !presentationMode,
           mapTypeControl: !presentationMode,
+          // Safely access ControlPosition now that library is loaded
           fullscreenControlOptions: {
-            position: googleRef.current.maps.ControlPosition.RIGHT_TOP,
+            position: ControlPositionRef.current.RIGHT_TOP,
           },
-          // Map ID is required for Advanced Markers
           mapId: mapId || undefined,
         }
 
-        const gMap = new googleRef.current.maps.Map(mapRef.current, mapOptions)
+        const gMap = new MapClassRef.current(mapRef.current, mapOptions)
         setMap(gMap)
 
         infoWindowRef.current = new googleRef.current.maps.InfoWindow({
@@ -224,15 +237,14 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       isLoaded,
       mapId,
       map,
-      center,
-      zoom,
+      // Removed center/zoom from dep array to avoid re-init, handled in update effect
       mapType,
       fullscreenControl,
       presentationMode,
       onMapLoad,
     ])
 
-    // Update Map Options
+    // Update Map Options & Center
     useEffect(() => {
       if (map) {
         map.setOptions({
@@ -243,14 +255,14 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           disableDefaultUI: presentationMode,
         })
         if (center) {
-          // Only pan if significant difference to avoid jitters
           const c = map.getCenter()
           if (
+            !c ||
             Math.abs(c.lat() - center.lat) > 0.0001 ||
             Math.abs(c.lng() - center.lng) > 0.0001
           ) {
             map.panTo(center)
-            map.setZoom(zoom) // Enforce zoom on explicit center change from search
+            map.setZoom(zoom)
           }
         }
       }
@@ -277,8 +289,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         // Use Advanced Marker if library loaded and Map ID present
         if (AdvancedMarkerElementRef.current && mapId) {
           const AdvancedMarkerElement = AdvancedMarkerElementRef.current
-          // const PinElement = PinElementRef.current;
-
           // Build custom content for the marker
           const content = createAdvancedMarkerContent(
             markerData.icon,
@@ -334,9 +344,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       })
     }, [map, markers, mapId, onMarkerClick, presentationMode])
 
-    // Drawing Manager (Legacy mostly, but works with Map)
+    // Drawing Manager
     useEffect(() => {
       if (map && googleRef.current && !drawingManagerRef.current) {
+        if (!googleRef.current.maps.drawing) return // Safety check
+
         const dm = new googleRef.current.maps.drawing.DrawingManager({
           drawingMode: null,
           drawingControl: false,
@@ -355,16 +367,13 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
               drawnShapesRef.current.forEach((shape, id) => {
                 let isInside = false
-                // Check marker position
                 if (
                   shape.position ||
                   (shape.getPosition && shape.getPosition())
                 ) {
                   const pos = shape.position || shape.getPosition()
                   isInside = bounds.contains(pos)
-                }
-                // Check poly path
-                else if (shape.getPath) {
+                } else if (shape.getPath) {
                   const path = shape.getPath()
                   for (let i = 0; i < path.getLength(); i++) {
                     if (bounds.contains(path.getAt(i))) {
@@ -401,11 +410,15 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         )
         drawingManagerRef.current = dm
       }
-    }, [map, onDrawingComplete, selectionMode, onDrawingSelect])
+    }, [map, onDrawingComplete, selectionMode, onDrawingSelect, isLoaded])
 
     // Update Drawing Mode & Styles
     useEffect(() => {
-      if (drawingManagerRef.current && googleRef.current) {
+      if (
+        drawingManagerRef.current &&
+        googleRef.current &&
+        googleRef.current.maps.drawing
+      ) {
         const dm = drawingManagerRef.current
         let effectiveMode = null
         if (drawingMode) {
@@ -469,9 +482,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       }
     }, [drawingMode, drawingStyle, selectionMode])
 
-    // Render User Drawings (Using Legacy Markers for Editable Drawings for now, or Custom Overlay)
-    // Note: AdvancedMarkerElement is not fully editable (draggable yes, but DrawingManager integration is limited)
-    // So we stick to legacy for drawings to ensure "fully functional" editing.
+    // Render User Drawings
     useEffect(() => {
       if (!map || !drawings || !googleRef.current) return
 
