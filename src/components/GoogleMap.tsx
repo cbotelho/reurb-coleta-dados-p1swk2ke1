@@ -119,7 +119,7 @@ export function GoogleMap({
       })
       setMap(gMap)
     }
-  }, [isLoaded, mapRef])
+  }, [isLoaded, mapRef, map, center, zoom, mapType, fullscreenControl])
 
   // Drawing Manager
   useEffect(() => {
