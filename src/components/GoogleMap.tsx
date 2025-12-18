@@ -331,8 +331,8 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       isLoaded,
       mapId,
       map,
-      // center, // We handle center updates separately to avoid re-init
-      // zoom,
+      center,
+      zoom,
       onMapLoad,
       mapType,
       fullscreenControl,
