@@ -326,7 +326,19 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setError('Erro ao renderizar o mapa.')
         }
       }
-    }, [isLoaded, mapId, map, center, zoom, onMapLoad])
+    }, [
+      isLoaded,
+      mapId,
+      map,
+      center,
+      zoom,
+      onMapLoad,
+      mapType,
+      fullscreenControl,
+      presentationMode,
+      mapStyles,
+      highContrast,
+    ])
 
     // Handle props updates
     useEffect(() => {
