@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   useEffect,
   useRef,
@@ -11,6 +12,7 @@ import {
   getGoogleIconSymbol,
   createAdvancedMarkerContent,
 } from '@/utils/mapIcons'
+import { loadGoogleMapsApi } from '@/utils/googleMapsLoader'
 
 declare global {
   interface Window {
@@ -188,18 +190,16 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     const drawingManagerRef = useRef<any>(null)
     const drawnShapesRef = useRef<Map<string, any>>(new Map())
     const infoWindowRef = useRef<any>(null)
-    const googleRef = useRef<any>(null)
 
     // Classes needed for Advanced Markers & Map
     const AdvancedMarkerElementRef = useRef<any>(null)
-    const PinElementRef = useRef<any>(null)
     const MapClassRef = useRef<any>(null)
     const ControlPositionRef = useRef<any>(null)
 
     useImperativeHandle(ref, () => ({
       fitBounds: (points) => {
-        if (!map || !googleRef.current || points.length === 0) return
-        const bounds = new googleRef.current.maps.LatLngBounds()
+        if (!map || !window.google?.maps || points.length === 0) return
+        const bounds = new window.google.maps.LatLngBounds()
         points.forEach((p) => bounds.extend(p))
         map.fitBounds(bounds)
       },
@@ -210,82 +210,50 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       },
     }))
 
-    // Load API using Async Pattern with ImportLibrary
+    // Initialize API using Bootstrap Pattern and importLibrary
     useEffect(() => {
       if (!apiKey) {
         setError('API Key não configurada.')
         return
       }
 
-      const initialize = async () => {
+      let mounted = true
+
+      const init = async () => {
         try {
-          if (!window.google?.maps) {
-            // If script tag doesn't exist or hasn't loaded 'maps' object yet
-            // We can wait or rely on the script tag logic below.
-            // But let's assume if window.google exists we try to import.
-          }
+          loadGoogleMapsApi(apiKey)
 
-          // Wait for libraries to load. This ensures constants like ControlPosition are available.
-          const { Map: GoogleMapClass, ControlPosition } =
-            (await window.google.maps.importLibrary(
-              'maps',
-            )) as google.maps.MapsLibrary
-          const { AdvancedMarkerElement, PinElement } =
-            (await window.google.maps.importLibrary(
-              'marker',
-            )) as google.maps.MarkerLibrary
-          // Drawing library might not be importable via importLibrary in all versions yet, but let's try or fallback
-          try {
-            await window.google.maps.importLibrary('drawing')
-          } catch (e) {
-            console.warn('Drawing library import via importLibrary failed', e)
-          }
-          await window.google.maps.importLibrary('geometry')
+          // Wait for libraries to load using importLibrary
+          const [mapsLib, markerLib, drawingLib, geometryLib] =
+            await Promise.all([
+              window.google.maps.importLibrary('maps'),
+              window.google.maps.importLibrary('marker'),
+              window.google.maps.importLibrary('drawing'),
+              window.google.maps.importLibrary('geometry'),
+            ])
 
-          MapClassRef.current = GoogleMapClass
-          ControlPositionRef.current = ControlPosition
-          AdvancedMarkerElementRef.current = AdvancedMarkerElement
-          PinElementRef.current = PinElement
+          if (!mounted) return
 
-          googleRef.current = window.google
+          MapClassRef.current = mapsLib.Map
+          ControlPositionRef.current = mapsLib.ControlPosition
+          AdvancedMarkerElementRef.current = markerLib.AdvancedMarkerElement
+
           setIsLoaded(true)
         } catch (e) {
           console.error('Failed to load Google Maps libraries', e)
-          setError('Falha ao inicializar bibliotecas do Google Maps.')
+          if (mounted)
+            setError('Falha ao inicializar bibliotecas do Google Maps.')
         }
       }
 
-      if (window.google && window.google.maps) {
-        initialize()
-        return
+      init()
+
+      return () => {
+        mounted = false
       }
-
-      // Check for existing script to avoid duplicates
-      let script = document.querySelector(
-        'script[src*="maps.googleapis.com/maps/api/js"]',
-      ) as HTMLScriptElement
-
-      if (!script) {
-        script = document.createElement('script')
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async&libraries=geometry,drawing,marker,maps`
-        script.async = true
-        script.defer = true
-        script.onerror = () => setError('Falha ao carregar o Google Maps SDK.')
-        document.head.appendChild(script)
-      }
-
-      // Poll for google object availability if not using callback
-      const interval = setInterval(() => {
-        if (window.google && window.google.maps) {
-          clearInterval(interval)
-          initialize()
-        }
-      }, 100)
-
-      return () => clearInterval(interval)
     }, [apiKey])
 
-    // Init Map
+    // Init Map Instance
     useEffect(() => {
       if (
         isLoaded &&
@@ -303,7 +271,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           zoomControl: !presentationMode,
           mapTypeControl: !presentationMode,
           styles: highContrast ? HIGH_CONTRAST_STYLE : [],
-          // Safely access ControlPosition now that library is loaded
           fullscreenControlOptions: {
             position: ControlPositionRef.current.RIGHT_TOP,
           },
@@ -313,7 +280,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         const gMap = new MapClassRef.current(mapRef.current, mapOptions)
         setMap(gMap)
 
-        infoWindowRef.current = new googleRef.current.maps.InfoWindow({
+        infoWindowRef.current = new window.google.maps.InfoWindow({
           disableAutoPan: true,
         })
 
@@ -332,7 +299,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       zoom,
     ])
 
-    // Handle Map Click Listener
+    // Handle Map Click
     useEffect(() => {
       if (!map || !onMapClick) return
 
@@ -341,19 +308,13 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       })
 
       return () => {
-        if (
-          googleRef.current &&
-          googleRef.current.maps &&
-          googleRef.current.maps.event
-        ) {
-          googleRef.current.maps.event.removeListener(listener)
-        } else if ((listener as any).remove) {
-          ;(listener as any).remove()
+        if (window.google?.maps?.event) {
+          window.google.maps.event.removeListener(listener)
         }
       }
     }, [map, onMapClick])
 
-    // Update Map Options & Center & Styles
+    // Update Map Options
     useEffect(() => {
       if (map) {
         map.setOptions({
@@ -386,11 +347,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       highContrast,
     ])
 
-    // Render Markers (Using AdvancedMarkerElement if available)
+    // Render Markers
     useEffect(() => {
-      if (!map || !googleRef.current) return
+      if (!map || !isLoaded) return
 
-      // Clear existing
+      // Clear existing markers
       markersRef.current.forEach((m) => {
         if (m.map) m.map = null
       })
@@ -404,10 +365,9 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       markersToRender.forEach((markerData) => {
         let markerInstance
 
-        // Use Advanced Marker if library loaded and Map ID present
+        // Use Advanced Marker if available and Map ID is present
         if (AdvancedMarkerElementRef.current && mapId) {
           const AdvancedMarkerElement = AdvancedMarkerElementRef.current
-          // Build custom content for the marker
           const content = createAdvancedMarkerContent(
             markerData.icon,
             markerData.color || 'red',
@@ -435,7 +395,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             )
           } else {
             iconSymbol = {
-              path: googleRef.current.maps.SymbolPath.CIRCLE,
+              path: window.google.maps.SymbolPath.CIRCLE,
               scale: 6,
               fillColor: markerData.color || 'red',
               fillOpacity: 1,
@@ -444,7 +404,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             }
           }
 
-          markerInstance = new googleRef.current.maps.Marker({
+          markerInstance = new window.google.maps.Marker({
             position: { lat: markerData.lat, lng: markerData.lng },
             map: map,
             title: markerData.title,
@@ -460,20 +420,23 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
         markersRef.current.push(markerInstance)
       })
-    }, [map, markers, mapId, onMarkerClick, presentationMode])
+    }, [map, markers, mapId, onMarkerClick, presentationMode, isLoaded])
 
     // Drawing Manager
     useEffect(() => {
-      if (map && googleRef.current && !drawingManagerRef.current) {
-        if (!googleRef.current.maps.drawing) return // Safety check
-
-        const dm = new googleRef.current.maps.drawing.DrawingManager({
+      if (
+        map &&
+        window.google?.maps?.drawing &&
+        !drawingManagerRef.current &&
+        isLoaded
+      ) {
+        const dm = new window.google.maps.drawing.DrawingManager({
           drawingMode: null,
           drawingControl: false,
         })
         dm.setMap(map)
 
-        googleRef.current.maps.event.addListener(
+        window.google.maps.event.addListener(
           dm,
           'overlaycomplete',
           (event: any) => {
@@ -534,18 +497,16 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     useEffect(() => {
       if (
         drawingManagerRef.current &&
-        googleRef.current &&
-        googleRef.current.maps.drawing
+        window.google?.maps?.drawing &&
+        isLoaded
       ) {
         const dm = drawingManagerRef.current
         let effectiveMode = null
         if (drawingMode) {
           effectiveMode =
-            googleRef.current.maps.drawing.OverlayType[
-              drawingMode.toUpperCase()
-            ]
+            window.google.maps.drawing.OverlayType[drawingMode.toUpperCase()]
         } else if (selectionMode === 'box') {
-          effectiveMode = googleRef.current.maps.drawing.OverlayType.RECTANGLE
+          effectiveMode = window.google.maps.drawing.OverlayType.RECTANGLE
         }
         dm.setDrawingMode(effectiveMode)
 
@@ -598,11 +559,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           rectangleOptions: selectionMode === 'box' ? selectionOptions : {},
         })
       }
-    }, [drawingMode, drawingStyle, selectionMode])
+    }, [drawingMode, drawingStyle, selectionMode, isLoaded])
 
     // Render User Drawings
     useEffect(() => {
-      if (!map || !drawings || !googleRef.current) return
+      if (!map || !drawings || !isLoaded) return
 
       const existingIds = new Set(drawnShapesRef.current.keys())
       const currentIds = new Set(drawings.map((d) => d.id))
@@ -610,7 +571,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       existingIds.forEach((id) => {
         if (!currentIds.has(id)) {
           const shape = drawnShapesRef.current.get(id)
-          googleRef.current.maps.event.clearInstanceListeners(shape)
+          window.google.maps.event.clearInstanceListeners(shape)
           shape.setMap(null)
           drawnShapesRef.current.delete(id)
         }
@@ -644,7 +605,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
         if (!shape) {
           if (d.type === 'marker') {
-            shape = new googleRef.current.maps.Marker({
+            shape = new window.google.maps.Marker({
               position: d.coordinates,
               map: map,
               ...baseOptions,
@@ -655,7 +616,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
               ),
             })
           } else if (d.type === 'polygon') {
-            shape = new googleRef.current.maps.Polygon({
+            shape = new window.google.maps.Polygon({
               paths: d.coordinates,
               map: map,
               ...baseOptions,
@@ -667,7 +628,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
                 : safeStyle.strokeWeight,
             })
           } else if (d.type === 'polyline') {
-            shape = new googleRef.current.maps.Polyline({
+            shape = new window.google.maps.Polyline({
               path: d.coordinates,
               map: map,
               ...baseOptions,
@@ -684,7 +645,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             })
             if (d.type !== 'marker') {
               shape.addListener('mouseover', (e: any) => {
-                if (d.notes) {
+                if (d.notes && infoWindowRef.current) {
                   infoWindowRef.current.setContent(
                     `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
                   )
@@ -693,7 +654,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
                 }
               })
               shape.addListener('mouseout', () => {
-                infoWindowRef.current.close()
+                if (infoWindowRef.current) infoWindowRef.current.close()
               })
             }
 
@@ -751,6 +712,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       onDrawingUpdate,
       onDrawingSelect,
       presentationMode,
+      isLoaded,
     ])
 
     if (error)
