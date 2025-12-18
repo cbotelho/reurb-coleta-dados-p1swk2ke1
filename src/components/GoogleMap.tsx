@@ -237,11 +237,12 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       isLoaded,
       mapId,
       map,
-      // Removed center/zoom from dep array to avoid re-init, handled in update effect
       mapType,
       fullscreenControl,
       presentationMode,
       onMapLoad,
+      center,
+      zoom,
     ])
 
     // Update Map Options & Center
