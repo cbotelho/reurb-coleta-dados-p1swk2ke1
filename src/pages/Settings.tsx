@@ -264,7 +264,33 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Fallback Key Section */}
+              <div className="space-y-4 border-b pb-4 mb-4">
+                <div className="space-y-2">
+                  <Label>Chave API Global (Fallback)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="AIza... (Usada se nenhuma chave estiver ativa)"
+                      value={settings.googleMapsApiKey || ''}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          googleMapsApiKey: e.target.value,
+                        })
+                      }
+                      type="password"
+                    />
+                    <Button onClick={handleSave}>Salvar</Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Esta chave será usada automaticamente caso não haja nenhuma
+                    chave ativa na lista abaixo.
+                  </p>
+                </div>
+              </div>
+
               <div className="grid gap-4 p-4 border rounded-lg bg-slate-50">
+                <h4 className="font-medium text-sm">Adicionar Nova Chave</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Nome da Chave</Label>

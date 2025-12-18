@@ -643,9 +643,11 @@ class DBService {
   }
 
   getEffectiveMapKey(): MapKey | undefined {
+    // 1. Try active key from DB
     const activeKey = this.getActiveMapKey()
-    if (activeKey) return activeKey
+    if (activeKey && activeKey.key) return activeKey
 
+    // 2. Fallback to settings
     const settings = this.getSettings()
     if (settings.googleMapsApiKey) {
       return {
@@ -654,6 +656,7 @@ class DBService {
         key: settings.googleMapsApiKey,
         isActive: true,
         createdAt: 0,
+        mapId: '', // Default mapId if needed
       }
     }
     return undefined

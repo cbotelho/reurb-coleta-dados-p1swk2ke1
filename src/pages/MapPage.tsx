@@ -168,7 +168,10 @@ export default function MapPage() {
 
   const [projects, setProjects] = useState<Project[]>([])
   const [lotes, setLotes] = useState<Lote[]>([])
-  const [activeKey, setActiveKey] = useState<MapKey | undefined>()
+  // Initialize with fallback logic synchronously
+  const [activeKey, setActiveKey] = useState<MapKey | undefined>(() =>
+    db.getEffectiveMapKey(),
+  )
   const [markerConfigs, setMarkerConfigs] = useState<MarkerConfig[]>([])
 
   // Search & Filter
@@ -230,9 +233,10 @@ export default function MapPage() {
     const projs = db.getProjects()
     setProjects(projs)
     setLotes(db.getAllLotes())
-    // Ensure we use the robust fallback logic
+
     const key = db.getEffectiveMapKey()
-    setActiveKey(key)
+    setActiveKey((prev) => (prev?.key === key?.key ? prev : key))
+
     setMarkerConfigs(db.getMarkerConfigs())
     setCustomLayers(db.getCustomLayers().sort((a, b) => a.zIndex - b.zIndex))
     setDrawingLayers(db.getDrawingLayers())
