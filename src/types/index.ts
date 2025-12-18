@@ -19,6 +19,7 @@ export interface MapKey {
   id: string
   name: string
   key: string
+  mapId?: string
   isActive: boolean
   createdAt: number
 }

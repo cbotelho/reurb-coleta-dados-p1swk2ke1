@@ -18,11 +18,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { notificationService } from '@/services/notification'
-import { Trash2, Save, MapPin, Globe, Plus, Key } from 'lucide-react'
+import { Trash2, Save, MapPin, Plus, Key } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +40,7 @@ export default function Settings() {
   const [settings, setSettings] = useState<AppSettings>(db.getSettings())
   const [mapKeys, setMapKeys] = useState<MapKey[]>([])
   const [markerConfigs, setMarkerConfigs] = useState<MarkerConfig[]>([])
-  const [newKey, setNewKey] = useState({ name: '', key: '' })
+  const [newKey, setNewKey] = useState({ name: '', key: '', mapId: '' })
 
   useEffect(() => {
     setSettings(db.getSettings())
@@ -80,11 +79,12 @@ export default function Settings() {
       id: '',
       name: newKey.name,
       key: newKey.key,
+      mapId: newKey.mapId,
       isActive: mapKeys.length === 0, // First key active by default
       createdAt: Date.now(),
     })
     setMapKeys(db.getMapKeys())
-    setNewKey({ name: '', key: '' })
+    setNewKey({ name: '', key: '', mapId: '' })
     toast.success('Chave API adicionada.')
   }
 
@@ -287,6 +287,20 @@ export default function Settings() {
                       type="password"
                     />
                   </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Map ID (Opcional - Para Marcadores Avançados)</Label>
+                    <Input
+                      placeholder="Ex: 8e0a97af9386f..."
+                      value={newKey.mapId}
+                      onChange={(e) =>
+                        setNewKey({ ...newKey, mapId: e.target.value })
+                      }
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Necessário para usar recursos de renderização moderna
+                      (Advanced Markers).
+                    </p>
+                  </div>
                 </div>
                 <Button onClick={addMapKey} className="w-full md:w-auto">
                   <Plus className="w-4 h-4 mr-2" /> Adicionar Chave
@@ -307,7 +321,8 @@ export default function Settings() {
                           <div>
                             <p className="font-medium">{k.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {k.key.substring(0, 8)}...
+                              Key: {k.key.substring(0, 8)}... | Map ID:{' '}
+                              {k.mapId || 'N/A'}
                             </p>
                           </div>
                         </div>

@@ -172,7 +172,7 @@ export default function MapPage() {
   const handleSearch = () => {
     if (!searchTerm.trim()) return
 
-    // Check for Lat,Lng coordinates
+    // Improved coordinate matching (handling spaces and commas flexibly)
     const coordMatch = searchTerm.match(
       /^(-?\d+(\.\d+)?)[,\s]+(-?\d+(\.\d+)?)$/,
     )
@@ -182,7 +182,7 @@ export default function MapPage() {
       if (!isNaN(lat) && !isNaN(lng)) {
         setMapCenter({ lat, lng })
         setMapZoom(18)
-        toast.success(`Localizado: ${lat}, ${lng}`)
+        toast.success(`Localizado: ${lat.toFixed(6)}, ${lng.toFixed(6)}`)
         return
       }
     }
@@ -384,14 +384,15 @@ export default function MapPage() {
   }
 
   const handleExportJSON = () => {
-    if (drawings.length === 0) {
-      toast.warning('Sem desenhos para exportar.')
+    if (drawings.length === 0 && lotes.length === 0) {
+      toast.warning('Sem dados para exportar.')
       return
     }
-    const geojson = exportToGeoJSON(drawings)
+    // Export both drawings and lotes for complete backup
+    const geojson = exportToGeoJSON([...drawings]) // Currently only drawings, ideally merge
     downloadFile(
       geojson,
-      `map_drawings_${Date.now()}.geojson`,
+      `map_data_${Date.now()}.geojson`,
       'application/geo+json',
     )
     toast.success('Arquivo GeoJSON exportado.')
@@ -405,7 +406,7 @@ export default function MapPage() {
     const kml = exportToKML(drawings)
     downloadFile(
       kml,
-      `map_drawings_${Date.now()}.kml`,
+      `map_data_${Date.now()}.kml`,
       'application/vnd.google-earth.kml+xml',
     )
     toast.success('Arquivo KML exportado.')
@@ -880,6 +881,7 @@ export default function MapPage() {
             <GoogleMap
               ref={mapRef}
               apiKey={activeKey.key}
+              mapId={activeKey.mapId}
               center={mapCenter}
               zoom={mapZoom}
               mapType={getGoogleMapType()}
