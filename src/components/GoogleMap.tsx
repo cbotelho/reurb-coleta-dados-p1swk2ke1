@@ -22,6 +22,7 @@ interface Marker {
   status?: string
   id?: string
   color?: string
+  icon?: MarkerIconType
 }
 
 export interface GoogleMapHandle {
@@ -519,18 +520,29 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           markers.length > 2000 ? markers.slice(0, 2000) : markers
 
         markersToRender.forEach((markerData) => {
-          const marker = new window.google.maps.Marker({
-            position: { lat: markerData.lat, lng: markerData.lng },
-            map: map,
-            title: markerData.title,
-            icon: {
+          let iconSymbol
+          if (markerData.icon) {
+            iconSymbol = getGoogleIconSymbol(
+              markerData.icon,
+              markerData.color || 'red',
+              1.2,
+            )
+          } else {
+            iconSymbol = {
               path: window.google.maps.SymbolPath.CIRCLE,
               scale: 6,
               fillColor: markerData.color || 'red',
               fillOpacity: 1,
               strokeColor: 'white',
               strokeWeight: 1,
-            },
+            }
+          }
+
+          const marker = new window.google.maps.Marker({
+            position: { lat: markerData.lat, lng: markerData.lng },
+            map: map,
+            title: markerData.title,
+            icon: iconSymbol,
             optimized: true,
             clickable: !presentationMode,
           })

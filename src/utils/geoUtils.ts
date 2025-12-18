@@ -1,4 +1,4 @@
-import { MapDrawing, DrawingStyle, Lote } from '@/types'
+import { MapDrawing, DrawingStyle, Lote, Project } from '@/types'
 
 export const DEFAULT_STYLE: DrawingStyle = {
   strokeColor: '#2563eb',
@@ -172,14 +172,21 @@ export function importFromGeoJSON(json: string): MapDrawing[] {
 export function getBoundsCoordinates(
   lotes: Lote[],
   drawings: MapDrawing[],
+  projects?: Project[],
 ): { lat: number; lng: number }[] {
   const points: { lat: number; lng: number }[] = []
 
+  const parseCoord = (val: string | number | undefined) => {
+    if (!val) return NaN
+    const str = String(val).replace(',', '.')
+    return parseFloat(str)
+  }
+
   lotes.forEach((l) => {
     if (l.latitude && l.longitude) {
-      const lat = parseFloat(l.latitude)
-      const lng = parseFloat(l.longitude)
-      if (!isNaN(lat) && !isNaN(lng)) {
+      const lat = parseCoord(l.latitude)
+      const lng = parseCoord(l.longitude)
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
         points.push({ lat, lng })
       }
     }
@@ -192,6 +199,18 @@ export function getBoundsCoordinates(
       d.coordinates.forEach((c: any) => points.push(c))
     }
   })
+
+  if (projects) {
+    projects.forEach((p) => {
+      if (p.latitude && p.longitude) {
+        const lat = parseCoord(p.latitude)
+        const lng = parseCoord(p.longitude)
+        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+          points.push({ lat, lng })
+        }
+      }
+    })
+  }
 
   return points
 }

@@ -9,6 +9,7 @@ import {
   MapDrawing,
   DrawingStyle,
   DrawingLayer,
+  MarkerIconType,
 } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -124,18 +125,6 @@ export default function MapPage() {
 
     const savedDrawings = db.getMapDrawings()
     setDrawings(savedDrawings)
-
-    // Initial center if not set
-    setMapCenter((prev) => {
-      if (prev) return prev
-      if (projs.length > 0 && projs[0].latitude && projs[0].longitude) {
-        return {
-          lat: parseFloat(projs[0].latitude),
-          lng: parseFloat(projs[0].longitude),
-        }
-      }
-      return prev
-    })
   }, [])
 
   useEffect(() => {
@@ -173,31 +162,47 @@ export default function MapPage() {
 
   const handleLocateProject = useCallback(() => {
     if (!mapRef.current) return
-    const points = getBoundsCoordinates(lotes, drawings)
+    const points = getBoundsCoordinates(lotes, drawings, projects)
     if (points.length > 0) {
       mapRef.current.fitBounds(points)
-      toast.info('Projeto localizado.')
+      toast.info('Localizando todos os dados...')
     } else {
-      toast.warning('Nenhum item para localizar.')
+      toast.warning('Nenhum dado geográfico encontrado.')
     }
-  }, [lotes, drawings])
+  }, [lotes, drawings, projects])
 
   // Auto locate on first load
   useEffect(() => {
     if (
       mapReady &&
       !initialFocusRef.current &&
-      (lotes.length > 0 || drawings.length > 0)
+      (lotes.length > 0 || drawings.length > 0 || projects.length > 0)
     ) {
       setTimeout(() => {
         if (mapRef.current) {
-          const points = getBoundsCoordinates(lotes, drawings)
-          if (points.length > 0) mapRef.current.fitBounds(points)
+          const points = getBoundsCoordinates(lotes, drawings, projects)
+          if (points.length > 0) {
+            mapRef.current.fitBounds(points)
+          } else {
+            // Default center if nothing found
+            if (
+              projects.length > 0 &&
+              projects[0].latitude &&
+              projects[0].longitude
+            ) {
+              setMapCenter({
+                lat: parseFloat(String(projects[0].latitude).replace(',', '.')),
+                lng: parseFloat(
+                  String(projects[0].longitude).replace(',', '.'),
+                ),
+              })
+            }
+          }
         }
       }, 500)
       initialFocusRef.current = true
     }
-  }, [mapReady, lotes, drawings])
+  }, [mapReady, lotes, drawings, projects])
 
   const saveToHistory = (newDrawings: MapDrawing[]) => {
     setHistoryPast((prev) => [...prev, drawings])
@@ -361,6 +366,33 @@ export default function MapPage() {
   }
 
   const measurements = selectedMeasurements()
+
+  // Prepare all markers (Projects + Lotes)
+  const projectMarkers = projects
+    .filter((p) => p.latitude && p.longitude)
+    .map((p) => ({
+      lat: parseFloat(String(p.latitude).replace(',', '.')),
+      lng: parseFloat(String(p.longitude).replace(',', '.')),
+      title: `Projeto: ${p.field_348}`,
+      id: p.local_id,
+      color: '#7c3aed', // Purple for projects
+      icon: 'flag' as MarkerIconType,
+    }))
+    .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
+
+  const loteMarkers = lotes
+    .filter((l) => l.latitude && l.longitude)
+    .map((l) => ({
+      lat: parseFloat(String(l.latitude).replace(',', '.')),
+      lng: parseFloat(String(l.longitude).replace(',', '.')),
+      title: l.field_338,
+      status: l.sync_status,
+      id: l.local_id,
+      color: getMarkerColor(l),
+    }))
+    .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
+
+  const allMarkers = [...projectMarkers, ...loteMarkers]
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col space-y-4">
@@ -755,27 +787,23 @@ export default function MapPage() {
               center={mapCenter}
               zoom={mapZoom}
               mapType={getGoogleMapType()}
-              markers={lotes
-                .filter((l) => l.latitude && l.longitude)
-                .map((l) => ({
-                  lat: parseFloat(l.latitude!),
-                  lng: parseFloat(l.longitude!),
-                  title: l.field_338,
-                  status: l.sync_status,
-                  id: l.local_id,
-                  color: getMarkerColor(l),
-                }))}
+              markers={allMarkers}
               customLayers={customLayers}
               drawings={visibleDrawings}
               onMarkerClick={(m) => {
-                if (
+                // If it's a project marker, maybe navigate to project?
+                if (m.title?.startsWith('Projeto: ')) {
+                  const pid = m.id
+                  if (pid) navigate(`/projetos/${pid}`)
+                } else if (
                   m.id &&
                   !drawingMode &&
                   !editMode &&
                   !selectionMode &&
                   !presentationMode
-                )
+                ) {
                   navigate(`/lotes/${m.id}`)
+                }
               }}
               drawingMode={drawingMode}
               selectionMode={selectionMode}
@@ -824,6 +852,13 @@ export default function MapPage() {
                   {c.label}
                 </div>
               ))}
+            <div className="flex items-center gap-2">
+              <div
+                className="w-3 h-3 rounded-full border-2 border-white"
+                style={{ backgroundColor: '#7c3aed' }}
+              />{' '}
+              Projeto
+            </div>
           </div>
         )}
 
