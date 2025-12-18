@@ -37,6 +37,7 @@ import {
   FileJson,
   Globe,
   Clock,
+  AlertTriangle,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -329,7 +330,11 @@ export default function MapPage() {
   const handleProjectSelect = (projectId: string) => {
     setSelectedProjectId(projectId)
     if (projectId === 'all') {
-      handleLocateProject() // Fit bounds to all
+      const points = getBoundsCoordinates(lotes, drawings, projects)
+      if (points.length > 0) {
+        if (mapRef.current) mapRef.current.fitBounds(points)
+        toast.info('Visualizando extensão total')
+      }
       return
     }
 
@@ -337,7 +342,7 @@ export default function MapPage() {
     if (project && project.latitude && project.longitude) {
       const lat = parseFloat(String(project.latitude).replace(',', '.'))
       const lng = parseFloat(String(project.longitude).replace(',', '.'))
-      if (!isNaN(lat) && !isNaN(lng)) {
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
         setMapCenter({ lat, lng })
         setMapZoom(17)
         if (mapRef.current) {
@@ -352,6 +357,25 @@ export default function MapPage() {
 
   const handleLocateProject = useCallback(() => {
     if (!mapRef.current) return
+
+    if (selectedProjectId !== 'all') {
+      const project = projects.find((p) => p.local_id === selectedProjectId)
+      if (
+        project &&
+        project.latitude &&
+        project.longitude &&
+        project.latitude !== '0' &&
+        project.longitude !== '0'
+      ) {
+        const lat = parseFloat(String(project.latitude).replace(',', '.'))
+        const lng = parseFloat(String(project.longitude).replace(',', '.'))
+        if (!isNaN(lat) && !isNaN(lng)) {
+          mapRef.current.panTo(lat, lng)
+          return
+        }
+      }
+    }
+
     const points = getBoundsCoordinates(lotes, drawings, projects)
     if (points.length > 0) {
       mapRef.current.fitBounds(points)
@@ -359,7 +383,7 @@ export default function MapPage() {
     } else {
       toast.warning('Nenhum dado geográfico encontrado.')
     }
-  }, [lotes, drawings, projects])
+  }, [lotes, drawings, projects, selectedProjectId])
 
   const handleMapLoad = useCallback((_map: any) => {
     setMapReady(true)
@@ -394,7 +418,7 @@ export default function MapPage() {
             )
             if (!isNaN(lat) && !isNaN(lng)) {
               setMapCenter({ lat, lng })
-              // mapRef.current.panTo(lat, lng);
+              mapRef.current.panTo(lat, lng)
             }
           } else {
             const points = getBoundsCoordinates(lotes, drawings, projects)
@@ -471,7 +495,7 @@ export default function MapPage() {
 
   const getMapStyles = () => {
     if (mapLayer === 'dark') return DARK_MAP_STYLE
-    return highContrast ? undefined : [] // Undefined lets GoogleMap handle default highContrast logic if needed
+    return highContrast ? undefined : []
   }
 
   const handleDrawingComplete = (newDrawingData: any) => {
@@ -1236,12 +1260,17 @@ export default function MapPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
-            <h3 className="text-xl font-semibold">Mapa Indisponível</h3>
-            <p className="text-muted-foreground max-w-md">
-              Configure uma Chave de API nas configurações para visualizar o
-              mapa.
-            </p>
-            <Button asChild>
+            <div className="bg-yellow-100 p-4 rounded-full">
+              <AlertTriangle className="h-8 w-8 text-yellow-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold">Mapa Indisponível</h3>
+              <p className="text-muted-foreground max-w-md mt-1">
+                Configure uma Chave de API nas configurações para visualizar o
+                mapa.
+              </p>
+            </div>
+            <Button asChild className="mt-4">
               <Link to="/configuracoes">Configurar Agora</Link>
             </Button>
           </div>

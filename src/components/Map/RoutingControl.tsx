@@ -29,10 +29,6 @@ export function RoutingControl({
   const [distance, setDistance] = useState<string | null>(null)
   const [duration, setDuration] = useState<string | null>(null)
 
-  // This function is exposed to MapPage via refs or props in a real complex app
-  // but here we rely on text inputs or MapPage handling the point update
-  // To keep it simple, we let MapPage pass coordinates as strings if set via map click
-
   const handleCalculate = async () => {
     if (!startPoint || !endPoint) {
       toast.error('Defina origem e destino.')
@@ -77,13 +73,6 @@ export function RoutingControl({
     onClearRoute()
     onSetPointMode(null)
   }
-
-  // Effect to listen to map clicks would be in MapPage, which updates these inputs
-  // But we need a way to receive those values. For now, we assume user types or
-  // MapPage updates a state that we observe?
-  // Let's rely on props. We can't easily sync state two-way without a parent controller.
-  // Instead, we will add a small update helper here if we want full map-click integration
-  // but simplest is just text inputs for now, OR user clicks button "Select on Map".
 
   return (
     <Popover>

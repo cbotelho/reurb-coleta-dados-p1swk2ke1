@@ -10,13 +10,14 @@ export const SEED_PROJECTS: Project[] = [
     field_348: 'Marabaixo 1',
     field_350: '1762455359_PLANTA_GERAL_REUB_MARABAIXO_I-modelo2.pdf',
     field_351: '1762455374_Marabaixo_1.jpg',
-    latitude: '0.036161', // Updated as per user story
-    longitude: '-51.130895', // Updated as per user story
+    latitude: '0.036161',
+    longitude: '-51.130895',
     parent_id: 0,
     parent_item_id: 1,
     linked_id: 0,
     created_by: 1,
     sort_order: 0,
+    auto_update_map: true,
   },
   {
     id: 2,
@@ -64,7 +65,6 @@ const generateLoteCoords = (
   projectLng: number,
   index: number,
 ) => {
-  // Generate a small grid pattern around the project center
   const offsetLat = ((Math.floor(index / 10) - 5) * 0.0005).toFixed(6)
   const offsetLng = (((index % 10) - 5) * 0.0005).toFixed(6)
   return {
@@ -100,14 +100,11 @@ const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
   }
 })
 
-// Generate 385 additional lots as per previous requirements
 const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
   const id = 52 + i
-  // Distribute among quadras 4 to 19 (16 quadras)
   const quadraOffset = i % 16
   const quadraId = 4 + quadraOffset
 
-  // Use a pseudo-random generation for area and lot number to simulate provided data
   const areaBase = 30 + (i % 500)
   const areaDecimal = (i * 17) % 100
   const area = `${areaBase}.${areaDecimal < 10 ? '0' + areaDecimal : areaDecimal}`
@@ -121,26 +118,23 @@ const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
 
   return {
     id: id,
-    local_id: `lote-${id}`, // Using consistent naming with ID
+    local_id: `lote-${id}`,
     sync_status: 'synchronized',
     date_added: 1762513937000,
     date_updated: 0,
     field_338: loteNum,
     field_339: area,
-    field_340: '', // Empty description implies ''
-    field_352: [], // Empty file fields
+    field_340: '',
+    field_352: [],
     parent_item_id: `quad-${quadraId}`,
     latitude: coords.latitude,
     longitude: coords.longitude,
   }
 })
 
-// Generate 186 additional lots as per user story (IDs 526-711)
 const NEW_LOTES_186: Lote[] = Array.from({ length: 186 }, (_, i) => {
   const id = 526 + i
-  // Distribute evenly among all 40 quadras
   const quadraId = (i % 40) + 1
-
   const loteNum = `Lote ${(i % 100) + 1}`
   const area = `250.00m²`
 

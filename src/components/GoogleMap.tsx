@@ -216,7 +216,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       panTo: (lat, lng) => {
         if (!map) return
         map.panTo({ lat, lng })
-        map.setZoom(18)
       },
       getMap: () => map,
     }))
@@ -362,7 +361,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       mapStyles,
     ])
 
-    // Handle Map Center
+    // Handle Map Center (Reactive Pan)
     useEffect(() => {
       if (map && center) {
         const c = map.getCenter()
@@ -372,8 +371,8 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           Math.abs(c.lng() - center.lng) > 0.0001
         ) {
           map.panTo(center)
-          // Optionally sync zoom if provided and significantly different?
-          // Keeping it simple for now as panTo is main requirement
+          // Also set zoom if we are re-centering explicitly?
+          // The page logic might handle initial zoom, but panTo preserves zoom usually.
         }
       }
     }, [map, center])
@@ -390,7 +389,12 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           })
       }
 
-      directionsRendererRef.current.setDirections(directionsResult)
+      if (directionsResult) {
+        directionsRendererRef.current.setMap(map)
+        directionsRendererRef.current.setDirections(directionsResult)
+      } else {
+        directionsRendererRef.current.setMap(null)
+      }
     }, [map, directionsResult])
 
     // Handle Map Click
