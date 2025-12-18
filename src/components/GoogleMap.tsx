@@ -313,12 +313,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         const gMap = new MapClassRef.current(mapRef.current, mapOptions)
         setMap(gMap)
 
-        gMap.addListener('click', (e: any) => {
-          if (onMapClick) {
-            onMapClick(e.latLng.lat(), e.latLng.lng())
-          }
-        })
-
         infoWindowRef.current = new googleRef.current.maps.InfoWindow({
           disableAutoPan: true,
         })
@@ -337,6 +331,27 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       center,
       zoom,
     ])
+
+    // Handle Map Click Listener
+    useEffect(() => {
+      if (!map || !onMapClick) return
+
+      const listener = map.addListener('click', (e: any) => {
+        onMapClick(e.latLng.lat(), e.latLng.lng())
+      })
+
+      return () => {
+        if (
+          googleRef.current &&
+          googleRef.current.maps &&
+          googleRef.current.maps.event
+        ) {
+          googleRef.current.maps.event.removeListener(listener)
+        } else if ((listener as any).remove) {
+          ;(listener as any).remove()
+        }
+      }
+    }, [map, onMapClick])
 
     // Update Map Options & Center & Styles
     useEffect(() => {
