@@ -6,14 +6,15 @@ import {
   forwardRef,
   useImperativeHandle,
 } from 'react'
-import { Loader2, AlertTriangle } from 'lucide-react'
+import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import { CustomLayer, MapDrawing, DrawingStyle, MarkerIconType } from '@/types'
 import {
   getGoogleIconSymbol,
   createAdvancedMarkerContent,
 } from '@/utils/mapIcons'
 import { loadGoogleMapsApi } from '@/utils/googleMapsLoader'
-import { Button } from './ui/button'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 declare global {
   interface Window {
@@ -84,7 +85,71 @@ const HIGH_CONTRAST_STYLE = [
     elementType: 'labels.text.fill',
     stylers: [{ color: '#746855' }],
   },
-  // ... (rest of high contrast style can be added here or imported)
+  {
+    featureType: 'administrative.locality',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'geometry',
+    stylers: [{ color: '#263c3f' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6b9a76' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#38414e' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#212a37' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#9ca5b3' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry',
+    stylers: [{ color: '#746855' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#1f2835' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#f3d19c' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry',
+    stylers: [{ color: '#17263c' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#515c6d' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#17263c' }],
+  },
 ]
 
 export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
@@ -119,6 +184,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     const [map, setMap] = useState<any>(null)
     const [isLoaded, setIsLoaded] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
     // References to map objects
     const markersRef = useRef<any[]>([])
@@ -146,9 +212,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       },
     }))
 
+    // Initialize API
     useEffect(() => {
       if (!apiKey) {
         setError('API Key não configurada.')
+        setIsLoading(false)
         return
       }
 
@@ -156,15 +224,24 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
       const init = async () => {
         try {
+          setIsLoading(true)
           loadGoogleMapsApi(apiKey)
 
-          // Use importLibrary to safely load modules
-          const [mapsLib, markerLib, drawingLib] = await Promise.all([
-            window.google.maps.importLibrary('maps'),
-            window.google.maps.importLibrary('marker'),
-            window.google.maps.importLibrary('drawing'),
-            window.google.maps.importLibrary('geometry'), // Ensure geometry is loaded
-          ])
+          // Safety check for importLibrary availability
+          if (!window.google?.maps?.importLibrary) {
+            // Should be available if loadGoogleMapsApi ran successfully
+            throw new Error(
+              'Bootstrap loader failed to initialize importLibrary',
+            )
+          }
+
+          const [mapsLib, markerLib, drawingLib, geometryLib] =
+            await Promise.all([
+              window.google.maps.importLibrary('maps'),
+              window.google.maps.importLibrary('marker'),
+              window.google.maps.importLibrary('drawing'),
+              window.google.maps.importLibrary('geometry'),
+            ])
 
           if (!isMounted) return
 
@@ -174,9 +251,15 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           DrawingManagerRef.current = drawingLib.DrawingManager
 
           setIsLoaded(true)
+          setIsLoading(false)
         } catch (e) {
           console.error('Failed to load Google Maps libraries', e)
-          if (isMounted) setError('Falha ao inicializar o Google Maps.')
+          if (isMounted) {
+            setError(
+              'Falha ao inicializar o Google Maps. Verifique a chave de API e a conexão.',
+            )
+            setIsLoading(false)
+          }
         }
       }
 
@@ -209,7 +292,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             fullscreenControlOptions: {
               position: ControlPositionRef.current.RIGHT_TOP,
             },
-            mapId: mapId || undefined,
+            mapId: mapId || undefined, // Required for AdvancedMarkerElement
           }
 
           const gMap = new MapClassRef.current(mapRef.current, mapOptions)
@@ -225,18 +308,38 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setError('Erro ao renderizar o mapa.')
         }
       }
-    }, [
-      isLoaded,
-      mapId,
-      map,
-      mapType,
-      fullscreenControl,
-      presentationMode,
-      highContrast,
-      onMapLoad,
-      center,
-      zoom,
-    ])
+    }, [isLoaded, mapId]) // Only re-run if loaded or mapId changes significantly (usually static)
+
+    // Handle props updates that affect map options
+    useEffect(() => {
+      if (map) {
+        map.setOptions({
+          mapTypeId: mapType,
+          fullscreenControl: fullscreenControl && !presentationMode,
+          zoomControl: !presentationMode,
+          mapTypeControl: !presentationMode,
+          disableDefaultUI: presentationMode,
+          styles: highContrast ? HIGH_CONTRAST_STYLE : [],
+        })
+      }
+    }, [map, mapType, fullscreenControl, presentationMode, highContrast])
+
+    // Handle Map Center/Zoom updates from props
+    useEffect(() => {
+      if (map && center) {
+        const c = map.getCenter()
+        if (
+          !c ||
+          Math.abs(c.lat() - center.lat) > 0.0001 ||
+          Math.abs(c.lng() - center.lng) > 0.0001
+        ) {
+          map.panTo(center)
+          if (zoom !== map.getZoom()) {
+            map.setZoom(zoom)
+          }
+        }
+      }
+    }, [map, center, zoom])
 
     // Handle Map Click
     useEffect(() => {
@@ -253,38 +356,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       }
     }, [map, onMapClick])
 
-    // Update Map Options
-    useEffect(() => {
-      if (map) {
-        map.setOptions({
-          mapTypeId: mapType,
-          fullscreenControl: fullscreenControl && !presentationMode,
-          zoomControl: !presentationMode,
-          mapTypeControl: !presentationMode,
-          disableDefaultUI: presentationMode,
-          styles: highContrast ? HIGH_CONTRAST_STYLE : [],
-        })
-        if (center) {
-          const c = map.getCenter()
-          if (
-            !c ||
-            Math.abs(c.lat() - center.lat) > 0.0001 ||
-            Math.abs(c.lng() - center.lng) > 0.0001
-          ) {
-            map.panTo(center)
-          }
-        }
-      }
-    }, [
-      map,
-      mapType,
-      fullscreenControl,
-      presentationMode,
-      center,
-      zoom,
-      highContrast,
-    ])
-
     // Render Markers
     useEffect(() => {
       if (!map || !isLoaded) return
@@ -295,10 +366,10 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       })
       markersRef.current = []
 
-      if (presentationMode) return
+      if (presentationMode && markers.length > 5000) return // Optimization for heavy mode
 
       const markersToRender =
-        markers.length > 2000 ? markers.slice(0, 2000) : markers
+        markers.length > 3000 ? markers.slice(0, 3000) : markers
 
       markersToRender.forEach((markerData) => {
         let markerInstance
@@ -307,9 +378,9 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         if (AdvancedMarkerElementRef.current && mapId) {
           const AdvancedMarkerElement = AdvancedMarkerElementRef.current
           const content = createAdvancedMarkerContent(
-            markerData.icon,
+            markerData.icon || 'circle',
             markerData.color || 'red',
-            1.2,
+            1.0, // scale
           )
 
           markerInstance = new AdvancedMarkerElement({
@@ -329,7 +400,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             iconSymbol = getGoogleIconSymbol(
               markerData.icon,
               markerData.color || 'red',
-              1.2,
+              1.0,
             )
           } else {
             iconSymbol = {
@@ -651,25 +722,37 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
     if (error)
       return (
-        <div className="flex items-center justify-center h-full min-h-[300px] bg-red-50 text-red-600 rounded-lg border border-red-200 p-4">
+        <div
+          className={cn(
+            'flex items-center justify-center h-full min-h-[300px] bg-red-50 text-red-600 rounded-lg border border-red-200 p-4',
+            className,
+          )}
+        >
           <div className="text-center">
             <AlertTriangle className="h-10 w-10 mx-auto mb-2 text-red-500" />
             <p className="font-semibold">Erro ao carregar mapa</p>
-            <p className="text-sm">{error}</p>
+            <p className="text-sm mb-4">{error}</p>
             <Button
               variant="outline"
               size="sm"
-              className="mt-4 border-red-200 hover:bg-red-100 text-red-700"
+              className="border-red-200 hover:bg-red-100 text-red-700 gap-2"
               onClick={() => window.location.reload()}
             >
+              <RefreshCw className="h-3 w-3" />
               Recarregar Página
             </Button>
           </div>
         </div>
       )
-    if (!isLoaded)
+
+    if (isLoading || !isLoaded)
       return (
-        <div className="flex flex-col items-center justify-center h-full min-h-[300px] bg-slate-50 rounded-lg border">
+        <div
+          className={cn(
+            'flex flex-col items-center justify-center h-full min-h-[300px] bg-slate-50 rounded-lg border',
+            className,
+          )}
+        >
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
           <p className="text-sm text-slate-500">Inicializando Google Maps...</p>
         </div>

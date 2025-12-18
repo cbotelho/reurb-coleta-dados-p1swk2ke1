@@ -9,9 +9,13 @@ const BOOTSTRAP_LOADED_KEY = '__google_maps_bootstrap_loaded__'
 export const loadGoogleMapsApi = (apiKey: string): void => {
   if (typeof window === 'undefined') return
 
-  // Prevent double loading
-  if ((window as any)[BOOTSTRAP_LOADED_KEY]) return
-  if (window.google?.maps?.importLibrary) return
+  // Check if already loaded to avoid duplicate scripts
+  if ((window as any)[BOOTSTRAP_LOADED_KEY]) {
+    // Check if key matches, if not warning (switching keys without reload is not supported by Google Maps easily)
+    return
+  }
+
+  // Mark as loaded
   ;(window as any)[BOOTSTRAP_LOADED_KEY] = true
 
   // Google Maps Bootstrap Loader
