@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useSync } from '@/contexts/SyncContext'
 import {
   Card,
@@ -17,15 +17,74 @@ import {
   ArrowRight,
   RefreshCw,
   Folder,
+  Map as MapIcon,
+  AlertTriangle,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { GoogleMap, GoogleMapHandle } from '@/components/GoogleMap'
+import { db } from '@/services/db'
+import { Project, Lote, MapKey, MarkerIconType } from '@/types'
+import { getBoundsCoordinates } from '@/utils/geoUtils'
 
 export default function Dashboard() {
   const { isOnline, isSyncing, stats, triggerSync, refreshStats } = useSync()
+  const mapRef = useRef<GoogleMapHandle>(null)
+  const [activeKey, setActiveKey] = useState<MapKey | undefined>()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [lotes, setLotes] = useState<Lote[]>([])
 
   useEffect(() => {
     refreshStats()
+    const key = db.getActiveMapKey()
+    setActiveKey(key)
+    setProjects(db.getProjects())
+    setLotes(db.getAllLotes())
   }, [refreshStats])
+
+  // Prepare markers for map
+  const projectMarkers = projects
+    .filter((p) => p.latitude && p.longitude)
+    .map((p) => ({
+      lat: parseFloat(String(p.latitude).replace(',', '.')),
+      lng: parseFloat(String(p.longitude).replace(',', '.')),
+      title: `Projeto: ${p.field_348}`,
+      id: p.local_id,
+      color: '#7c3aed',
+      icon: 'flag' as MarkerIconType,
+    }))
+    .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
+
+  const loteMarkers = lotes
+    .filter((l) => l.latitude && l.longitude)
+    .map((l) => ({
+      lat: parseFloat(String(l.latitude).replace(',', '.')),
+      lng: parseFloat(String(l.longitude).replace(',', '.')),
+      title: l.field_338,
+      status: l.sync_status,
+      id: l.local_id,
+      color:
+        l.sync_status === 'synchronized'
+          ? '#22c55e'
+          : l.sync_status === 'failed'
+            ? '#ef4444'
+            : '#f97316',
+      icon: 'circle' as MarkerIconType,
+    }))
+    .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
+
+  const allMarkers = [...projectMarkers, ...loteMarkers]
+
+  const handleMapLoad = () => {
+    // Auto fit bounds when map loads
+    setTimeout(() => {
+      if (mapRef.current && allMarkers.length > 0) {
+        const points = getBoundsCoordinates(lotes, [], projects)
+        if (points.length > 0) {
+          mapRef.current.fitBounds(points)
+        }
+      }
+    }, 500)
+  }
 
   return (
     <div className="space-y-6">
@@ -168,12 +227,57 @@ export default function Dashboard() {
       </div>
 
       <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Mapa Geral</h2>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/mapa">
+              <MapIcon className="w-4 h-4 mr-2" />
+              Ver Mapa Completo
+            </Link>
+          </Button>
+        </div>
+        <Card className="overflow-hidden border-2 border-slate-100 shadow-md">
+          <div className="h-[400px] w-full bg-slate-50 relative">
+            {activeKey ? (
+              <GoogleMap
+                ref={mapRef}
+                apiKey={activeKey.key}
+                mapId={activeKey.mapId}
+                markers={allMarkers}
+                className="h-full w-full"
+                onMapLoad={handleMapLoad}
+                presentationMode
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
+                <div className="bg-yellow-100 p-4 rounded-full">
+                  <AlertTriangle className="h-8 w-8 text-yellow-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Mapa Não Configurado
+                  </h3>
+                  <p className="text-gray-500 max-w-sm mt-1">
+                    Adicione uma Chave de API do Google Maps nas configurações
+                    para visualizar o mapa geográfico.
+                  </p>
+                </div>
+                <Button asChild variant="default" className="mt-4">
+                  <Link to="/configuracoes">Configurar Agora</Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-8">
         <h2 className="text-lg font-semibold mb-4">Acesso Rápido</h2>
         <div className="grid grid-cols-2 gap-4">
           <Link to="/projetos">
             <Button
               variant="outline"
-              className="w-full h-24 flex flex-col gap-2 border-dashed border-2"
+              className="w-full h-24 flex flex-col gap-2 border-dashed border-2 hover:border-blue-300 hover:bg-blue-50 transition-colors"
             >
               <Folder className="h-6 w-6 text-blue-500" />
               <span>Acessar Projetos</span>
@@ -182,7 +286,7 @@ export default function Dashboard() {
           <Link to="/sincronizacao">
             <Button
               variant="outline"
-              className="w-full h-24 flex flex-col gap-2 border-dashed border-2"
+              className="w-full h-24 flex flex-col gap-2 border-dashed border-2 hover:border-orange-300 hover:bg-orange-50 transition-colors"
             >
               <RefreshCw className="h-6 w-6 text-orange-500" />
               <span>Ver Status de Sincronização</span>

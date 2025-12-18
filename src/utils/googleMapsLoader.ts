@@ -4,14 +4,19 @@ declare global {
   }
 }
 
+const BOOTSTRAP_LOADED_KEY = '__google_maps_bootstrap_loaded__'
+
 export const loadGoogleMapsApi = (apiKey: string): void => {
   if (typeof window === 'undefined') return
 
-  // Check if importLibrary is already available
-  if (window.google?.maps?.importLibrary)
-    return // Google Maps Bootstrap Loader
-    // Source: https://developers.google.com/maps/documentation/javascript/load-maps-js-api
-    /* eslint-disable */
+  // Prevent double loading
+  if ((window as any)[BOOTSTRAP_LOADED_KEY]) return
+  if (window.google?.maps?.importLibrary) return
+  ;(window as any)[BOOTSTRAP_LOADED_KEY] = true
+
+  // Google Maps Bootstrap Loader
+  // Source: https://developers.google.com/maps/documentation/javascript/load-maps-js-api
+  /* eslint-disable */
   ;(function (g: any) {
     var h: any,
       a: any,

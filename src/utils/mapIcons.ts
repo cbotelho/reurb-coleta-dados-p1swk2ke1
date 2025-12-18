@@ -46,12 +46,18 @@ export function getGoogleIconSymbol(
   color: string = 'blue',
   scale: number = 1,
 ) {
+  // Guard clause for server-side or early render
+  if (typeof window === 'undefined' || !window.google?.maps) {
+    return {
+      path: 0, // Fallback path
+      fillColor: color,
+      scale: 1,
+    }
+  }
+
   if (type === 'circle') {
     return {
-      path:
-        typeof window !== 'undefined'
-          ? window.google?.maps?.SymbolPath?.CIRCLE
-          : 0,
+      path: window.google.maps.SymbolPath?.CIRCLE || 0,
       scale: 6 * scale,
       fillColor: color,
       fillOpacity: 1,
@@ -69,9 +75,10 @@ export function getGoogleIconSymbol(
     strokeColor: 'white',
     strokeWeight: 1,
     scale: (iconDef.scale || 1) * scale * 0.7,
-    anchor: iconDef.anchor
-      ? new window.google.maps.Point(iconDef.anchor.x, iconDef.anchor.y)
-      : undefined,
+    anchor:
+      iconDef.anchor && window.google.maps.Point
+        ? new window.google.maps.Point(iconDef.anchor.x, iconDef.anchor.y)
+        : undefined,
   }
 }
 
@@ -116,11 +123,8 @@ export function createAdvancedMarkerContent(
   path.setAttribute('stroke', 'white')
   path.setAttribute('stroke-width', '1')
 
-  // Apply shadow filter (optional, skipping for simplicity)
-
   svg.appendChild(path)
   container.appendChild(svg)
 
-  // Advanced Marker automatically handles layout, but we can return just the SVG or wrapper
   return container
 }
