@@ -371,8 +371,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           Math.abs(c.lng() - center.lng) > 0.0001
         ) {
           map.panTo(center)
-          // Also set zoom if we are re-centering explicitly?
-          // The page logic might handle initial zoom, but panTo preserves zoom usually.
         }
       }
     }, [map, center])

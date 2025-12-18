@@ -156,6 +156,9 @@ const DARK_MAP_STYLE = [
   },
 ]
 
+// Marabaixo 1 coordinates
+const MARABAIXO_COORDS = { lat: 0.036161, lng: -51.130895 }
+
 export default function MapPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -227,8 +230,9 @@ export default function MapPage() {
     const projs = db.getProjects()
     setProjects(projs)
     setLotes(db.getAllLotes())
-    // Use getEffectiveMapKey to handle fallback logic
-    setActiveKey(db.getEffectiveMapKey())
+    // Ensure we use the robust fallback logic
+    const key = db.getEffectiveMapKey()
+    setActiveKey(key)
     setMarkerConfigs(db.getMarkerConfigs())
     setCustomLayers(db.getCustomLayers().sort((a, b) => a.zIndex - b.zIndex))
     setDrawingLayers(db.getDrawingLayers())
@@ -377,13 +381,22 @@ export default function MapPage() {
       }
     }
 
-    const points = getBoundsCoordinates(lotes, drawings, projects)
-    if (points.length > 0) {
-      mapRef.current.fitBounds(points)
-      toast.info('Visualizando extensão total...')
-    } else {
-      toast.warning('Nenhum dado geográfico encontrado.')
+    // Default to Marabaixo 1 if no specific project or if "all" is selected
+    // but no fit bounds logic applies (e.g. empty lotes)
+    const marabaixo = projects.find((p) => p.local_id === 'proj-1')
+    if (marabaixo && marabaixo.latitude && marabaixo.longitude) {
+      const lat = parseFloat(String(marabaixo.latitude).replace(',', '.'))
+      const lng = parseFloat(String(marabaixo.longitude).replace(',', '.'))
+      if (!isNaN(lat) && !isNaN(lng)) {
+        mapRef.current.panTo(lat, lng)
+        toast.info('Centralizado em Marabaixo 1')
+        return
+      }
     }
+
+    // Fallback to coordinates
+    mapRef.current.panTo(MARABAIXO_COORDS.lat, MARABAIXO_COORDS.lng)
+    toast.info('Centralizado em Marabaixo 1 (Padrão)')
   }, [lotes, drawings, projects, selectedProjectId])
 
   const handleMapLoad = useCallback((_map: any) => {
@@ -391,47 +404,64 @@ export default function MapPage() {
   }, [])
 
   useEffect(() => {
-    if (
-      mapReady &&
-      !initialFocusRef.current &&
-      (lotes.length > 0 || drawings.length > 0 || projects.length > 0)
-    ) {
+    if (mapReady && !initialFocusRef.current) {
       setTimeout(() => {
         if (mapRef.current) {
-          // If we have projects, prioritize centering on the first one or active selection
-          const activeProj =
-            selectedProjectId !== 'all'
-              ? projects.find((p) => p.local_id === selectedProjectId)
-              : projects[0]
+          // Priority: Selected Project -> Marabaixo 1 -> Bounds -> Default
 
-          if (
-            activeProj &&
-            activeProj.latitude &&
-            activeProj.longitude &&
-            activeProj.latitude !== '0' &&
-            activeProj.longitude !== '0'
-          ) {
-            const lat = parseFloat(
-              String(activeProj.latitude).replace(',', '.'),
+          if (selectedProjectId !== 'all') {
+            const activeProj = projects.find(
+              (p) => p.local_id === selectedProjectId,
             )
-            const lng = parseFloat(
-              String(activeProj.longitude).replace(',', '.'),
-            )
-            if (!isNaN(lat) && !isNaN(lng)) {
-              setMapCenter({ lat, lng })
-              mapRef.current.panTo(lat, lng)
-            }
-          } else {
-            const points = getBoundsCoordinates(lotes, drawings, projects)
-            if (points.length > 0) {
-              mapRef.current.fitBounds(points)
+            if (
+              activeProj &&
+              activeProj.latitude &&
+              activeProj.longitude &&
+              activeProj.latitude !== '0'
+            ) {
+              const lat = parseFloat(
+                String(activeProj.latitude).replace(',', '.'),
+              )
+              const lng = parseFloat(
+                String(activeProj.longitude).replace(',', '.'),
+              )
+              if (!isNaN(lat) && !isNaN(lng)) {
+                setMapCenter({ lat, lng })
+                mapRef.current.panTo(lat, lng)
+                initialFocusRef.current = true
+                return
+              }
             }
           }
+
+          // Try centering on Marabaixo 1 by default
+          const marabaixo = projects.find((p) => p.local_id === 'proj-1')
+          let targetLat = MARABAIXO_COORDS.lat
+          let targetLng = MARABAIXO_COORDS.lng
+
+          if (
+            marabaixo &&
+            marabaixo.latitude &&
+            marabaixo.longitude &&
+            marabaixo.latitude !== '0'
+          ) {
+            const lat = parseFloat(String(marabaixo.latitude).replace(',', '.'))
+            const lng = parseFloat(
+              String(marabaixo.longitude).replace(',', '.'),
+            )
+            if (!isNaN(lat) && !isNaN(lng)) {
+              targetLat = lat
+              targetLng = lng
+            }
+          }
+
+          setMapCenter({ lat: targetLat, lng: targetLng })
+          mapRef.current.panTo(targetLat, targetLng)
+          initialFocusRef.current = true
         }
       }, 500)
-      initialFocusRef.current = true
     }
-  }, [mapReady, lotes, drawings, projects, selectedProjectId])
+  }, [mapReady, projects, selectedProjectId])
 
   const saveToHistory = (newDrawings: MapDrawing[]) => {
     setHistoryPast((prev) => [...prev, drawings])
