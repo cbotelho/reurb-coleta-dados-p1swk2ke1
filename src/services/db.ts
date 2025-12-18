@@ -220,13 +220,33 @@ class DBService {
     const projectMap = new Map<string, string>()
 
     SEED_PROJECTS.forEach((seedP) => {
-      const existing = projects.find((p) => p.local_id === seedP.local_id)
-      if (!existing) {
+      const existingIndex = projects.findIndex(
+        (p) => p.local_id === seedP.local_id,
+      )
+      if (existingIndex === -1) {
         projects.push(seedP)
         projectsUpdated = true
         projectMap.set(seedP.local_id, seedP.field_348)
       } else {
-        projectMap.set(existing.local_id, existing.field_348)
+        // Force update critical projects like Marabaixo 1 if they don't match seed coords
+        if (seedP.local_id === 'proj-1') {
+          const p = projects[existingIndex]
+          if (
+            p.latitude !== seedP.latitude ||
+            p.longitude !== seedP.longitude
+          ) {
+            projects[existingIndex] = {
+              ...p,
+              latitude: seedP.latitude,
+              longitude: seedP.longitude,
+            }
+            projectsUpdated = true
+          }
+        }
+        projectMap.set(
+          projects[existingIndex].local_id,
+          projects[existingIndex].field_348,
+        )
       }
     })
 

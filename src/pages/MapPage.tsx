@@ -221,31 +221,6 @@ export default function MapPage() {
     null,
   )
   const [directionsResult, setDirectionsResult] = useState<any>(null)
-  // Hack to update RoutingControl inputs from map click:
-  // Since we don't have a shared state manager or context for this specific widget,
-  // we will manually toggle a key to force rerender or just let RoutingControl handle it via props?
-  // Actually, we can't easily push values INTO RoutingControl without lifting state up completely.
-  // For this demo, we will accept that map clicks for routing just console log or toast coordinates
-  // and user copies them, OR we implement a simple state lift.
-  // Let's lift state:
-  const [routeStart, setRouteStart] = useState('') // Not used in this version of RoutingControl to keep it encapsulated?
-  // Wait, RoutingControl uses internal state. We need to key it to force update or pass values.
-  // Let's just use toast to show coordinates when in route mode, user can copy paste for now, or improve RoutingControl to accept value props.
-  // IMPROVEMENT: RoutingControl is updated to not accept props for values, so we can't push.
-  // Actually, let's keep it simple: RoutingControl manages its own state.
-  // Map click will just toast the coord so user can type it or copy it if needed.
-  // BUT Acceptance Criteria says: "allow users to click points on the map".
-  // So I should modify RoutingControl to accept props.
-  // I will skip modifying RoutingControl again to avoid breaking single-response rule (already written above).
-  // Wait, I can't modify RoutingControl anymore in this turn? I just wrote it.
-  // I wrote `RoutingControl` above with internal state.
-  // I will stick to "User types address" or "Select on map" just logging for now if I can't pass props.
-  // Actually, I can use `key` to force reset, but not to set value.
-  // Let's assume the user types for now as per "input fields" criteria, and "click points" is a bonus I missed in the exact prop implementation of RoutingControl.
-  // RE-READ: "The application must provide input fields... OR allow users to click points".
-  // Okay, I will implement "click points" by checking `routePointMode` in `handleMapClick` and
-  // updating a state variable that I can pass to `RoutingControl` if I rewrite it?
-  // No, I can't rewrite it. I'll use a hack: I'll use `toast` to say "Point selected: Lat,Lng".
 
   const refreshData = useCallback(() => {
     const projs = db.getProjects()
@@ -398,28 +373,40 @@ export default function MapPage() {
     ) {
       setTimeout(() => {
         if (mapRef.current) {
-          const points = getBoundsCoordinates(lotes, drawings, projects)
-          if (points.length > 0) {
-            mapRef.current.fitBounds(points)
+          // If we have projects, prioritize centering on the first one or active selection
+          const activeProj =
+            selectedProjectId !== 'all'
+              ? projects.find((p) => p.local_id === selectedProjectId)
+              : projects[0]
+
+          if (
+            activeProj &&
+            activeProj.latitude &&
+            activeProj.longitude &&
+            activeProj.latitude !== '0' &&
+            activeProj.longitude !== '0'
+          ) {
+            const lat = parseFloat(
+              String(activeProj.latitude).replace(',', '.'),
+            )
+            const lng = parseFloat(
+              String(activeProj.longitude).replace(',', '.'),
+            )
+            if (!isNaN(lat) && !isNaN(lng)) {
+              setMapCenter({ lat, lng })
+              // mapRef.current.panTo(lat, lng);
+            }
           } else {
-            if (
-              projects.length > 0 &&
-              projects[0].latitude &&
-              projects[0].longitude
-            ) {
-              setMapCenter({
-                lat: parseFloat(String(projects[0].latitude).replace(',', '.')),
-                lng: parseFloat(
-                  String(projects[0].longitude).replace(',', '.'),
-                ),
-              })
+            const points = getBoundsCoordinates(lotes, drawings, projects)
+            if (points.length > 0) {
+              mapRef.current.fitBounds(points)
             }
           }
         }
       }, 500)
       initialFocusRef.current = true
     }
-  }, [mapReady, lotes, drawings, projects])
+  }, [mapReady, lotes, drawings, projects, selectedProjectId])
 
   const saveToHistory = (newDrawings: MapDrawing[]) => {
     setHistoryPast((prev) => [...prev, drawings])
@@ -1200,7 +1187,7 @@ export default function MapPage() {
         )}
       >
         {activeKey ? (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 h-full w-full">
             <GoogleMap
               ref={mapRef}
               apiKey={activeKey.key}
@@ -1211,6 +1198,7 @@ export default function MapPage() {
               markers={allMarkers}
               customLayers={customLayers}
               drawings={visibleDrawings}
+              className="h-full w-full"
               onMarkerClick={(m) => {
                 if (m.title?.startsWith('Projeto: ')) {
                   const pid = m.id
@@ -1250,7 +1238,8 @@ export default function MapPage() {
           <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
             <h3 className="text-xl font-semibold">Mapa Indisponível</h3>
             <p className="text-muted-foreground max-w-md">
-              Configure uma Chave de API nas configurações.
+              Configure uma Chave de API nas configurações para visualizar o
+              mapa.
             </p>
             <Button asChild>
               <Link to="/configuracoes">Configurar Agora</Link>

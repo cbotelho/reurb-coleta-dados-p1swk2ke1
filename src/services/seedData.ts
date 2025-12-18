@@ -10,8 +10,8 @@ export const SEED_PROJECTS: Project[] = [
     field_348: 'Marabaixo 1',
     field_350: '1762455359_PLANTA_GERAL_REUB_MARABAIXO_I-modelo2.pdf',
     field_351: '1762455374_Marabaixo_1.jpg',
-    latitude: '0.042057',
-    longitude: '-51.124770',
+    latitude: '0.036161', // Updated as per user story
+    longitude: '-51.130895', // Updated as per user story
     parent_id: 0,
     parent_item_id: 1,
     linked_id: 0,
@@ -77,8 +77,8 @@ const INITIAL_LOTES: Lote[] = Array.from({ length: 51 }, (_, i) => {
   const index = i + 1
   const quadraIndex = ((index - 1) % 40) + 1
   const isMarabaixo = quadraIndex <= 20
-  const baseLat = isMarabaixo ? 0.042057 : 3.8427
-  const baseLng = isMarabaixo ? -51.12477 : -51.8344
+  const baseLat = isMarabaixo ? 0.036161 : 3.8427
+  const baseLng = isMarabaixo ? -51.130895 : -51.8344
   const coords = generateLoteCoords(baseLat, baseLng, i)
 
   return {
@@ -115,8 +115,8 @@ const ADDITIONAL_LOTES: Lote[] = Array.from({ length: 385 }, (_, i) => {
   const loteNum = `${(i % 500) + 1}`
 
   const isMarabaixo = quadraId <= 20
-  const baseLat = isMarabaixo ? 0.042057 : 3.8427
-  const baseLng = isMarabaixo ? -51.12477 : -51.8344
+  const baseLat = isMarabaixo ? 0.036161 : 3.8427
+  const baseLng = isMarabaixo ? -51.130895 : -51.8344
   const coords = generateLoteCoords(baseLat, baseLng, i + 100)
 
   return {
@@ -145,8 +145,8 @@ const NEW_LOTES_186: Lote[] = Array.from({ length: 186 }, (_, i) => {
   const area = `250.00m²`
 
   const isMarabaixo = quadraId <= 20
-  const baseLat = isMarabaixo ? 0.042057 : 3.8427
-  const baseLng = isMarabaixo ? -51.12477 : -51.8344
+  const baseLat = isMarabaixo ? 0.036161 : 3.8427
+  const baseLng = isMarabaixo ? -51.130895 : -51.8344
   const coords = generateLoteCoords(baseLat, baseLng, i + 500)
 
   return {

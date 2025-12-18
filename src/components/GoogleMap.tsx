@@ -270,6 +270,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
           setIsLoaded(true)
           setIsLoading(false)
+          setError(null)
         } catch (e) {
           console.error('Failed to load Google Maps libraries', e)
           if (isMounted) {
@@ -330,8 +331,8 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       isLoaded,
       mapId,
       map,
-      center,
-      zoom,
+      // center, // We handle center updates separately to avoid re-init
+      // zoom,
       onMapLoad,
       mapType,
       fullscreenControl,
@@ -371,6 +372,8 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           Math.abs(c.lng() - center.lng) > 0.0001
         ) {
           map.panTo(center)
+          // Optionally sync zoom if provided and significantly different?
+          // Keeping it simple for now as panTo is main requirement
         }
       }
     }, [map, center])
