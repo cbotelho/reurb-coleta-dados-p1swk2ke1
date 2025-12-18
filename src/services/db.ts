@@ -687,6 +687,10 @@ class DBService {
     return drawing
   }
 
+  setMapDrawings(drawings: MapDrawing[]) {
+    this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, drawings)
+  }
+
   deleteMapDrawing(id: string) {
     const drawings = this.getMapDrawings()
     const filtered = drawings.filter((d) => d.id !== id)

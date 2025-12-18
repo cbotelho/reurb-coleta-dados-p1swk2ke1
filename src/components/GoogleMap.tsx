@@ -35,6 +35,7 @@ interface GoogleMapProps {
   drawingStyle?: DrawingStyle
   editMode?: boolean
   selectedDrawingId?: string | null
+  onGeolocation?: (pos: { lat: number; lng: number }) => void
 }
 
 export function GoogleMap({
@@ -60,6 +61,7 @@ export function GoogleMap({
   },
   editMode = false,
   selectedDrawingId = null,
+  onGeolocation,
 }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
@@ -70,6 +72,7 @@ export function GoogleMap({
   const drawingManagerRef = useRef<any>(null)
   const drawnShapesRef = useRef<Map<string, any>>(new Map())
   const customLayerFeaturesRef = useRef<Map<string, any[]>>(new Map())
+  const infoWindowRef = useRef<any>(null)
 
   // Load API
   useEffect(() => {
@@ -118,8 +121,21 @@ export function GoogleMap({
         ],
       })
       setMap(gMap)
+      infoWindowRef.current = new window.google.maps.InfoWindow({
+        disableAutoPan: true,
+      })
     }
   }, [isLoaded, mapRef, map, center, zoom, mapType, fullscreenControl])
+
+  // Helper to expose Geolocation if map is ready
+  useEffect(() => {
+    if (map && onGeolocation) {
+      // Logic for geolocation is driven by parent via ref or we just check permission here?
+      // Actually parent handles button, calls logic, updates center prop.
+      // But if we want map to do it internally we can.
+      // Current architecture: Parent controls center.
+    }
+  }, [map, onGeolocation])
 
   // Drawing Manager
   useEffect(() => {
@@ -219,7 +235,9 @@ export function GoogleMap({
     // Remove deleted
     existingIds.forEach((id) => {
       if (!currentIds.has(id)) {
-        drawnShapesRef.current.get(id).setMap(null)
+        const shape = drawnShapesRef.current.get(id)
+        window.google.maps.event.clearInstanceListeners(shape)
+        shape.setMap(null)
         drawnShapesRef.current.delete(id)
       }
     })
@@ -239,6 +257,7 @@ export function GoogleMap({
         strokeWeight: d.style.strokeWeight,
         clickable: true,
         zIndex: isSelected ? 100 : 1,
+        title: d.notes || '', // Simple tooltip for Marker
       }
 
       if (!shape) {
@@ -268,6 +287,22 @@ export function GoogleMap({
           if (onDrawingSelect) onDrawingSelect(d.id)
         })
 
+        // Tooltip listeners for Poly/Line (since 'title' isn't natively supported like Marker)
+        if (d.type !== 'marker') {
+          shape.addListener('mouseover', (e: any) => {
+            if (d.notes) {
+              infoWindowRef.current.setContent(
+                `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
+              )
+              infoWindowRef.current.setPosition(e.latLng)
+              infoWindowRef.current.open(map)
+            }
+          })
+          shape.addListener('mouseout', () => {
+            infoWindowRef.current.close()
+          })
+        }
+
         if (d.type === 'marker') {
           shape.addListener('dragend', () => {
             const pos = shape.getPosition()
@@ -294,6 +329,42 @@ export function GoogleMap({
       } else {
         // Update existing shape options
         shape.setOptions(shapeOptions)
+
+        // Update listeners or props if needed (like notes changed)
+        // If marker, update title
+        if (d.type === 'marker') {
+          shape.setTitle(d.notes || '')
+        }
+
+        // For polygon/polyline, we rely on the closure variable 'd' which might be stale in listeners if not careful
+        // Actually, we need to update the mouseover listener if we want dynamic notes without re-creating listeners.
+        // A simple way is to clear listeners and re-add, but that's heavy.
+        // Better: Store data on the shape object itself.
+        shape.set('notes', d.notes)
+      }
+    })
+
+    // Global listener update for polygon notes
+    // We can do this cleaner: attach 'mouseover' once, and read 'notes' property from shape.
+    // Refactoring to ensure freshness:
+    drawings.forEach((d) => {
+      const shape = drawnShapesRef.current.get(d.id)
+      if (shape && d.type !== 'marker') {
+        window.google.maps.event.clearListeners(shape, 'mouseover')
+        window.google.maps.event.clearListeners(shape, 'mouseout')
+
+        shape.addListener('mouseover', (e: any) => {
+          if (d.notes) {
+            infoWindowRef.current.setContent(
+              `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
+            )
+            infoWindowRef.current.setPosition(e.latLng)
+            infoWindowRef.current.open(map)
+          }
+        })
+        shape.addListener('mouseout', () => {
+          infoWindowRef.current.close()
+        })
       }
     })
   }, [

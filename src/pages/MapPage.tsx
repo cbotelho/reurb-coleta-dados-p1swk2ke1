@@ -16,7 +16,6 @@ import {
   Navigation,
   Layers,
   Search,
-  Upload,
   Eye,
   EyeOff,
   MapPin,
@@ -24,14 +23,17 @@ import {
   MousePointer2,
   Trash,
   Undo,
-  ArrowUp,
-  ArrowDown,
   Bell,
   Maximize,
   Minimize,
   Palette,
   MousePointerClick,
   Save,
+  Redo,
+  Download,
+  Upload,
+  Locate,
+  Info,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -42,11 +44,17 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { GoogleMap } from '@/components/GoogleMap'
-import { parseKML } from '@/utils/kmlParser'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
+import {
+  calculateArea,
+  calculateLength,
+  exportToGeoJSON,
+  importFromGeoJSON,
+} from '@/utils/geoUtils'
 
 const DEFAULT_STYLE: DrawingStyle = {
   strokeColor: '#2563eb',
@@ -84,15 +92,18 @@ export default function MapPage() {
     null,
   )
 
-  // Styling
+  // Styling & Notes
   const [currentStyle, setCurrentStyle] = useState<DrawingStyle>(DEFAULT_STYLE)
+  const [currentNote, setCurrentNote] = useState('')
 
   // Undo/Redo Stacks
-  const [history, setHistory] = useState<MapDrawing[]>([])
+  const [historyPast, setHistoryPast] = useState<MapDrawing[][]>([])
+  const [historyFuture, setHistoryFuture] = useState<MapDrawing[][]>([])
 
   // Full Screen
   const [isFullscreen, setIsFullscreen] = useState(false)
   const mapContainerRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refreshData = useCallback(() => {
     const projs = db.getProjects()
@@ -101,7 +112,9 @@ export default function MapPage() {
     setActiveKey(db.getActiveMapKey())
     setMarkerConfigs(db.getMarkerConfigs())
     setCustomLayers(db.getCustomLayers().sort((a, b) => a.zIndex - b.zIndex))
-    setDrawings(db.getMapDrawings())
+
+    const savedDrawings = db.getMapDrawings()
+    setDrawings(savedDrawings)
 
     // Initial center
     setMapCenter((prev) => {
@@ -121,14 +134,16 @@ export default function MapPage() {
   }, [refreshData])
 
   useEffect(() => {
-    // Sync style when selection changes
+    // Sync style and note when selection changes
     if (selectedDrawingId) {
       const selected = drawings.find((d) => d.id === selectedDrawingId)
       if (selected) {
         setCurrentStyle(selected.style)
+        setCurrentNote(selected.notes || '')
       }
     } else {
       setCurrentStyle(DEFAULT_STYLE)
+      setCurrentNote('')
     }
   }, [selectedDrawingId, drawings])
 
@@ -141,6 +156,37 @@ export default function MapPage() {
       document.removeEventListener('fullscreenchange', handleFullScreenChange)
     }
   }, [])
+
+  const saveToHistory = (newDrawings: MapDrawing[]) => {
+    setHistoryPast((prev) => [...prev, drawings])
+    setHistoryFuture([])
+    setDrawings(newDrawings)
+    db.setMapDrawings(newDrawings)
+  }
+
+  const handleUndo = () => {
+    if (historyPast.length === 0) return
+    const previous = historyPast[historyPast.length - 1]
+    const newPast = historyPast.slice(0, -1)
+
+    setHistoryPast(newPast)
+    setHistoryFuture((prev) => [drawings, ...prev])
+    setDrawings(previous)
+    db.setMapDrawings(previous)
+    toast.info('Desfeito.')
+  }
+
+  const handleRedo = () => {
+    if (historyFuture.length === 0) return
+    const next = historyFuture[0]
+    const newFuture = historyFuture.slice(1)
+
+    setHistoryPast((prev) => [...prev, drawings])
+    setHistoryFuture(newFuture)
+    setDrawings(next)
+    db.setMapDrawings(next)
+    toast.info('Refeito.')
+  }
 
   const handleLayerChange = (
     layer: 'street' | 'satellite' | 'terrain' | 'hybrid',
@@ -197,6 +243,28 @@ export default function MapPage() {
     }
   }
 
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocalização não suportada pelo navegador.')
+      return
+    }
+    toast.info('Obtendo localização...')
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setMapCenter({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        })
+        setMapZoom(18)
+        toast.success('Localização atual encontrada.')
+      },
+      (error) => {
+        console.error(error)
+        toast.error('Erro ao obter localização. Verifique permissões.')
+      },
+    )
+  }
+
   // Drawing Handlers
   const handleDrawingComplete = (newDrawingData: any) => {
     const newDrawing: MapDrawing = {
@@ -206,9 +274,8 @@ export default function MapPage() {
       style: { ...currentStyle },
       createdAt: Date.now(),
     }
-    db.saveMapDrawing(newDrawing)
-    setDrawings((prev) => [...prev, newDrawing])
-    setHistory((prev) => [...prev, newDrawing])
+    const newDrawings = [...drawings, newDrawing]
+    saveToHistory(newDrawings)
     setDrawingMode(null)
     toast.success('Desenho salvo!')
   }
@@ -217,9 +284,11 @@ export default function MapPage() {
     const updated = drawings.map((d) =>
       d.id === id ? { ...d, coordinates } : d,
     )
-    setDrawings(updated)
-    const d = updated.find((d) => d.id === id)
-    if (d) db.saveMapDrawing(d)
+    // Only save to history if actually changed (drag end)
+    // For real-time updates this might be too frequent, so db save is OK but history maybe debounced?
+    // For simplicity, we update drawings state but maybe push to history only on selection change or explicit "finish"?
+    // The GoogleMap component calls this on 'dragend', so it's a discrete event.
+    saveToHistory(updated)
   }
 
   const handleStyleChange = (newStyle: Partial<DrawingStyle>) => {
@@ -230,19 +299,70 @@ export default function MapPage() {
       const updatedDrawings = drawings.map((d) =>
         d.id === selectedDrawingId ? { ...d, style: updatedStyle } : d,
       )
-      setDrawings(updatedDrawings)
-      const d = updatedDrawings.find((d) => d.id === selectedDrawingId)
-      if (d) db.saveMapDrawing(d)
+      saveToHistory(updatedDrawings)
     }
   }
 
-  const handleUndo = () => {
-    if (history.length === 0) return
-    const last = history[history.length - 1]
-    db.deleteMapDrawing(last.id)
-    setDrawings((prev) => prev.filter((d) => d.id !== last.id))
-    setHistory((prev) => prev.slice(0, -1))
-    toast.info('Desfeito.')
+  const handleNoteChange = (note: string) => {
+    setCurrentNote(note)
+    if (selectedDrawingId) {
+      // Debounce or just update on blur?
+      // Updating state directly
+      const updatedDrawings = drawings.map((d) =>
+        d.id === selectedDrawingId ? { ...d, notes: note } : d,
+      )
+      // Avoid flooding history for every keystroke.
+      // We just update current state and DB, but don't push to history stack for every char.
+      // We'll update the 'drawings' state directly without saveToHistory here
+      setDrawings(updatedDrawings)
+      db.setMapDrawings(updatedDrawings)
+    }
+  }
+
+  // Create a history entry when note editing is done (e.g. onBlur) if needed,
+  // but for now simple state update is fine.
+
+  const handleExport = () => {
+    if (drawings.length === 0) {
+      toast.warning('Sem desenhos para exportar.')
+      return
+    }
+    const geojson = exportToGeoJSON(drawings)
+    const blob = new Blob([geojson], { type: 'application/geo+json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `map_drawings_${Date.now()}.geojson`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success('Arquivo GeoJSON exportado.')
+  }
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string
+        const imported = importFromGeoJSON(content)
+        if (imported.length > 0) {
+          const newDrawings = [...drawings, ...imported]
+          saveToHistory(newDrawings)
+          toast.success(`${imported.length} geometrias importadas.`)
+        } else {
+          toast.warning('Nenhuma geometria válida encontrada.')
+        }
+      } catch (err) {
+        toast.error('Erro ao importar GeoJSON.')
+      }
+    }
+    reader.readAsText(file)
+    // Reset input
+    e.target.value = ''
   }
 
   const toggleFullScreen = () => {
@@ -258,9 +378,28 @@ export default function MapPage() {
   }
 
   const displayLotes = lotes.filter((l) => {
-    // Basic filter logic, in real app might depend on active project
+    // Basic filter logic
     return true
   })
+
+  // Measurements Calculation
+  const getSelectedMeasurements = () => {
+    const selected = drawings.find((d) => d.id === selectedDrawingId)
+    if (!selected) return null
+
+    if (selected.type === 'polygon') {
+      return { label: 'Área', value: calculateArea(selected.coordinates) }
+    }
+    if (selected.type === 'polyline') {
+      return {
+        label: 'Comprimento',
+        value: calculateLength(selected.coordinates),
+      }
+    }
+    return null
+  }
+
+  const measurements = getSelectedMeasurements()
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col space-y-4">
@@ -280,6 +419,14 @@ export default function MapPage() {
           </div>
           <Button variant="outline" size="icon" onClick={handleSearch}>
             <Search className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleLocateMe}
+            title="Minha Localização"
+          >
+            <Locate className="h-4 w-4" />
           </Button>
         </div>
 
@@ -321,89 +468,115 @@ export default function MapPage() {
                 <Button
                   variant={selectedDrawingId ? 'secondary' : 'ghost'}
                   size="icon"
-                  title="Estilo"
+                  title="Estilo & Notas"
                   disabled={!drawingMode && !selectedDrawingId}
                 >
                   <Palette className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-72">
+              <PopoverContent className="w-80">
                 <div className="space-y-4">
-                  <h4 className="font-medium text-sm">
-                    Estilo do Desenho{' '}
-                    {selectedDrawingId && (
-                      <span className="text-xs text-muted-foreground">
-                        (Selecionado)
+                  <h4 className="font-medium text-sm flex items-center justify-between">
+                    Propriedades
+                    {measurements && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                        {measurements.label}: {measurements.value}
                       </span>
                     )}
                   </h4>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Cor da Linha</Label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={currentStyle.strokeColor}
-                          onChange={(e) =>
-                            handleStyleChange({ strokeColor: e.target.value })
-                          }
-                          className="h-8 w-8 rounded border cursor-pointer"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {currentStyle.strokeColor}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Cor de Fundo</Label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          value={currentStyle.fillColor}
-                          onChange={(e) =>
-                            handleStyleChange({ fillColor: e.target.value })
-                          }
-                          className="h-8 w-8 rounded border cursor-pointer"
-                        />
-                        <span className="text-xs text-muted-foreground">
-                          {currentStyle.fillColor}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  <Tabs defaultValue="style">
+                    <TabsList className="w-full">
+                      <TabsTrigger value="style" className="flex-1">
+                        Estilo
+                      </TabsTrigger>
+                      <TabsTrigger value="notes" className="flex-1">
+                        Notas
+                      </TabsTrigger>
+                    </TabsList>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <Label>Espessura</Label>
-                      <span>{currentStyle.strokeWeight}px</span>
-                    </div>
-                    <Slider
-                      value={[currentStyle.strokeWeight]}
-                      min={1}
-                      max={10}
-                      step={1}
-                      onValueChange={(v) =>
-                        handleStyleChange({ strokeWeight: v[0] })
-                      }
-                    />
-                  </div>
+                    <TabsContent value="style" className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Linha</Label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={currentStyle.strokeColor}
+                              onChange={(e) =>
+                                handleStyleChange({
+                                  strokeColor: e.target.value,
+                                })
+                              }
+                              className="h-8 w-8 rounded border cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Fundo</Label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={currentStyle.fillColor}
+                              onChange={(e) =>
+                                handleStyleChange({ fillColor: e.target.value })
+                              }
+                              className="h-8 w-8 rounded border cursor-pointer"
+                            />
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <Label>Opacidade</Label>
-                      <span>{Math.round(currentStyle.fillOpacity * 100)}%</span>
-                    </div>
-                    <Slider
-                      value={[currentStyle.fillOpacity]}
-                      min={0}
-                      max={1}
-                      step={0.1}
-                      onValueChange={(v) =>
-                        handleStyleChange({ fillOpacity: v[0] })
-                      }
-                    />
-                  </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <Label>Espessura</Label>
+                          <span>{currentStyle.strokeWeight}px</span>
+                        </div>
+                        <Slider
+                          value={[currentStyle.strokeWeight]}
+                          min={1}
+                          max={10}
+                          step={1}
+                          onValueChange={(v) =>
+                            handleStyleChange({ strokeWeight: v[0] })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <Label>Opacidade</Label>
+                          <span>
+                            {Math.round(currentStyle.fillOpacity * 100)}%
+                          </span>
+                        </div>
+                        <Slider
+                          value={[currentStyle.fillOpacity]}
+                          min={0}
+                          max={1}
+                          step={0.1}
+                          onValueChange={(v) =>
+                            handleStyleChange({ fillOpacity: v[0] })
+                          }
+                        />
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="notes" className="space-y-2">
+                      <Label>Anotações</Label>
+                      <Textarea
+                        value={currentNote}
+                        onChange={(e) => handleNoteChange(e.target.value)}
+                        placeholder="Descreva este elemento..."
+                        className="resize-none"
+                        rows={5}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Notas aparecem ao passar o mouse sobre o elemento no
+                        mapa.
+                      </p>
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </PopoverContent>
             </Popover>
@@ -414,7 +587,7 @@ export default function MapPage() {
               variant="ghost"
               size="icon"
               onClick={handleUndo}
-              disabled={history.length === 0}
+              disabled={historyPast.length === 0}
               title="Desfazer"
             >
               <Undo className="h-4 w-4" />
@@ -422,29 +595,52 @@ export default function MapPage() {
             <Button
               variant="ghost"
               size="icon"
+              onClick={handleRedo}
+              disabled={historyFuture.length === 0}
+              title="Refazer"
+            >
+              <Redo className="h-4 w-4" />
+            </Button>
+
+            <div className="w-px h-6 bg-gray-200 mx-1" />
+
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => {
                 if (confirm('Limpar todos os desenhos?')) {
-                  drawings.forEach((d) => db.deleteMapDrawing(d.id))
-                  setDrawings([])
-                  setHistory([])
+                  saveToHistory([])
                 }
               }}
               title="Limpar Desenhos"
             >
               <Trash className="h-4 w-4 text-red-500" />
             </Button>
+
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => {
-                // Force save all (though auto-save is implemented)
-                drawings.forEach((d) => db.saveMapDrawing(d))
-                toast.success('Todos os desenhos salvos!')
-              }}
-              title="Salvar Manualmente"
+              onClick={handleExport}
+              title="Exportar GeoJSON"
             >
-              <Save className="h-4 w-4" />
+              <Download className="h-4 w-4" />
             </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              title="Importar GeoJSON"
+            >
+              <Upload className="h-4 w-4" />
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".geojson,.json"
+              onChange={handleImport}
+            />
 
             <Button
               variant="ghost"
@@ -485,7 +681,6 @@ export default function MapPage() {
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="layers" className="space-y-4">
-                  {/* ... Custom Layers logic same as before, omitted for brevity but functionality remains via props ... */}
                   <div className="space-y-2 mt-2">
                     <h4 className="font-medium text-sm">
                       Camadas Personalizadas
@@ -631,6 +826,14 @@ export default function MapPage() {
                   {c.label}
                 </div>
               ))}
+          </div>
+        )}
+
+        {/* Help Tip */}
+        {editMode && !selectedDrawingId && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg text-sm flex items-center gap-2 animate-fade-in-down z-10">
+            <Info className="h-4 w-4" />
+            Clique em um desenho para editar
           </div>
         )}
       </Card>

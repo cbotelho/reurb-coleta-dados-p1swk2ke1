@@ -54,6 +54,7 @@ export interface MapDrawing {
   coordinates: any // lat/lng object or array of them
   style: DrawingStyle
   createdAt: number
+  notes?: string
 }
 
 export interface GeoAlert {
