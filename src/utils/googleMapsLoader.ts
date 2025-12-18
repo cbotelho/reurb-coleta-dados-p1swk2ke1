@@ -11,11 +11,12 @@ export const loadGoogleMapsApi = (apiKey: string): void => {
 
   // Check if already loaded to avoid duplicate scripts
   if ((window as any)[BOOTSTRAP_LOADED_KEY]) {
-    // Check if key matches, if not warning (switching keys without reload is not supported by Google Maps easily)
+    // If we wanted to support key switching, we'd need to handle it here,
+    // but Google Maps JS API doesn't support hot-swapping keys easily.
     return
   }
 
-  // Mark as loaded
+  // Mark as loaded to prevent double injection
   ;(window as any)[BOOTSTRAP_LOADED_KEY] = true
 
   // Google Maps Bootstrap Loader

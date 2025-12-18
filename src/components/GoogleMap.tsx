@@ -227,11 +227,23 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setIsLoading(true)
           loadGoogleMapsApi(apiKey)
 
-          // Safety check for importLibrary availability
-          if (!window.google?.maps?.importLibrary) {
-            // Should be available if loadGoogleMapsApi ran successfully
+          // Robust check for importLibrary availability with retry mechanism
+          let attempts = 0
+          while (
+            (!window.google?.maps?.importLibrary ||
+              typeof window.google.maps.importLibrary !== 'function') &&
+            attempts < 50
+          ) {
+            await new Promise((r) => setTimeout(r, 100))
+            attempts++
+          }
+
+          if (
+            !window.google?.maps?.importLibrary ||
+            typeof window.google.maps.importLibrary !== 'function'
+          ) {
             throw new Error(
-              'Bootstrap loader failed to initialize importLibrary',
+              'Falha ao carregar a biblioteca do Google Maps. importLibrary não disponível.',
             )
           }
 
@@ -308,18 +320,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setError('Erro ao renderizar o mapa.')
         }
       }
-    }, [
-      isLoaded,
-      mapId,
-      map,
-      center,
-      zoom,
-      mapType,
-      fullscreenControl,
-      presentationMode,
-      highContrast,
-      onMapLoad,
-    ])
+    }, [isLoaded, mapId, map]) // Removing center/zoom from deps to prevent re-init, handled below
 
     // Handle props updates that affect map options
     useEffect(() => {
@@ -345,12 +346,13 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           Math.abs(c.lng() - center.lng) > 0.0001
         ) {
           map.panTo(center)
-          if (zoom !== map.getZoom()) {
-            map.setZoom(zoom)
+          // Only change zoom if explicitly different and significantly changed to avoid fighting user scroll
+          if (Math.abs(zoom - map.getZoom()) > 1) {
+            // map.setZoom(zoom) // Often better to let user control zoom after initial load
           }
         }
       }
-    }, [map, center, zoom])
+    }, [map, center]) // zoom removed to prevent aggressive zoom reset
 
     // Handle Map Click
     useEffect(() => {

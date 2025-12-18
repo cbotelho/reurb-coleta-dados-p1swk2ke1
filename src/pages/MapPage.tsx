@@ -268,6 +268,7 @@ export default function MapPage() {
       !initialFocusRef.current &&
       (lotes.length > 0 || drawings.length > 0 || projects.length > 0)
     ) {
+      // Delay slightly to ensure map container is sized
       setTimeout(() => {
         if (mapRef.current) {
           const points = getBoundsCoordinates(lotes, drawings, projects)

@@ -282,6 +282,7 @@ export function getBoundsCoordinates(
     return parseFloat(str)
   }
 
+  // Add Lotes Coordinates
   lotes.forEach((l) => {
     if (l.latitude && l.longitude) {
       const lat = parseCoord(l.latitude)
@@ -292,6 +293,7 @@ export function getBoundsCoordinates(
     }
   })
 
+  // Add Drawings Coordinates
   drawings.forEach((d) => {
     if (d.type === 'marker') {
       points.push(d.coordinates)
@@ -300,6 +302,7 @@ export function getBoundsCoordinates(
     }
   })
 
+  // Add Project Coordinates (Crucial for User Story)
   if (projects) {
     projects.forEach((p) => {
       if (p.latitude && p.longitude) {
