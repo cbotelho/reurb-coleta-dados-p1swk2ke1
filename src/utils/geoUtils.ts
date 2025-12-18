@@ -1,4 +1,13 @@
-import { MapDrawing } from '@/types'
+import { MapDrawing, DrawingStyle } from '@/types'
+
+export const DEFAULT_STYLE: DrawingStyle = {
+  strokeColor: '#2563eb',
+  strokeWeight: 2,
+  fillColor: '#2563eb',
+  fillOpacity: 0.3,
+  markerIcon: 'circle',
+  markerSize: 1,
+}
 
 export function calculateArea(
   coordinates: { lat: number; lng: number }[],
@@ -130,18 +139,23 @@ export function importFromGeoJSON(json: string): MapDrawing[] {
       }
 
       if (type && coordinates) {
+        // Robust style merging
+        const importedStyle = properties?.style || {}
+        const style: DrawingStyle = {
+          strokeColor: importedStyle.strokeColor || DEFAULT_STYLE.strokeColor,
+          strokeWeight:
+            importedStyle.strokeWeight || DEFAULT_STYLE.strokeWeight,
+          fillColor: importedStyle.fillColor || DEFAULT_STYLE.fillColor,
+          fillOpacity: importedStyle.fillOpacity ?? DEFAULT_STYLE.fillOpacity,
+          markerIcon: importedStyle.markerIcon || DEFAULT_STYLE.markerIcon,
+          markerSize: importedStyle.markerSize || DEFAULT_STYLE.markerSize,
+        }
+
         drawings.push({
           id: id || crypto.randomUUID(),
           type,
           coordinates,
-          style: properties?.style || {
-            strokeColor: '#2563eb',
-            strokeWeight: 2,
-            fillColor: '#2563eb',
-            fillOpacity: 0.3,
-            markerIcon: 'circle',
-            markerSize: 1,
-          },
+          style,
           createdAt: properties?.createdAt || Date.now(),
           notes: properties?.notes,
           layerId: properties?.layerId || 'default_layer',

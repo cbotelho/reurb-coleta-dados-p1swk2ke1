@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { CustomLayer, MapDrawing, DrawingStyle } from '@/types'
+import { CustomLayer, MapDrawing, DrawingStyle, MarkerIconType } from '@/types'
 import { getGoogleIconSymbol } from '@/utils/mapIcons'
 
 declare global {
@@ -40,6 +40,15 @@ interface GoogleMapProps {
   presentationMode?: boolean
 }
 
+const DEFAULT_STYLE: DrawingStyle = {
+  strokeColor: '#2563eb',
+  strokeWeight: 2,
+  fillColor: '#2563eb',
+  fillOpacity: 0.3,
+  markerIcon: 'circle',
+  markerSize: 1,
+}
+
 export function GoogleMap({
   apiKey,
   center,
@@ -56,14 +65,7 @@ export function GoogleMap({
   onDrawingUpdate,
   onDrawingSelect,
   fullscreenControl = true,
-  drawingStyle = {
-    strokeColor: '#2563eb',
-    strokeWeight: 2,
-    fillColor: '#2563eb',
-    fillOpacity: 0.3,
-    markerIcon: 'circle',
-    markerSize: 1,
-  },
+  drawingStyle = DEFAULT_STYLE,
   editMode = false,
   selectedDrawingIds = [],
   presentationMode = false,
@@ -78,9 +80,6 @@ export function GoogleMap({
   const drawnShapesRef = useRef<Map<string, any>>(new Map())
   const customLayerFeaturesRef = useRef<Map<string, any[]>>(new Map())
   const infoWindowRef = useRef<any>(null)
-
-  // Selection Rect
-  const selectionRectRef = useRef<any>(null)
 
   // Load API
   useEffect(() => {
@@ -253,6 +252,16 @@ export function GoogleMap({
         draggable: true,
       }
 
+      // Safe access to drawingStyle
+      const safeStyle: DrawingStyle = {
+        strokeColor: drawingStyle?.strokeColor || DEFAULT_STYLE.strokeColor,
+        strokeWeight: drawingStyle?.strokeWeight || DEFAULT_STYLE.strokeWeight,
+        fillColor: drawingStyle?.fillColor || DEFAULT_STYLE.fillColor,
+        fillOpacity: drawingStyle?.fillOpacity ?? DEFAULT_STYLE.fillOpacity,
+        markerIcon: drawingStyle?.markerIcon || DEFAULT_STYLE.markerIcon,
+        markerSize: drawingStyle?.markerSize || DEFAULT_STYLE.markerSize,
+      }
+
       // Box selection style
       const selectionOptions = {
         fillColor: '#3b82f6',
@@ -268,22 +277,22 @@ export function GoogleMap({
         markerOptions: {
           ...commonOptions,
           icon: getGoogleIconSymbol(
-            drawingStyle.markerIcon,
-            drawingStyle.fillColor,
-            drawingStyle.markerSize,
+            safeStyle.markerIcon,
+            safeStyle.fillColor,
+            safeStyle.markerSize,
           ),
         },
         polygonOptions: {
           ...commonOptions,
-          fillColor: drawingStyle.fillColor,
-          fillOpacity: drawingStyle.fillOpacity,
-          strokeColor: drawingStyle.strokeColor,
-          strokeWeight: drawingStyle.strokeWeight,
+          fillColor: safeStyle.fillColor,
+          fillOpacity: safeStyle.fillOpacity,
+          strokeColor: safeStyle.strokeColor,
+          strokeWeight: safeStyle.strokeWeight,
         },
         polylineOptions: {
           ...commonOptions,
-          strokeColor: drawingStyle.strokeColor,
-          strokeWeight: drawingStyle.strokeWeight,
+          strokeColor: safeStyle.strokeColor,
+          strokeWeight: safeStyle.strokeWeight,
         },
         rectangleOptions: selectionMode === 'box' ? selectionOptions : {},
       })
@@ -329,6 +338,20 @@ export function GoogleMap({
 
     // Add or Update
     drawings.forEach((d) => {
+      if (!d) return
+
+      // Robust style fallback
+      const style = d.style || {}
+      const safeStyle: DrawingStyle = {
+        strokeColor: style.strokeColor || DEFAULT_STYLE.strokeColor,
+        strokeWeight: style.strokeWeight || DEFAULT_STYLE.strokeWeight,
+        fillColor: style.fillColor || DEFAULT_STYLE.fillColor,
+        fillOpacity: style.fillOpacity ?? DEFAULT_STYLE.fillOpacity,
+        markerIcon:
+          (style.markerIcon as MarkerIconType) || DEFAULT_STYLE.markerIcon,
+        markerSize: style.markerSize || DEFAULT_STYLE.markerSize,
+      }
+
       const isSelected = selectedDrawingIds.includes(d.id)
       const isEditable = (editMode || isSelected) && !presentationMode
       let shape = drawnShapesRef.current.get(d.id)
@@ -341,8 +364,8 @@ export function GoogleMap({
         title: d.notes || '',
       }
 
-      // If selected, maybe highlight stroke?
-      const strokeColor = isSelected ? '#ef4444' : d.style.strokeColor
+      // If selected, maybe highlight stroke
+      const strokeColor = isSelected ? '#ef4444' : safeStyle.strokeColor
 
       if (!shape) {
         // Create new shape
@@ -352,9 +375,9 @@ export function GoogleMap({
             map: map,
             ...baseOptions,
             icon: getGoogleIconSymbol(
-              d.style.markerIcon || 'circle',
-              d.style.fillColor,
-              d.style.markerSize || 1,
+              safeStyle.markerIcon,
+              safeStyle.fillColor,
+              safeStyle.markerSize,
             ),
           })
         } else if (d.type === 'polygon') {
@@ -362,12 +385,12 @@ export function GoogleMap({
             paths: d.coordinates,
             map: map,
             ...baseOptions,
-            fillColor: d.style.fillColor,
-            fillOpacity: d.style.fillOpacity,
+            fillColor: safeStyle.fillColor,
+            fillOpacity: safeStyle.fillOpacity,
             strokeColor: strokeColor,
             strokeWeight: isSelected
-              ? (d.style.strokeWeight || 2) + 2
-              : d.style.strokeWeight,
+              ? (safeStyle.strokeWeight || 2) + 2
+              : safeStyle.strokeWeight,
           })
         } else if (d.type === 'polyline') {
           shape = new window.google.maps.Polyline({
@@ -376,23 +399,15 @@ export function GoogleMap({
             ...baseOptions,
             strokeColor: strokeColor,
             strokeWeight: isSelected
-              ? (d.style.strokeWeight || 2) + 2
-              : d.style.strokeWeight,
+              ? (safeStyle.strokeWeight || 2) + 2
+              : safeStyle.strokeWeight,
           })
         }
 
         // Event Listeners
         if (!presentationMode) {
-          shape.addListener('click', (e: any) => {
-            // Handle multi-select with shift/ctrl if needed, or just simple toggle
-            // For now, simpler: just select this one or add to selection if implemented upstream
-            // But we pass list of IDs.
-            // If ctrl key pressed (event.domEvent not always avail here easily w/o extending wrapper)
-            // Let's assume onDrawingSelect handles replacement.
+          shape.addListener('click', () => {
             if (onDrawingSelect) {
-              // Check if we are toggling
-              // Native maps click event doesn't pass keyboard modifiers easily in 3.x without accessing .va or similar internal
-              // We'll rely on simple selection for click.
               onDrawingSelect([d.id])
             }
           })
@@ -442,9 +457,9 @@ export function GoogleMap({
           shape.setOptions({
             ...baseOptions,
             icon: getGoogleIconSymbol(
-              d.style.markerIcon || 'circle',
-              d.style.fillColor,
-              d.style.markerSize || 1,
+              safeStyle.markerIcon,
+              safeStyle.fillColor,
+              safeStyle.markerSize,
             ),
           })
           shape.setPosition(d.coordinates)
@@ -452,21 +467,15 @@ export function GoogleMap({
         } else {
           shape.setOptions({
             ...baseOptions,
-            fillColor: d.style.fillColor,
-            fillOpacity: d.style.fillOpacity,
+            fillColor: safeStyle.fillColor,
+            fillOpacity: safeStyle.fillOpacity,
             strokeColor: strokeColor,
             strokeWeight: isSelected
-              ? (d.style.strokeWeight || 2) + 2
-              : d.style.strokeWeight,
+              ? (safeStyle.strokeWeight || 2) + 2
+              : safeStyle.strokeWeight,
           })
-          // Update paths if changed externally (rare in this app, usually sync)
-          if (d.type === 'polygon') {
-            // shape.setPaths(d.coordinates) // Expensive re-render, do only if needed
-          }
         }
 
-        // Update freshness of notes for hover
-        // (Similar to previous logic, simplified here)
         shape.set('notes', d.notes)
       }
     })
@@ -486,10 +495,7 @@ export function GoogleMap({
       markersRef.current.forEach((m) => m.setMap(null))
       markersRef.current = []
 
-      if (presentationMode) return // Hide operational markers in presentation? Or maybe show them but prettier?
-      // Requirement: "highlight key geographical features for storytelling" -> user drawings.
-      // Operational markers (lotes) might distract, or be vital. Let's keep them but maybe optional.
-      // For now, keep them.
+      if (presentationMode) return
 
       const markersToRender =
         markers.length > 2000 ? markers.slice(0, 2000) : markers
@@ -536,7 +542,6 @@ export function GoogleMap({
 
       map.data.setStyle((feature: any) => {
         const layerId = feature.getProperty('layerId')
-        // We could store style in CustomLayer too, for now generate deterministic color
         const layer = customLayers.find((l) => l.id === layerId)
         const color = '#' + (layerId || '000000').slice(0, 6)
 

@@ -24,21 +24,14 @@ import {
   MousePointer2,
   Trash,
   Undo,
-  Bell,
-  Maximize,
-  Minimize,
-  Palette,
-  MousePointerClick,
-  Save,
   Redo,
   Download,
-  Upload,
-  Locate,
-  Info,
-  BoxSelect,
+  Palette,
+  MousePointerClick,
   MonitorPlay,
   X as XIcon,
   Plus,
+  BoxSelect,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -58,20 +51,11 @@ import {
   calculateArea,
   calculateLength,
   exportToGeoJSON,
-  importFromGeoJSON,
+  DEFAULT_STYLE,
 } from '@/utils/geoUtils'
 import { LayerManager } from '@/components/LayerManager'
 import { ExternalDataDialog } from '@/components/ExternalDataDialog'
 import { MarkerCustomizer } from '@/components/MarkerCustomizer'
-
-const DEFAULT_STYLE: DrawingStyle = {
-  strokeColor: '#2563eb',
-  strokeWeight: 2,
-  fillColor: '#2563eb',
-  fillOpacity: 0.3,
-  markerIcon: 'circle',
-  markerSize: 1,
-}
 
 export default function MapPage() {
   const navigate = useNavigate()
@@ -122,7 +106,6 @@ export default function MapPage() {
   // Full Screen
   const [isFullscreen, setIsFullscreen] = useState(false)
   const mapContainerRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const refreshData = useCallback(() => {
     const projs = db.getProjects()
@@ -158,7 +141,12 @@ export default function MapPage() {
     if (selectedDrawingIds.length === 1) {
       const selected = drawings.find((d) => d.id === selectedDrawingIds[0])
       if (selected) {
-        setCurrentStyle(selected.style)
+        // Robust fallback for style if undefined
+        const safeStyle = {
+          ...DEFAULT_STYLE,
+          ...(selected.style || {}),
+        }
+        setCurrentStyle(safeStyle)
         setCurrentNote(selected.notes || '')
       }
     } else if (selectedDrawingIds.length === 0) {
@@ -248,8 +236,6 @@ export default function MapPage() {
     }
     const newDrawings = [...drawings, newDrawing]
     saveToHistory(newDrawings)
-    // Keep creating same type
-    // setDrawingMode(null)
     toast.success('Desenho salvo!')
   }
 
@@ -267,7 +253,7 @@ export default function MapPage() {
     if (selectedDrawingIds.length > 0) {
       const updatedDrawings = drawings.map((d) =>
         selectedDrawingIds.includes(d.id)
-          ? { ...d, style: { ...d.style, ...newStyle } }
+          ? { ...d, style: { ...(d.style || DEFAULT_STYLE), ...newStyle } }
           : d,
       )
       saveToHistory(updatedDrawings)
@@ -448,7 +434,6 @@ export default function MapPage() {
                       </TabsList>
 
                       <TabsContent value="style" className="space-y-4">
-                        {/* Check if we have markers selected to show marker customizer */}
                         {(selectedDrawingIds.length === 0 ||
                           drawings.some(
                             (d) =>
