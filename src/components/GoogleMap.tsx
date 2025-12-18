@@ -44,6 +44,7 @@ interface GoogleMapProps {
   drawings?: MapDrawing[]
   className?: string
   onMarkerClick?: (marker: Marker) => void
+  onMapClick?: (lat: number, lng: number) => void
   mapType?: 'roadmap' | 'satellite' | 'hybrid' | 'terrain'
   drawingMode?: 'marker' | 'polygon' | 'polyline' | 'rectangle' | null
   selectionMode?: 'box' | null
@@ -55,6 +56,7 @@ interface GoogleMapProps {
   editMode?: boolean
   selectedDrawingIds?: string[]
   presentationMode?: boolean
+  highContrast?: boolean
   onMapLoad?: (map: any) => void
 }
 
@@ -67,6 +69,87 @@ const DEFAULT_STYLE: DrawingStyle = {
   markerSize: 1,
 }
 
+// High Contrast Style for Accessibility
+const HIGH_CONTRAST_STYLE = [
+  {
+    elementType: 'geometry',
+    stylers: [{ color: '#242f3e' }],
+  },
+  {
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#242f3e' }],
+  },
+  {
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#746855' }],
+  },
+  {
+    featureType: 'administrative.locality',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'poi',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#d59563' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'geometry',
+    stylers: [{ color: '#263c3f' }],
+  },
+  {
+    featureType: 'poi.park',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#6b9a76' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#38414e' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#212a37' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#9ca5b3' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry',
+    stylers: [{ color: '#746855' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'geometry.stroke',
+    stylers: [{ color: '#1f2835' }],
+  },
+  {
+    featureType: 'road.highway',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#f3d19c' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'geometry',
+    stylers: [{ color: '#17263c' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#515c6d' }],
+  },
+  {
+    featureType: 'water',
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#17263c' }],
+  },
+]
+
 export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
   (
     {
@@ -78,6 +161,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       drawings = [],
       className = '',
       onMarkerClick,
+      onMapClick,
       mapType = 'roadmap',
       drawingMode = null,
       selectionMode = null,
@@ -89,6 +173,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       editMode = false,
       selectedDrawingIds = [],
       presentationMode = false,
+      highContrast = false,
       onMapLoad,
     },
     ref,
@@ -217,6 +302,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           fullscreenControl: fullscreenControl && !presentationMode,
           zoomControl: !presentationMode,
           mapTypeControl: !presentationMode,
+          styles: highContrast ? HIGH_CONTRAST_STYLE : [],
           // Safely access ControlPosition now that library is loaded
           fullscreenControlOptions: {
             position: ControlPositionRef.current.RIGHT_TOP,
@@ -226,6 +312,12 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
         const gMap = new MapClassRef.current(mapRef.current, mapOptions)
         setMap(gMap)
+
+        gMap.addListener('click', (e: any) => {
+          if (onMapClick) {
+            onMapClick(e.latLng.lat(), e.latLng.lng())
+          }
+        })
 
         infoWindowRef.current = new googleRef.current.maps.InfoWindow({
           disableAutoPan: true,
@@ -240,12 +332,13 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       mapType,
       fullscreenControl,
       presentationMode,
+      highContrast,
       onMapLoad,
       center,
       zoom,
     ])
 
-    // Update Map Options & Center
+    // Update Map Options & Center & Styles
     useEffect(() => {
       if (map) {
         map.setOptions({
@@ -254,6 +347,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           zoomControl: !presentationMode,
           mapTypeControl: !presentationMode,
           disableDefaultUI: presentationMode,
+          styles: highContrast ? HIGH_CONTRAST_STYLE : [],
         })
         if (center) {
           const c = map.getCenter()
@@ -267,7 +361,15 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           }
         }
       }
-    }, [map, mapType, fullscreenControl, presentationMode, center, zoom])
+    }, [
+      map,
+      mapType,
+      fullscreenControl,
+      presentationMode,
+      center,
+      zoom,
+      highContrast,
+    ])
 
     // Render Markers (Using AdvancedMarkerElement if available)
     useEffect(() => {

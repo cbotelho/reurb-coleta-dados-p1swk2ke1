@@ -14,6 +14,8 @@ import {
   MapDrawing,
   GeoAlert,
   DrawingLayer,
+  DrawingHistory,
+  ActiveSession,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 
@@ -41,8 +43,10 @@ const STORAGE_KEYS = {
   MARKER_CONFIGS: 'reurb_marker_configs',
   CUSTOM_LAYERS: 'reurb_custom_layers',
   MAP_DRAWINGS: 'reurb_map_drawings',
+  DRAWING_HISTORY: 'reurb_drawing_history',
   DRAWING_LAYERS: 'reurb_drawing_layers',
   GEO_ALERTS: 'reurb_geo_alerts',
+  SESSIONS: 'reurb_sessions',
 }
 
 // ... Keep existing SEED constants ...
@@ -152,8 +156,10 @@ class DBService {
     this.saveItems(STORAGE_KEYS.MAP_KEYS, [])
     this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, [])
     this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, [])
+    this.saveItems(STORAGE_KEYS.DRAWING_HISTORY, [])
     this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, DEFAULT_DRAWING_LAYERS)
     this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
+    this.saveItems(STORAGE_KEYS.SESSIONS, [])
   }
 
   private ensureAuthData() {
@@ -196,6 +202,9 @@ class DBService {
     }
     if (!localStorage.getItem(STORAGE_KEYS.MAP_DRAWINGS)) {
       this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, [])
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.DRAWING_HISTORY)) {
+      this.saveItems(STORAGE_KEYS.DRAWING_HISTORY, [])
     }
     if (!localStorage.getItem(STORAGE_KEYS.DRAWING_LAYERS)) {
       this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, DEFAULT_DRAWING_LAYERS)
@@ -702,11 +711,9 @@ class DBService {
   }
 
   deleteDrawingLayer(id: string) {
-    // Prevent deleting default layer if possible, or just re-create if none left
     const layers = this.getDrawingLayers()
     const filtered = layers.filter((l) => l.id !== id)
 
-    // Ensure at least one layer
     if (filtered.length === 0) {
       filtered.push({
         id: 'default_layer',
@@ -716,8 +723,6 @@ class DBService {
     }
     this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, filtered)
 
-    // Move drawings from deleted layer to default or just keep them orphaned (or maybe default)
-    // For now, let's move them to the first available layer
     const fallbackLayerId = filtered[0].id
     const drawings = this.getMapDrawings()
     let drawingsUpdated = false
@@ -739,15 +744,36 @@ class DBService {
     return this.getItems<MapDrawing>(STORAGE_KEYS.MAP_DRAWINGS)
   }
 
-  saveMapDrawing(drawing: MapDrawing): MapDrawing {
+  saveMapDrawing(
+    drawing: MapDrawing,
+    user?: User | null,
+    action: DrawingHistory['action'] = 'create',
+    details: string = '',
+  ): MapDrawing {
     const drawings = this.getMapDrawings()
     const index = drawings.findIndex((d) => d.id === drawing.id)
     if (index !== -1) {
+      drawing.updatedAt = Date.now()
       drawings[index] = drawing
     } else {
+      drawing.createdAt = Date.now()
       drawings.push(drawing)
     }
     this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, drawings)
+
+    // Log history
+    if (user) {
+      this.logDrawingHistory({
+        id: generateUUID(),
+        drawingId: drawing.id,
+        timestamp: Date.now(),
+        action,
+        details,
+        userId: user.id,
+        userName: user.name,
+      })
+    }
+
     return drawing
   }
 
@@ -755,10 +781,114 @@ class DBService {
     this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, drawings)
   }
 
-  deleteMapDrawing(id: string) {
+  deleteMapDrawing(id: string, user?: User | null) {
     const drawings = this.getMapDrawings()
     const filtered = drawings.filter((d) => d.id !== id)
     this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, filtered)
+
+    if (user) {
+      this.logDrawingHistory({
+        id: generateUUID(),
+        drawingId: id,
+        timestamp: Date.now(),
+        action: 'delete',
+        details: 'Geometria removida',
+        userId: user.id,
+        userName: user.name,
+      })
+    }
+  }
+
+  // Drawing History
+  getDrawingHistory(drawingId?: string): DrawingHistory[] {
+    const history = this.getItems<DrawingHistory>(STORAGE_KEYS.DRAWING_HISTORY)
+    if (drawingId) {
+      return history
+        .filter((h) => h.drawingId === drawingId)
+        .sort((a, b) => b.timestamp - a.timestamp)
+    }
+    return history.sort((a, b) => b.timestamp - a.timestamp)
+  }
+
+  private logDrawingHistory(entry: DrawingHistory) {
+    const history = this.getItems<DrawingHistory>(STORAGE_KEYS.DRAWING_HISTORY)
+    history.push(entry)
+    // Optional: Limit history size
+    if (history.length > 5000) history.shift()
+    this.saveItems(STORAGE_KEYS.DRAWING_HISTORY, history)
+  }
+
+  // User Sessions (Mocking realtime collaboration)
+  updateUserSession(user: User, active: boolean = true) {
+    const sessions = this.getItems<ActiveSession>(STORAGE_KEYS.SESSIONS)
+    const index = sessions.findIndex((s) => s.userId === user.id)
+    const now = Date.now()
+
+    // Assign a consistent color for the user
+    const colors = [
+      '#f44336',
+      '#E91E63',
+      '#9C27B0',
+      '#673AB7',
+      '#3F51B5',
+      '#2196F3',
+      '#009688',
+      '#4CAF50',
+      '#FF9800',
+      '#FF5722',
+    ]
+    const color = colors[user.id.charCodeAt(0) % colors.length]
+
+    if (index !== -1) {
+      if (active) {
+        sessions[index].lastActive = now
+      } else {
+        sessions.splice(index, 1) // Remove session on explicit inactive
+      }
+    } else if (active) {
+      sessions.push({
+        id: generateUUID(),
+        userId: user.id,
+        userName: user.name,
+        lastActive: now,
+        color,
+      })
+    }
+
+    // Clean up stale sessions (> 2 minutes)
+    const activeSessions = sessions.filter(
+      (s) => now - s.lastActive < 2 * 60 * 1000,
+    )
+
+    this.saveItems(STORAGE_KEYS.SESSIONS, activeSessions)
+  }
+
+  getActiveSessions(): ActiveSession[] {
+    const sessions = this.getItems<ActiveSession>(STORAGE_KEYS.SESSIONS)
+    const now = Date.now()
+    // Mock other users for demo purposes if only 1 user
+    if (sessions.length <= 1) {
+      // Return mocked users for "collaboration" visual
+      return [
+        ...sessions,
+        {
+          id: 'mock1',
+          userId: 'u_mock_1',
+          userName: 'Ana Souza (Fiscal)',
+          lastActive: now - 10000,
+          color: '#E91E63',
+        },
+        {
+          id: 'mock2',
+          userId: 'u_mock_2',
+          userName: 'João Silva (Campo)',
+          lastActive: now - 45000,
+          color: '#FF9800',
+        },
+      ]
+    }
+
+    return sessions.filter((s) => now - s.lastActive < 5 * 60 * 1000)
   }
 
   // Geo Alerts

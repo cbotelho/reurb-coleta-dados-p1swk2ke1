@@ -36,6 +36,7 @@ import {
   Crosshair,
   FileJson,
   Globe,
+  Clock,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -62,6 +63,12 @@ import {
 import { LayerManager } from '@/components/LayerManager'
 import { ExternalDataDialog } from '@/components/ExternalDataDialog'
 import { MarkerCustomizer } from '@/components/MarkerCustomizer'
+import { HistoryPanel } from '@/components/Map/HistoryPanel'
+import { AnalysisTools } from '@/components/Map/AnalysisTools'
+import { AccessibilityControls } from '@/components/Map/AccessibilityControls'
+import { CollaborationBadge } from '@/components/Map/CollaborationBadge'
+import { geocodingService } from '@/services/geocoding'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +78,7 @@ import {
 
 export default function MapPage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const mapRef = useRef<GoogleMapHandle>(null)
   const [mapReady, setMapReady] = useState(false)
   const initialFocusRef = useRef(false)
@@ -114,6 +122,11 @@ export default function MapPage() {
 
   // Dialogs
   const [isExternalDataOpen, setIsExternalDataOpen] = useState(false)
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+
+  // Advanced Features
+  const [highContrast, setHighContrast] = useState(false)
+  const [showLegend, setShowLegend] = useState(true)
 
   // Undo/Redo Stacks
   const [historyPast, setHistoryPast] = useState<MapDrawing[][]>([])
@@ -138,6 +151,9 @@ export default function MapPage() {
 
   useEffect(() => {
     refreshData()
+    // Poll for changes to sync collaboration
+    const interval = setInterval(refreshData, 5000)
+    return () => clearInterval(interval)
   }, [refreshData])
 
   useEffect(() => {
@@ -347,16 +363,32 @@ export default function MapPage() {
       createdAt: Date.now(),
       layerId: activeLayerId,
     }
-    const newDrawings = [...drawings, newDrawing]
-    saveToHistory(newDrawings)
+
+    db.saveMapDrawing(newDrawing, user, 'create', 'Geometria criada')
+    setDrawings((prev) => [...prev, newDrawing])
+    // Note: History stack for Undo/Redo is client-side, DB persistence is separate
+    setHistoryPast((prev) => [...prev, drawings])
+    setHistoryFuture([])
     toast.success('Desenho salvo!')
   }
 
   const handleDrawingUpdate = (id: string, coordinates: any) => {
+    const original = drawings.find((d) => d.id === id)
+    if (!original) return
+
     const updated = drawings.map((d) =>
       d.id === id ? { ...d, coordinates } : d,
     )
-    saveToHistory(updated)
+    setDrawings(updated)
+    setHistoryPast((prev) => [...prev, drawings])
+    setHistoryFuture([])
+    // Persist to DB and Log History
+    db.saveMapDrawing(
+      { ...original, coordinates },
+      user,
+      'update',
+      'Geometria movida/editada',
+    )
   }
 
   const handleStyleChange = (newStyle: Partial<DrawingStyle>) => {
@@ -364,11 +396,17 @@ export default function MapPage() {
     setCurrentStyle(updatedStyle)
 
     if (selectedDrawingIds.length > 0) {
-      const updatedDrawings = drawings.map((d) =>
-        selectedDrawingIds.includes(d.id)
-          ? { ...d, style: { ...(d.style || DEFAULT_STYLE), ...newStyle } }
-          : d,
-      )
+      const updatedDrawings = drawings.map((d) => {
+        if (selectedDrawingIds.includes(d.id)) {
+          const updated = {
+            ...d,
+            style: { ...(d.style || DEFAULT_STYLE), ...newStyle },
+          }
+          db.saveMapDrawing(updated, user, 'style_change', 'Estilo atualizado')
+          return updated
+        }
+        return d
+      })
       saveToHistory(updatedDrawings)
     }
   }
@@ -376,21 +414,30 @@ export default function MapPage() {
   const handleNoteChange = (note: string) => {
     setCurrentNote(note)
     if (selectedDrawingIds.length === 1) {
-      const updatedDrawings = drawings.map((d) =>
-        d.id === selectedDrawingIds[0] ? { ...d, notes: note } : d,
-      )
+      const updatedDrawings = drawings.map((d) => {
+        if (d.id === selectedDrawingIds[0]) {
+          const updated = { ...d, notes: note }
+          db.saveMapDrawing(updated, user, 'update', 'Nota atualizada')
+          return updated
+        }
+        return d
+      })
       setDrawings(updatedDrawings)
-      db.setMapDrawings(updatedDrawings)
     }
   }
 
   const handleDeleteSelected = () => {
     if (selectedDrawingIds.length === 0) return
     if (confirm(`Excluir ${selectedDrawingIds.length} item(ns)?`)) {
+      selectedDrawingIds.forEach((id) => {
+        db.deleteMapDrawing(id, user)
+      })
       const newDrawings = drawings.filter(
         (d) => !selectedDrawingIds.includes(d.id),
       )
-      saveToHistory(newDrawings)
+      setDrawings(newDrawings)
+      setHistoryPast((prev) => [...prev, drawings])
+      setHistoryFuture([])
       setSelectedDrawingIds([])
       toast.success('Itens excluídos.')
     }
@@ -401,8 +448,7 @@ export default function MapPage() {
       toast.warning('Sem dados para exportar.')
       return
     }
-    // Export both drawings and lotes for complete backup
-    const geojson = exportToGeoJSON([...drawings]) // Currently only drawings, ideally merge
+    const geojson = exportToGeoJSON([...drawings])
     downloadFile(
       geojson,
       `map_data_${Date.now()}.geojson`,
@@ -435,6 +481,44 @@ export default function MapPage() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  // Reverse Geocoding Handler
+  const handleMapClick = async (lat: number, lng: number) => {
+    if (
+      drawingMode ||
+      selectionMode ||
+      editMode ||
+      activeKey?.key === undefined
+    )
+      return
+
+    // Simple check: Only fetch if clicking empty space (no marker clicked)
+    // Actually Marker click is handled separately.
+    try {
+      toast.loading('Buscando endereço...', { id: 'geocoding' })
+      const address = await geocodingService.reverseGeocode(
+        lat,
+        lng,
+        activeKey.key,
+      )
+      toast.dismiss('geocoding')
+      if (address) {
+        toast.info(address, {
+          duration: 5000,
+          description: `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`,
+          action: {
+            label: 'Copiar',
+            onClick: () => navigator.clipboard.writeText(address),
+          },
+        })
+      } else {
+        toast.info('Endereço não encontrado.')
+      }
+    } catch (e) {
+      toast.dismiss('geocoding')
+      toast.error('Erro ao buscar endereço.')
+    }
   }
 
   // Filter drawings by layer visibility
@@ -507,12 +591,20 @@ export default function MapPage() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  aria-label="Buscar"
                 />
               </div>
-              <Button size="icon" variant="ghost" onClick={handleSearch}>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleSearch}
+                aria-label="Confirmar Busca"
+              >
                 <Search className="h-4 w-4" />
               </Button>
             </div>
+
+            <CollaborationBadge currentUser={user} />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
@@ -545,19 +637,39 @@ export default function MapPage() {
                   }
                 }}
               >
-                <ToggleGroupItem value="marker" title="Ponto">
+                <ToggleGroupItem
+                  value="marker"
+                  title="Ponto"
+                  aria-label="Ferramenta Ponto"
+                >
                   <MapPin className="h-4 w-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="polyline" title="Linha">
+                <ToggleGroupItem
+                  value="polyline"
+                  title="Linha"
+                  aria-label="Ferramenta Linha"
+                >
                   <PenTool className="h-4 w-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="polygon" title="Polígono">
+                <ToggleGroupItem
+                  value="polygon"
+                  title="Polígono"
+                  aria-label="Ferramenta Polígono"
+                >
                   <MousePointer2 className="h-4 w-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="edit" title="Selecionar (Clique)">
+                <ToggleGroupItem
+                  value="edit"
+                  title="Selecionar (Clique)"
+                  aria-label="Ferramenta Seleção"
+                >
                   <MousePointerClick className="h-4 w-4" />
                 </ToggleGroupItem>
-                <ToggleGroupItem value="select" title="Seleção em Caixa">
+                <ToggleGroupItem
+                  value="select"
+                  title="Seleção em Caixa"
+                  aria-label="Ferramenta Seleção Caixa"
+                >
                   <BoxSelect className="h-4 w-4" />
                 </ToggleGroupItem>
               </ToggleGroup>
@@ -571,6 +683,7 @@ export default function MapPage() {
                     }
                     size="icon"
                     title="Estilo & Notas"
+                    aria-label="Estilo e Notas"
                   >
                     <Palette className="h-4 w-4" />
                   </Button>
@@ -680,6 +793,22 @@ export default function MapPage() {
                         />
                       </TabsContent>
                     </Tabs>
+
+                    {selectedDrawingIds.length === 1 && (
+                      <div className="pt-2 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => {
+                            setIsHistoryOpen(true)
+                          }}
+                        >
+                          <Clock className="h-3 w-3 mr-2" />
+                          Ver Histórico de Edições
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -692,6 +821,7 @@ export default function MapPage() {
                 onClick={handleDeleteSelected}
                 disabled={selectedDrawingIds.length === 0}
                 title="Excluir Seleção"
+                aria-label="Excluir Seleção"
               >
                 <Trash className="h-4 w-4 text-red-500" />
               </Button>
@@ -704,6 +834,7 @@ export default function MapPage() {
                 onClick={handleUndo}
                 disabled={historyPast.length === 0}
                 title="Desfazer"
+                aria-label="Desfazer"
               >
                 <Undo className="h-4 w-4" />
               </Button>
@@ -713,13 +844,19 @@ export default function MapPage() {
                 onClick={handleRedo}
                 disabled={historyFuture.length === 0}
                 title="Refazer"
+                aria-label="Refazer"
               >
                 <Redo className="h-4 w-4" />
               </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" title="Exportar Dados">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Exportar Dados"
+                    aria-label="Exportar"
+                  >
                     <Download className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -734,10 +871,29 @@ export default function MapPage() {
               </DropdownMenu>
             </div>
 
+            <AnalysisTools
+              selectedDrawingIds={selectedDrawingIds}
+              drawings={drawings}
+              currentUser={user}
+              onBufferCreated={() => {
+                refreshData()
+                toast.success('Camadas atualizadas')
+              }}
+            />
+
+            <AccessibilityControls
+              highContrast={highContrast}
+              onToggleHighContrast={setHighContrast}
+              showLegend={showLegend}
+              onToggleLegend={setShowLegend}
+              markerConfigs={markerConfigs}
+            />
+
             <Button
               variant="outline"
               size="icon"
               title="Centralizar Visualização"
+              aria-label="Centralizar Mapa"
               onClick={handleLocateProject}
             >
               <Crosshair className="h-4 w-4 text-blue-600" />
@@ -887,6 +1043,7 @@ export default function MapPage() {
           'flex-1 overflow-hidden relative bg-slate-100 border-2 border-slate-200 transition-all',
           (isFullscreen || presentationMode) &&
             'rounded-none border-0 fixed inset-0 z-40 h-screen w-screen',
+          highContrast && 'grayscale-[30%] contrast-125', // Tailwind filter for UI
         )}
       >
         {activeKey ? (
@@ -916,6 +1073,7 @@ export default function MapPage() {
                   navigate(`/lotes/${m.id}`)
                 }
               }}
+              onMapClick={handleMapClick}
               drawingMode={drawingMode}
               selectionMode={selectionMode}
               onDrawingComplete={handleDrawingComplete}
@@ -923,9 +1081,6 @@ export default function MapPage() {
               onDrawingSelect={(ids) => {
                 if (editMode || selectionMode) {
                   setSelectedDrawingIds(ids)
-                } else if (ids.length > 0) {
-                  // Single click select if not in explicit mode?
-                  // Let's rely on mode toggles for clarity
                 }
               }}
               drawingStyle={currentStyle}
@@ -933,6 +1088,7 @@ export default function MapPage() {
               selectedDrawingIds={selectedDrawingIds}
               presentationMode={presentationMode}
               fullscreenControl={!presentationMode}
+              highContrast={highContrast}
               onMapLoad={handleMapLoad}
             />
           </div>
@@ -949,7 +1105,7 @@ export default function MapPage() {
         )}
 
         {/* Legend */}
-        {!presentationMode && markerMode === 'status' && (
+        {!presentationMode && showLegend && markerMode === 'status' && (
           <div className="absolute bottom-4 left-4 bg-white/90 p-3 rounded-lg shadow-lg text-xs space-y-2 backdrop-blur-sm z-10 pointer-events-none">
             <div className="font-semibold mb-1">Legenda</div>
             {markerConfigs
@@ -970,6 +1126,12 @@ export default function MapPage() {
               />{' '}
               Projeto
             </div>
+            {drawings.some((d) => d.type === 'polygon') && (
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                <div className="w-3 h-3 border border-blue-600 bg-blue-600/30" />{' '}
+                Área / Polígono
+              </div>
+            )}
           </div>
         )}
 
@@ -989,6 +1151,12 @@ export default function MapPage() {
           db.saveCustomLayer(layer)
           setCustomLayers(db.getCustomLayers())
         }}
+      />
+
+      <HistoryPanel
+        open={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        drawingId={selectedDrawingIds[0] || null}
       />
     </div>
   )

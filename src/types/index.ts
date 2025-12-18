@@ -73,6 +73,17 @@ export interface MapDrawing {
   createdAt: number
   notes?: string
   layerId?: string
+  updatedAt?: number
+}
+
+export interface DrawingHistory {
+  id: string
+  drawingId: string
+  timestamp: number
+  action: 'create' | 'update' | 'delete' | 'style_change'
+  details: string
+  userId: string
+  userName: string
 }
 
 export interface GeoAlert {
@@ -161,4 +172,12 @@ export interface AppSettings {
   syncFrequency: 'manual' | 'auto-5m' | 'auto-15m' | 'auto-1h'
   pushNotifications: boolean
   googleMapsApiKey?: string // Deprecated, kept for backward compatibility logic
+}
+
+export interface ActiveSession {
+  id: string
+  userId: string
+  userName: string
+  lastActive: number
+  color: string
 }
