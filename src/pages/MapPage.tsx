@@ -397,7 +397,7 @@ export default function MapPage() {
     // Fallback to coordinates
     mapRef.current.panTo(MARABAIXO_COORDS.lat, MARABAIXO_COORDS.lng)
     toast.info('Centralizado em Marabaixo 1 (Padrão)')
-  }, [lotes, drawings, projects, selectedProjectId])
+  }, [projects, selectedProjectId])
 
   const handleMapLoad = useCallback((_map: any) => {
     setMapReady(true)
