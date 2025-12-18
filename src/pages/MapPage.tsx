@@ -34,6 +34,8 @@ import {
   Plus,
   BoxSelect,
   Crosshair,
+  FileJson,
+  Globe,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -53,12 +55,19 @@ import {
   calculateArea,
   calculateLength,
   exportToGeoJSON,
+  exportToKML,
   getBoundsCoordinates,
   DEFAULT_STYLE,
 } from '@/utils/geoUtils'
 import { LayerManager } from '@/components/LayerManager'
 import { ExternalDataDialog } from '@/components/ExternalDataDialog'
 import { MarkerCustomizer } from '@/components/MarkerCustomizer'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 export default function MapPage() {
   const navigate = useNavigate()
@@ -160,12 +169,64 @@ export default function MapPage() {
     }
   }, [])
 
+  const handleSearch = () => {
+    if (!searchTerm.trim()) return
+
+    // Check for Lat,Lng coordinates
+    const coordMatch = searchTerm.match(
+      /^(-?\d+(\.\d+)?)[,\s]+(-?\d+(\.\d+)?)$/,
+    )
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1])
+      const lng = parseFloat(coordMatch[3])
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setMapCenter({ lat, lng })
+        setMapZoom(18)
+        toast.success(`Localizado: ${lat}, ${lng}`)
+        return
+      }
+    }
+
+    // Search Projects
+    const project = projects.find((p) =>
+      p.field_348.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
+
+    if (project && project.latitude && project.longitude) {
+      const lat = parseFloat(String(project.latitude).replace(',', '.'))
+      const lng = parseFloat(String(project.longitude).replace(',', '.'))
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setMapCenter({ lat, lng })
+        setMapZoom(16)
+        toast.success(`Projeto localizado: ${project.field_348}`)
+        return
+      }
+    }
+
+    // Search Lotes
+    const lote = lotes.find((l) =>
+      l.field_338.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
+    if (lote && lote.latitude && lote.longitude) {
+      const lat = parseFloat(String(lote.latitude).replace(',', '.'))
+      const lng = parseFloat(String(lote.longitude).replace(',', '.'))
+      if (!isNaN(lat) && !isNaN(lng)) {
+        setMapCenter({ lat, lng })
+        setMapZoom(19)
+        toast.success(`Lote localizado: ${lote.field_338}`)
+        return
+      }
+    }
+
+    toast.warning('Nenhum resultado encontrado.')
+  }
+
   const handleLocateProject = useCallback(() => {
     if (!mapRef.current) return
     const points = getBoundsCoordinates(lotes, drawings, projects)
     if (points.length > 0) {
       mapRef.current.fitBounds(points)
-      toast.info('Localizando todos os dados...')
+      toast.info('Visualizando extensão total...')
     } else {
       toast.warning('Nenhum dado geográfico encontrado.')
     }
@@ -322,22 +383,44 @@ export default function MapPage() {
     }
   }
 
-  const handleExport = () => {
+  const handleExportJSON = () => {
     if (drawings.length === 0) {
       toast.warning('Sem desenhos para exportar.')
       return
     }
     const geojson = exportToGeoJSON(drawings)
-    const blob = new Blob([geojson], { type: 'application/geo+json' })
+    downloadFile(
+      geojson,
+      `map_drawings_${Date.now()}.geojson`,
+      'application/geo+json',
+    )
+    toast.success('Arquivo GeoJSON exportado.')
+  }
+
+  const handleExportKML = () => {
+    if (drawings.length === 0) {
+      toast.warning('Sem desenhos para exportar.')
+      return
+    }
+    const kml = exportToKML(drawings)
+    downloadFile(
+      kml,
+      `map_drawings_${Date.now()}.kml`,
+      'application/vnd.google-earth.kml+xml',
+    )
+    toast.success('Arquivo KML exportado.')
+  }
+
+  const downloadFile = (content: string, filename: string, type: string) => {
+    const blob = new Blob([content], { type })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `map_drawings_${Date.now()}.geojson`
+    a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast.success('Arquivo GeoJSON exportado.')
   }
 
   // Filter drawings by layer visibility
@@ -401,14 +484,20 @@ export default function MapPage() {
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-4 rounded-lg shadow-sm border gap-4">
           <div className="flex items-center gap-2 w-full xl:w-auto">
             <Navigation className="h-6 w-6 text-blue-600 shrink-0" />
-            <div className="relative w-full md:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input
-                placeholder="Buscar projeto ou Lat,Lng"
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="relative w-full md:w-64 flex gap-1">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input
+                  placeholder="Buscar projeto ou Lat,Lng"
+                  className="pl-9"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+              <Button size="icon" variant="ghost" onClick={handleSearch}>
+                <Search className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
@@ -614,20 +703,27 @@ export default function MapPage() {
                 <Redo className="h-4 w-4" />
               </Button>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleExport}
-                title="Exportar GeoJSON"
-              >
-                <Download className="h-4 w-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" title="Exportar Dados">
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem onClick={handleExportJSON}>
+                    <FileJson className="w-4 h-4 mr-2" /> Exportar GeoJSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportKML}>
+                    <Globe className="w-4 h-4 mr-2" /> Exportar KML
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <Button
               variant="outline"
               size="icon"
-              title="Localizar Projeto"
+              title="Centralizar Visualização"
               onClick={handleLocateProject}
             >
               <Crosshair className="h-4 w-4 text-blue-600" />

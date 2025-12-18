@@ -427,7 +427,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             })
           }
 
-          if (!presentationMode) {
+          if (!presentationMode && shape) {
             shape.addListener('click', () => {
               if (onDrawingSelect) {
                 onDrawingSelect([d.id])
@@ -470,7 +470,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             }
           }
 
-          drawnShapesRef.current.set(d.id, shape)
+          if (shape) drawnShapesRef.current.set(d.id, shape)
         } else {
           if (d.type === 'marker') {
             shape.setOptions({

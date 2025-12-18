@@ -90,6 +90,106 @@ export function exportToGeoJSON(drawings: MapDrawing[]): string {
   return JSON.stringify({ type: 'FeatureCollection', features }, null, 2)
 }
 
+export function exportToKML(drawings: MapDrawing[]): string {
+  const convertColor = (hex: string, opacity: number = 1) => {
+    if (!hex) return 'ff000000'
+    let cleanHex = hex.replace('#', '')
+    if (cleanHex.length === 3)
+      cleanHex = cleanHex
+        .split('')
+        .map((c) => c + c)
+        .join('')
+    // KML uses AABBGGRR
+    const r = cleanHex.substring(0, 2)
+    const g = cleanHex.substring(2, 4)
+    const b = cleanHex.substring(4, 6)
+    const a = Math.floor(opacity * 255)
+      .toString(16)
+      .padStart(2, '0')
+    return `${a}${b}${g}${r}`
+  }
+
+  let kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Mapa REURB</name>`
+
+  drawings.forEach((d) => {
+    const style = d.style || DEFAULT_STYLE
+    const strokeColor = convertColor(
+      style.strokeColor || DEFAULT_STYLE.strokeColor,
+      1,
+    )
+    const fillColor = convertColor(
+      style.fillColor || DEFAULT_STYLE.fillColor,
+      style.fillOpacity ?? DEFAULT_STYLE.fillOpacity,
+    )
+    const width = style.strokeWeight || DEFAULT_STYLE.strokeWeight
+
+    let placemark = `
+    <Placemark>
+      <name>${d.notes || 'Sem título'}</name>
+      <Style>
+        <LineStyle>
+          <color>${strokeColor}</color>
+          <width>${width}</width>
+        </LineStyle>
+        <PolyStyle>
+          <color>${fillColor}</color>
+        </PolyStyle>
+        ${d.type === 'marker' ? `<IconStyle><scale>${style.markerSize || 1}</scale></IconStyle>` : ''}
+      </Style>`
+
+    if (d.type === 'marker') {
+      placemark += `
+      <Point>
+        <coordinates>${d.coordinates.lng},${d.coordinates.lat},0</coordinates>
+      </Point>`
+    } else if (d.type === 'polyline') {
+      const coords = d.coordinates
+        .map((c: any) => `${c.lng},${c.lat},0`)
+        .join(' ')
+      placemark += `
+      <LineString>
+        <coordinates>${coords}</coordinates>
+      </LineString>`
+    } else if (d.type === 'polygon') {
+      const coords = d.coordinates
+        .map((c: any) => `${c.lng},${c.lat},0`)
+        .join(' ')
+      // Ensure closure
+      const first = d.coordinates[0]
+      const last = d.coordinates[d.coordinates.length - 1]
+      let closedCoords = coords
+      if (
+        d.coordinates.length > 0 &&
+        (first.lat !== last.lat || first.lng !== last.lng)
+      ) {
+        closedCoords += ` ${first.lng},${first.lat},0`
+      }
+
+      placemark += `
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>${closedCoords}</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>`
+    }
+
+    placemark += `
+    </Placemark>`
+    kml += placemark
+  })
+
+  kml += `
+  </Document>
+</kml>`
+
+  return kml
+}
+
 export function importFromGeoJSON(json: string): MapDrawing[] {
   try {
     const parsed = JSON.parse(json)
