@@ -223,8 +223,13 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     }, [
       isLoaded,
       mapId,
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      /* mapRef */
+      map,
+      center,
+      zoom,
+      mapType,
+      fullscreenControl,
+      presentationMode,
+      onMapLoad,
     ])
 
     // Update Map Options

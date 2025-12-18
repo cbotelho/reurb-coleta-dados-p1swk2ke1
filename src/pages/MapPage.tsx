@@ -232,6 +232,10 @@ export default function MapPage() {
     }
   }, [lotes, drawings, projects])
 
+  const handleMapLoad = useCallback((_map: any) => {
+    setMapReady(true)
+  }, [])
+
   // Auto locate on first load
   useEffect(() => {
     if (
@@ -920,7 +924,7 @@ export default function MapPage() {
               selectedDrawingIds={selectedDrawingIds}
               presentationMode={presentationMode}
               fullscreenControl={!presentationMode}
-              onMapLoad={() => setMapReady(true)}
+              onMapLoad={handleMapLoad}
             />
           </div>
         ) : (
