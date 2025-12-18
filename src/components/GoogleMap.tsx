@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
 import { CustomLayer, MapDrawing, DrawingStyle } from '@/types'
+import { getGoogleIconSymbol } from '@/utils/mapIcons'
 
 declare global {
   interface Window {
@@ -27,15 +28,16 @@ interface GoogleMapProps {
   className?: string
   onMarkerClick?: (marker: Marker) => void
   mapType?: 'roadmap' | 'satellite' | 'hybrid' | 'terrain'
-  drawingMode?: 'marker' | 'polygon' | 'polyline' | null
+  drawingMode?: 'marker' | 'polygon' | 'polyline' | 'rectangle' | null
+  selectionMode?: 'box' | null
   onDrawingComplete?: (drawing: any) => void
   onDrawingUpdate?: (id: string, coordinates: any) => void
-  onDrawingSelect?: (id: string | null) => void
+  onDrawingSelect?: (ids: string[]) => void
   fullscreenControl?: boolean
   drawingStyle?: DrawingStyle
   editMode?: boolean
-  selectedDrawingId?: string | null
-  onGeolocation?: (pos: { lat: number; lng: number }) => void
+  selectedDrawingIds?: string[]
+  presentationMode?: boolean
 }
 
 export function GoogleMap({
@@ -49,6 +51,7 @@ export function GoogleMap({
   onMarkerClick,
   mapType = 'roadmap',
   drawingMode = null,
+  selectionMode = null,
   onDrawingComplete,
   onDrawingUpdate,
   onDrawingSelect,
@@ -58,10 +61,12 @@ export function GoogleMap({
     strokeWeight: 2,
     fillColor: '#2563eb',
     fillOpacity: 0.3,
+    markerIcon: 'circle',
+    markerSize: 1,
   },
   editMode = false,
-  selectedDrawingId = null,
-  onGeolocation,
+  selectedDrawingIds = [],
+  presentationMode = false,
 }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
@@ -73,6 +78,9 @@ export function GoogleMap({
   const drawnShapesRef = useRef<Map<string, any>>(new Map())
   const customLayerFeaturesRef = useRef<Map<string, any[]>>(new Map())
   const infoWindowRef = useRef<any>(null)
+
+  // Selection Rect
+  const selectionRectRef = useRef<any>(null)
 
   // Load API
   useEffect(() => {
@@ -108,34 +116,48 @@ export function GoogleMap({
         zoom,
         mapTypeId: mapType,
         streetViewControl: false,
-        fullscreenControl: fullscreenControl,
+        fullscreenControl: fullscreenControl && !presentationMode,
+        zoomControl: !presentationMode,
+        mapTypeControl: !presentationMode,
         fullscreenControlOptions: {
           position: window.google.maps.ControlPosition.RIGHT_TOP,
         },
-        styles: [
-          {
-            featureType: 'poi',
-            elementType: 'labels',
-            stylers: [{ visibility: 'off' }],
-          },
-        ],
+        styles: presentationMode
+          ? [
+              // Presentation mode: Simplified style
+              {
+                featureType: 'poi',
+                elementType: 'labels',
+                stylers: [{ visibility: 'off' }],
+              },
+              {
+                featureType: 'transit',
+                stylers: [{ visibility: 'off' }],
+              },
+            ]
+          : [
+              {
+                featureType: 'poi',
+                elementType: 'labels',
+                stylers: [{ visibility: 'off' }],
+              },
+            ],
       })
       setMap(gMap)
       infoWindowRef.current = new window.google.maps.InfoWindow({
         disableAutoPan: true,
       })
     }
-  }, [isLoaded, mapRef, map, center, zoom, mapType, fullscreenControl])
-
-  // Helper to expose Geolocation if map is ready
-  useEffect(() => {
-    if (map && onGeolocation) {
-      // Logic for geolocation is driven by parent via ref or we just check permission here?
-      // Actually parent handles button, calls logic, updates center prop.
-      // But if we want map to do it internally we can.
-      // Current architecture: Parent controls center.
-    }
-  }, [map, onGeolocation])
+  }, [
+    isLoaded,
+    mapRef,
+    map,
+    center,
+    zoom,
+    mapType,
+    fullscreenControl,
+    presentationMode,
+  ])
 
   // Drawing Manager
   useEffect(() => {
@@ -152,6 +174,40 @@ export function GoogleMap({
           'overlaycomplete',
           (event: any) => {
             const { type, overlay } = event
+
+            // Handle Selection Box
+            if (type === 'rectangle' && selectionMode === 'box') {
+              const bounds = overlay.getBounds()
+
+              // Find intersections
+              const selectedIds: string[] = []
+
+              drawnShapesRef.current.forEach((shape, id) => {
+                let isInside = false
+
+                if (shape.getPosition) {
+                  // Marker
+                  isInside = bounds.contains(shape.getPosition())
+                } else if (shape.getPath) {
+                  // Polyline / Polygon
+                  // Check if any point is inside
+                  const path = shape.getPath()
+                  for (let i = 0; i < path.getLength(); i++) {
+                    if (bounds.contains(path.getAt(i))) {
+                      isInside = true
+                      break
+                    }
+                  }
+                }
+
+                if (isInside) selectedIds.push(id)
+              })
+
+              if (onDrawingSelect) onDrawingSelect(selectedIds)
+              overlay.setMap(null) // Remove selection box
+              return
+            }
+
             let coords: any
 
             if (type === 'marker') {
@@ -167,7 +223,7 @@ export function GoogleMap({
 
             overlay.setMap(null) // Remove and let React render it
 
-            if (onDrawingComplete) {
+            if (onDrawingComplete && !selectionMode) {
               onDrawingComplete({ type, coordinates: coords })
             }
           },
@@ -175,25 +231,48 @@ export function GoogleMap({
         drawingManagerRef.current = dm
       }
     }
-  }, [map, onDrawingComplete])
+  }, [map, onDrawingComplete, selectionMode, onDrawingSelect])
 
   // Update Drawing Manager Options (Style & Mode)
   useEffect(() => {
     if (drawingManagerRef.current) {
       const dm = drawingManagerRef.current
-      dm.setDrawingMode(
-        drawingMode
-          ? window.google.maps.drawing.OverlayType[drawingMode.toUpperCase()]
-          : null,
-      )
+
+      let effectiveMode = null
+      if (drawingMode) {
+        effectiveMode =
+          window.google.maps.drawing.OverlayType[drawingMode.toUpperCase()]
+      } else if (selectionMode === 'box') {
+        effectiveMode = window.google.maps.drawing.OverlayType.RECTANGLE
+      }
+
+      dm.setDrawingMode(effectiveMode)
 
       const commonOptions = {
         editable: true,
         draggable: true,
       }
 
+      // Box selection style
+      const selectionOptions = {
+        fillColor: '#3b82f6',
+        fillOpacity: 0.2,
+        strokeColor: '#3b82f6',
+        strokeWeight: 1,
+        clickable: false,
+        editable: false,
+        draggable: false,
+      }
+
       dm.setOptions({
-        markerOptions: { ...commonOptions },
+        markerOptions: {
+          ...commonOptions,
+          icon: getGoogleIconSymbol(
+            drawingStyle.markerIcon,
+            drawingStyle.fillColor,
+            drawingStyle.markerSize,
+          ),
+        },
         polygonOptions: {
           ...commonOptions,
           fillColor: drawingStyle.fillColor,
@@ -206,9 +285,10 @@ export function GoogleMap({
           strokeColor: drawingStyle.strokeColor,
           strokeWeight: drawingStyle.strokeWeight,
         },
+        rectangleOptions: selectionMode === 'box' ? selectionOptions : {},
       })
     }
-  }, [drawingMode, drawingStyle])
+  }, [drawingMode, drawingStyle, selectionMode])
 
   // Update Map Properties
   useEffect(() => {
@@ -221,9 +301,14 @@ export function GoogleMap({
         map.panTo(center)
       }
       if (mapType) map.setMapTypeId(mapType)
-      map.setOptions({ fullscreenControl })
+      map.setOptions({
+        fullscreenControl: fullscreenControl && !presentationMode,
+        zoomControl: !presentationMode,
+        mapTypeControl: !presentationMode,
+        disableDefaultUI: presentationMode,
+      })
     }
-  }, [map, center, mapType, fullscreenControl])
+  }, [map, center, mapType, fullscreenControl, presentationMode])
 
   // Render Drawings (Sync)
   useEffect(() => {
@@ -244,21 +329,20 @@ export function GoogleMap({
 
     // Add or Update
     drawings.forEach((d) => {
-      const isSelected = selectedDrawingId === d.id
-      const isEditable = editMode && isSelected
+      const isSelected = selectedDrawingIds.includes(d.id)
+      const isEditable = (editMode || isSelected) && !presentationMode
       let shape = drawnShapesRef.current.get(d.id)
 
-      const shapeOptions = {
+      const baseOptions = {
         editable: isEditable,
         draggable: isEditable,
-        fillColor: d.style.fillColor,
-        fillOpacity: d.style.fillOpacity,
-        strokeColor: d.style.strokeColor,
-        strokeWeight: d.style.strokeWeight,
-        clickable: true,
+        clickable: !presentationMode,
         zIndex: isSelected ? 100 : 1,
-        title: d.notes || '', // Simple tooltip for Marker
+        title: d.notes || '',
       }
+
+      // If selected, maybe highlight stroke?
+      const strokeColor = isSelected ? '#ef4444' : d.style.strokeColor
 
       if (!shape) {
         // Create new shape
@@ -266,114 +350,134 @@ export function GoogleMap({
           shape = new window.google.maps.Marker({
             position: d.coordinates,
             map: map,
-            ...shapeOptions,
+            ...baseOptions,
+            icon: getGoogleIconSymbol(
+              d.style.markerIcon || 'circle',
+              d.style.fillColor,
+              d.style.markerSize || 1,
+            ),
           })
         } else if (d.type === 'polygon') {
           shape = new window.google.maps.Polygon({
             paths: d.coordinates,
             map: map,
-            ...shapeOptions,
+            ...baseOptions,
+            fillColor: d.style.fillColor,
+            fillOpacity: d.style.fillOpacity,
+            strokeColor: strokeColor,
+            strokeWeight: isSelected
+              ? (d.style.strokeWeight || 2) + 2
+              : d.style.strokeWeight,
           })
         } else if (d.type === 'polyline') {
           shape = new window.google.maps.Polyline({
             path: d.coordinates,
             map: map,
-            ...shapeOptions,
+            ...baseOptions,
+            strokeColor: strokeColor,
+            strokeWeight: isSelected
+              ? (d.style.strokeWeight || 2) + 2
+              : d.style.strokeWeight,
           })
         }
 
         // Event Listeners
-        shape.addListener('click', () => {
-          if (onDrawingSelect) onDrawingSelect(d.id)
-        })
-
-        // Tooltip listeners for Poly/Line (since 'title' isn't natively supported like Marker)
-        if (d.type !== 'marker') {
-          shape.addListener('mouseover', (e: any) => {
-            if (d.notes) {
-              infoWindowRef.current.setContent(
-                `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
-              )
-              infoWindowRef.current.setPosition(e.latLng)
-              infoWindowRef.current.open(map)
+        if (!presentationMode) {
+          shape.addListener('click', (e: any) => {
+            // Handle multi-select with shift/ctrl if needed, or just simple toggle
+            // For now, simpler: just select this one or add to selection if implemented upstream
+            // But we pass list of IDs.
+            // If ctrl key pressed (event.domEvent not always avail here easily w/o extending wrapper)
+            // Let's assume onDrawingSelect handles replacement.
+            if (onDrawingSelect) {
+              // Check if we are toggling
+              // Native maps click event doesn't pass keyboard modifiers easily in 3.x without accessing .va or similar internal
+              // We'll rely on simple selection for click.
+              onDrawingSelect([d.id])
             }
           })
-          shape.addListener('mouseout', () => {
-            infoWindowRef.current.close()
-          })
-        }
 
-        if (d.type === 'marker') {
-          shape.addListener('dragend', () => {
-            const pos = shape.getPosition()
-            if (onDrawingUpdate)
-              onDrawingUpdate(d.id, { lat: pos.lat(), lng: pos.lng() })
-          })
-        } else {
-          // Polygon/Polyline editing events
-          const updatePath = () => {
-            const path = shape.getPath()
-            const coords = path
-              .getArray()
-              .map((p: any) => ({ lat: p.lat(), lng: p.lng() }))
-            if (onDrawingUpdate) onDrawingUpdate(d.id, coords)
+          // Hover effects for notes
+          if (d.type !== 'marker') {
+            shape.addListener('mouseover', (e: any) => {
+              if (d.notes) {
+                infoWindowRef.current.setContent(
+                  `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
+                )
+                infoWindowRef.current.setPosition(e.latLng)
+                infoWindowRef.current.open(map)
+              }
+            })
+            shape.addListener('mouseout', () => {
+              infoWindowRef.current.close()
+            })
           }
 
-          shape.addListener('dragend', updatePath)
-          shape.getPath().addListener('set_at', updatePath)
-          shape.getPath().addListener('insert_at', updatePath)
-          shape.getPath().addListener('remove_at', updatePath)
+          // Drag Events
+          if (d.type === 'marker') {
+            shape.addListener('dragend', () => {
+              const pos = shape.getPosition()
+              if (onDrawingUpdate)
+                onDrawingUpdate(d.id, { lat: pos.lat(), lng: pos.lng() })
+            })
+          } else {
+            const updatePath = () => {
+              const path = shape.getPath()
+              const coords = path
+                .getArray()
+                .map((p: any) => ({ lat: p.lat(), lng: p.lng() }))
+              if (onDrawingUpdate) onDrawingUpdate(d.id, coords)
+            }
+            shape.addListener('dragend', updatePath)
+            shape.getPath().addListener('set_at', updatePath)
+            shape.getPath().addListener('insert_at', updatePath)
+            shape.getPath().addListener('remove_at', updatePath)
+          }
         }
 
         drawnShapesRef.current.set(d.id, shape)
       } else {
         // Update existing shape options
-        shape.setOptions(shapeOptions)
-
-        // Update listeners or props if needed (like notes changed)
-        // If marker, update title
         if (d.type === 'marker') {
+          shape.setOptions({
+            ...baseOptions,
+            icon: getGoogleIconSymbol(
+              d.style.markerIcon || 'circle',
+              d.style.fillColor,
+              d.style.markerSize || 1,
+            ),
+          })
+          shape.setPosition(d.coordinates)
           shape.setTitle(d.notes || '')
+        } else {
+          shape.setOptions({
+            ...baseOptions,
+            fillColor: d.style.fillColor,
+            fillOpacity: d.style.fillOpacity,
+            strokeColor: strokeColor,
+            strokeWeight: isSelected
+              ? (d.style.strokeWeight || 2) + 2
+              : d.style.strokeWeight,
+          })
+          // Update paths if changed externally (rare in this app, usually sync)
+          if (d.type === 'polygon') {
+            // shape.setPaths(d.coordinates) // Expensive re-render, do only if needed
+          }
         }
 
-        // For polygon/polyline, we rely on the closure variable 'd' which might be stale in listeners if not careful
-        // Actually, we need to update the mouseover listener if we want dynamic notes without re-creating listeners.
-        // A simple way is to clear listeners and re-add, but that's heavy.
-        // Better: Store data on the shape object itself.
+        // Update freshness of notes for hover
+        // (Similar to previous logic, simplified here)
         shape.set('notes', d.notes)
-      }
-    })
-
-    // Global listener update for polygon notes
-    // We can do this cleaner: attach 'mouseover' once, and read 'notes' property from shape.
-    // Refactoring to ensure freshness:
-    drawings.forEach((d) => {
-      const shape = drawnShapesRef.current.get(d.id)
-      if (shape && d.type !== 'marker') {
-        window.google.maps.event.clearListeners(shape, 'mouseover')
-        window.google.maps.event.clearListeners(shape, 'mouseout')
-
-        shape.addListener('mouseover', (e: any) => {
-          if (d.notes) {
-            infoWindowRef.current.setContent(
-              `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
-            )
-            infoWindowRef.current.setPosition(e.latLng)
-            infoWindowRef.current.open(map)
-          }
-        })
-        shape.addListener('mouseout', () => {
-          infoWindowRef.current.close()
-        })
       }
     })
   }, [
     map,
     drawings,
     editMode,
-    selectedDrawingId,
+    selectedDrawingIds,
     onDrawingUpdate,
     onDrawingSelect,
+    presentationMode,
   ])
 
   // Markers Rendering
@@ -381,6 +485,11 @@ export function GoogleMap({
     if (map) {
       markersRef.current.forEach((m) => m.setMap(null))
       markersRef.current = []
+
+      if (presentationMode) return // Hide operational markers in presentation? Or maybe show them but prettier?
+      // Requirement: "highlight key geographical features for storytelling" -> user drawings.
+      // Operational markers (lotes) might distract, or be vital. Let's keep them but maybe optional.
+      // For now, keep them.
 
       const markersToRender =
         markers.length > 2000 ? markers.slice(0, 2000) : markers
@@ -399,13 +508,14 @@ export function GoogleMap({
             strokeWeight: 1,
           },
           optimized: true,
+          clickable: !presentationMode,
         })
-        if (onMarkerClick)
+        if (onMarkerClick && !presentationMode)
           marker.addListener('click', () => onMarkerClick(markerData))
         markersRef.current.push(marker)
       })
     }
-  }, [map, markers, onMarkerClick])
+  }, [map, markers, onMarkerClick, presentationMode])
 
   // Custom Layers
   useEffect(() => {
@@ -426,17 +536,22 @@ export function GoogleMap({
 
       map.data.setStyle((feature: any) => {
         const layerId = feature.getProperty('layerId')
-        const color = '#' + layerId.slice(0, 6) // simple deterministic color
+        // We could store style in CustomLayer too, for now generate deterministic color
+        const layer = customLayers.find((l) => l.id === layerId)
+        const color = '#' + (layerId || '000000').slice(0, 6)
+
         return {
           fillColor: color,
           strokeColor: color,
-          strokeWeight: 2,
+          strokeWeight: 1,
           fillOpacity: 0.3,
-          zIndex: 1,
+          zIndex: layer ? layer.zIndex : 1,
+          visible: layer ? layer.visible : true,
+          clickable: !presentationMode,
         }
       })
     }
-  }, [map, customLayers])
+  }, [map, customLayers, presentationMode])
 
   if (error)
     return (
@@ -451,7 +566,5 @@ export function GoogleMap({
       </div>
     )
 
-  return (
-    <div ref={mapRef} className={`w-full h-full rounded-lg ${className}`} />
-  )
+  return <div ref={mapRef} className={className} />
 }

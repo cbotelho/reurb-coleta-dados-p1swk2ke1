@@ -71,6 +71,8 @@ export function exportToGeoJSON(drawings: MapDrawing[]): string {
       properties: {
         notes: d.notes,
         style: d.style,
+        layerId: d.layerId,
+        createdAt: d.createdAt,
       },
       geometry,
     }
@@ -137,9 +139,12 @@ export function importFromGeoJSON(json: string): MapDrawing[] {
             strokeWeight: 2,
             fillColor: '#2563eb',
             fillOpacity: 0.3,
+            markerIcon: 'circle',
+            markerSize: 1,
           },
-          createdAt: Date.now(),
+          createdAt: properties?.createdAt || Date.now(),
           notes: properties?.notes,
+          layerId: properties?.layerId || 'default_layer',
         })
       }
     })

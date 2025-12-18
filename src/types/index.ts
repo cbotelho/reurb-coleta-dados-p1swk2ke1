@@ -41,11 +41,27 @@ export interface CustomLayer {
 
 export type DrawingType = 'marker' | 'polyline' | 'polygon'
 
+export type MarkerIconType =
+  | 'circle'
+  | 'pin'
+  | 'home'
+  | 'star'
+  | 'alert'
+  | 'flag'
+
 export interface DrawingStyle {
   strokeColor: string
   strokeWeight: number
   fillColor: string
   fillOpacity: number
+  markerIcon?: MarkerIconType
+  markerSize?: number
+}
+
+export interface DrawingLayer {
+  id: string
+  name: string
+  visible: boolean
 }
 
 export interface MapDrawing {
@@ -55,6 +71,7 @@ export interface MapDrawing {
   style: DrawingStyle
   createdAt: number
   notes?: string
+  layerId?: string
 }
 
 export interface GeoAlert {

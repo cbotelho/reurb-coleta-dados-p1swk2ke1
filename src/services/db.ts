@@ -13,6 +13,7 @@ import {
   CustomLayer,
   MapDrawing,
   GeoAlert,
+  DrawingLayer,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 
@@ -40,6 +41,7 @@ const STORAGE_KEYS = {
   MARKER_CONFIGS: 'reurb_marker_configs',
   CUSTOM_LAYERS: 'reurb_custom_layers',
   MAP_DRAWINGS: 'reurb_map_drawings',
+  DRAWING_LAYERS: 'reurb_drawing_layers',
   GEO_ALERTS: 'reurb_geo_alerts',
 }
 
@@ -117,6 +119,10 @@ const DEFAULT_MARKER_CONFIGS: MarkerConfig[] = [
   { id: 'default', label: 'Padrão', color: '#3b82f6', icon: 'circle' },
 ]
 
+const DEFAULT_DRAWING_LAYERS: DrawingLayer[] = [
+  { id: 'default_layer', name: 'Camada Padrão', visible: true },
+]
+
 class DBService {
   constructor() {
     this.init()
@@ -146,6 +152,7 @@ class DBService {
     this.saveItems(STORAGE_KEYS.MAP_KEYS, [])
     this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, [])
     this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, [])
+    this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, DEFAULT_DRAWING_LAYERS)
     this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
   }
 
@@ -189,6 +196,9 @@ class DBService {
     }
     if (!localStorage.getItem(STORAGE_KEYS.MAP_DRAWINGS)) {
       this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, [])
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.DRAWING_LAYERS)) {
+      this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, DEFAULT_DRAWING_LAYERS)
     }
     if (!localStorage.getItem(STORAGE_KEYS.GEO_ALERTS)) {
       this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
@@ -668,6 +678,60 @@ class DBService {
     const layers = this.getCustomLayers()
     const filtered = layers.filter((l) => l.id !== id)
     this.saveItems(STORAGE_KEYS.CUSTOM_LAYERS, filtered)
+  }
+
+  // Drawing Layers (User Created)
+  getDrawingLayers(): DrawingLayer[] {
+    const layers = this.getItems<DrawingLayer>(STORAGE_KEYS.DRAWING_LAYERS)
+    if (!layers || layers.length === 0) {
+      return DEFAULT_DRAWING_LAYERS
+    }
+    return layers
+  }
+
+  saveDrawingLayer(layer: DrawingLayer): DrawingLayer {
+    const layers = this.getDrawingLayers()
+    const index = layers.findIndex((l) => l.id === layer.id)
+    if (index !== -1) {
+      layers[index] = layer
+    } else {
+      layers.push(layer)
+    }
+    this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, layers)
+    return layer
+  }
+
+  deleteDrawingLayer(id: string) {
+    // Prevent deleting default layer if possible, or just re-create if none left
+    const layers = this.getDrawingLayers()
+    const filtered = layers.filter((l) => l.id !== id)
+
+    // Ensure at least one layer
+    if (filtered.length === 0) {
+      filtered.push({
+        id: 'default_layer',
+        name: 'Camada Padrão',
+        visible: true,
+      })
+    }
+    this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, filtered)
+
+    // Move drawings from deleted layer to default or just keep them orphaned (or maybe default)
+    // For now, let's move them to the first available layer
+    const fallbackLayerId = filtered[0].id
+    const drawings = this.getMapDrawings()
+    let drawingsUpdated = false
+    const updatedDrawings = drawings.map((d) => {
+      if (d.layerId === id) {
+        drawingsUpdated = true
+        return { ...d, layerId: fallbackLayerId }
+      }
+      return d
+    })
+
+    if (drawingsUpdated) {
+      this.saveItems(STORAGE_KEYS.MAP_DRAWINGS, updatedDrawings)
+    }
   }
 
   // Map Drawings
