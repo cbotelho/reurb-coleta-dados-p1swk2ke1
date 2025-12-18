@@ -227,7 +227,8 @@ export default function MapPage() {
     const projs = db.getProjects()
     setProjects(projs)
     setLotes(db.getAllLotes())
-    setActiveKey(db.getActiveMapKey())
+    // Use getEffectiveMapKey to handle fallback logic
+    setActiveKey(db.getEffectiveMapKey())
     setMarkerConfigs(db.getMarkerConfigs())
     setCustomLayers(db.getCustomLayers().sort((a, b) => a.zIndex - b.zIndex))
     setDrawingLayers(db.getDrawingLayers())

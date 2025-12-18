@@ -4,7 +4,7 @@ import { db } from '@/services/db'
 import { exporter } from '@/utils/exporter'
 import { geoExporter } from '@/utils/geoExporter'
 import { useAuth } from '@/contexts/AuthContext'
-import { Project, Quadra, AppSettings } from '@/types'
+import { Project, Quadra, AppSettings, MapKey } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ProjectMapUpdateDialog } from '@/components/ProjectMapUpdateDialog'
 import {
@@ -47,9 +47,13 @@ export default function ProjetoDetails() {
   const [quadras, setQuadras] = useState<Quadra[]>([])
   const [isUpdatingMap, setIsUpdatingMap] = useState(false)
   const [settings, setSettings] = useState<AppSettings>(db.getSettings())
+  const [effectiveKey, setEffectiveKey] = useState<MapKey | undefined>(
+    db.getEffectiveMapKey(),
+  )
 
   useEffect(() => {
     setSettings(db.getSettings())
+    setEffectiveKey(db.getEffectiveMapKey())
   }, [])
 
   useEffect(() => {
@@ -137,14 +141,15 @@ export default function ProjetoDetails() {
   }
 
   const getProjectImageUrl = (imageName?: string) => {
+    const apiKey = effectiveKey?.key
     if (
-      settings.googleMapsApiKey &&
+      apiKey &&
       project.latitude &&
       project.longitude &&
       project.latitude !== '0' &&
       project.longitude !== '0'
     ) {
-      return `https://maps.googleapis.com/maps/api/staticmap?center=${project.latitude},${project.longitude}&zoom=16&size=800x400&maptype=satellite&key=${settings.googleMapsApiKey}`
+      return `https://maps.googleapis.com/maps/api/staticmap?center=${project.latitude},${project.longitude}&zoom=16&size=800x400&maptype=satellite&key=${apiKey}`
     }
 
     if (!imageName)

@@ -49,7 +49,6 @@ const STORAGE_KEYS = {
   SESSIONS: 'reurb_sessions',
 }
 
-// ... Keep existing SEED constants ...
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -641,6 +640,23 @@ class DBService {
 
   getActiveMapKey(): MapKey | undefined {
     return this.getMapKeys().find((k) => k.isActive)
+  }
+
+  getEffectiveMapKey(): MapKey | undefined {
+    const activeKey = this.getActiveMapKey()
+    if (activeKey) return activeKey
+
+    const settings = this.getSettings()
+    if (settings.googleMapsApiKey) {
+      return {
+        id: 'settings-fallback',
+        name: 'Chave das Configurações',
+        key: settings.googleMapsApiKey,
+        isActive: true,
+        createdAt: 0,
+      }
+    }
+    return undefined
   }
 
   saveMapKey(key: MapKey): MapKey {
