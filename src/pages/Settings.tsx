@@ -88,11 +88,7 @@ export default function Settings() {
     toast.success('Chave API adicionada.')
   }
 
-  const deleteMapKey = (id: string, isActive: boolean) => {
-    if (isActive) {
-      toast.error('Não é possível excluir a chave ativa.')
-      return
-    }
+  const deleteMapKey = (id: string) => {
     db.deleteMapKey(id)
     setMapKeys(db.getMapKeys())
     toast.success('Chave removida.')
@@ -332,8 +328,7 @@ export default function Settings() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => deleteMapKey(k.id, k.isActive)}
-                            disabled={k.isActive}
+                            onClick={() => deleteMapKey(k.id)}
                           >
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </Button>

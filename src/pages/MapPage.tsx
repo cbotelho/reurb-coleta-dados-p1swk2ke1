@@ -32,6 +32,7 @@ import {
   X as XIcon,
   Plus,
   BoxSelect,
+  Crosshair,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -43,7 +44,7 @@ import {
 } from '@/components/ui/popover'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { GoogleMap } from '@/components/GoogleMap'
+import { GoogleMap, GoogleMapHandle } from '@/components/GoogleMap'
 import { toast } from 'sonner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Slider } from '@/components/ui/slider'
@@ -51,6 +52,7 @@ import {
   calculateArea,
   calculateLength,
   exportToGeoJSON,
+  getBoundsCoordinates,
   DEFAULT_STYLE,
 } from '@/utils/geoUtils'
 import { LayerManager } from '@/components/LayerManager'
@@ -59,6 +61,10 @@ import { MarkerCustomizer } from '@/components/MarkerCustomizer'
 
 export default function MapPage() {
   const navigate = useNavigate()
+  const mapRef = useRef<GoogleMapHandle>(null)
+  const [mapReady, setMapReady] = useState(false)
+  const initialFocusRef = useRef(false)
+
   const [projects, setProjects] = useState<Project[]>([])
   const [lotes, setLotes] = useState<Lote[]>([])
   const [activeKey, setActiveKey] = useState<MapKey | undefined>()
@@ -164,6 +170,34 @@ export default function MapPage() {
       document.removeEventListener('fullscreenchange', handleFullScreenChange)
     }
   }, [])
+
+  const handleLocateProject = useCallback(() => {
+    if (!mapRef.current) return
+    const points = getBoundsCoordinates(lotes, drawings)
+    if (points.length > 0) {
+      mapRef.current.fitBounds(points)
+      toast.info('Projeto localizado.')
+    } else {
+      toast.warning('Nenhum item para localizar.')
+    }
+  }, [lotes, drawings])
+
+  // Auto locate on first load
+  useEffect(() => {
+    if (
+      mapReady &&
+      !initialFocusRef.current &&
+      (lotes.length > 0 || drawings.length > 0)
+    ) {
+      setTimeout(() => {
+        if (mapRef.current) {
+          const points = getBoundsCoordinates(lotes, drawings)
+          if (points.length > 0) mapRef.current.fitBounds(points)
+        }
+      }, 500)
+      initialFocusRef.current = true
+    }
+  }, [mapReady, lotes, drawings])
 
   const saveToHistory = (newDrawings: MapDrawing[]) => {
     setHistoryPast((prev) => [...prev, drawings])
@@ -560,6 +594,15 @@ export default function MapPage() {
 
             <Button
               variant="outline"
+              size="icon"
+              title="Localizar Projeto"
+              onClick={handleLocateProject}
+            >
+              <Crosshair className="h-4 w-4 text-blue-600" />
+            </Button>
+
+            <Button
+              variant="outline"
               className={cn(
                 'gap-2',
                 presentationMode && 'bg-blue-600 text-white border-blue-600',
@@ -707,6 +750,7 @@ export default function MapPage() {
         {activeKey ? (
           <div className="absolute inset-0">
             <GoogleMap
+              ref={mapRef}
               apiKey={activeKey.key}
               center={mapCenter}
               zoom={mapZoom}
@@ -750,6 +794,7 @@ export default function MapPage() {
               selectedDrawingIds={selectedDrawingIds}
               presentationMode={presentationMode}
               fullscreenControl={!presentationMode}
+              onMapLoad={() => setMapReady(true)}
             />
           </div>
         ) : (

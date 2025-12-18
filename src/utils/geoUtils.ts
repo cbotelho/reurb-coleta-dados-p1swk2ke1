@@ -1,4 +1,4 @@
-import { MapDrawing, DrawingStyle } from '@/types'
+import { MapDrawing, DrawingStyle, Lote } from '@/types'
 
 export const DEFAULT_STYLE: DrawingStyle = {
   strokeColor: '#2563eb',
@@ -167,4 +167,31 @@ export function importFromGeoJSON(json: string): MapDrawing[] {
     console.error(e)
     throw e
   }
+}
+
+export function getBoundsCoordinates(
+  lotes: Lote[],
+  drawings: MapDrawing[],
+): { lat: number; lng: number }[] {
+  const points: { lat: number; lng: number }[] = []
+
+  lotes.forEach((l) => {
+    if (l.latitude && l.longitude) {
+      const lat = parseFloat(l.latitude)
+      const lng = parseFloat(l.longitude)
+      if (!isNaN(lat) && !isNaN(lng)) {
+        points.push({ lat, lng })
+      }
+    }
+  })
+
+  drawings.forEach((d) => {
+    if (d.type === 'marker') {
+      points.push(d.coordinates)
+    } else if (Array.isArray(d.coordinates)) {
+      d.coordinates.forEach((c: any) => points.push(c))
+    }
+  })
+
+  return points
 }
