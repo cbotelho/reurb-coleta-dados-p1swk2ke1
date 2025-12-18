@@ -649,12 +649,12 @@ class DBService {
 
     // 2. Fallback to settings
     const settings = this.getSettings()
-    if (settings.googleMapsApiKey) {
+    if (settings.googleMapsApiKey && settings.googleMapsApiKey.trim() !== '') {
       return {
         id: 'settings-fallback',
-        name: 'Chave das Configurações',
+        name: 'Chave de Fallback (Configurações)',
         key: settings.googleMapsApiKey,
-        isActive: true,
+        isActive: true, // Treated as active for the app context
         createdAt: 0,
         mapId: '', // Default mapId if needed
       }

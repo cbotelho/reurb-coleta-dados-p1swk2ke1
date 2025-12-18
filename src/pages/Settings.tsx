@@ -267,10 +267,10 @@ export default function Settings() {
               {/* Fallback Key Section */}
               <div className="space-y-4 border-b pb-4 mb-4">
                 <div className="space-y-2">
-                  <Label>Chave API Global (Fallback)</Label>
+                  <Label>Chave de Fallback (Configurações)</Label>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="AIza... (Usada se nenhuma chave estiver ativa)"
+                      placeholder="AIza... (Usada se nenhuma chave ativa for encontrada)"
                       value={settings.googleMapsApiKey || ''}
                       onChange={(e) =>
                         setSettings({
@@ -283,8 +283,9 @@ export default function Settings() {
                     <Button onClick={handleSave}>Salvar</Button>
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    Esta chave será usada automaticamente caso não haja nenhuma
-                    chave ativa na lista abaixo.
+                    Esta chave será utilizada automaticamente caso não haja
+                    nenhuma chave ativa na lista abaixo, garantindo o
+                    funcionamento do mapa.
                   </p>
                 </div>
               </div>
