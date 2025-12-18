@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { CustomLayer, MapDrawing } from '@/types'
+import { CustomLayer, MapDrawing, DrawingStyle } from '@/types'
 
-// Define Window interface to include google
 declare global {
   interface Window {
     google: any
@@ -30,7 +29,12 @@ interface GoogleMapProps {
   mapType?: 'roadmap' | 'satellite' | 'hybrid' | 'terrain'
   drawingMode?: 'marker' | 'polygon' | 'polyline' | null
   onDrawingComplete?: (drawing: any) => void
+  onDrawingUpdate?: (id: string, coordinates: any) => void
+  onDrawingSelect?: (id: string | null) => void
   fullscreenControl?: boolean
+  drawingStyle?: DrawingStyle
+  editMode?: boolean
+  selectedDrawingId?: string | null
 }
 
 export function GoogleMap({
@@ -45,27 +49,34 @@ export function GoogleMap({
   mapType = 'roadmap',
   drawingMode = null,
   onDrawingComplete,
+  onDrawingUpdate,
+  onDrawingSelect,
   fullscreenControl = true,
+  drawingStyle = {
+    strokeColor: '#2563eb',
+    strokeWeight: 2,
+    fillColor: '#2563eb',
+    fillOpacity: 0.3,
+  },
+  editMode = false,
+  selectedDrawingId = null,
 }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null)
   const [map, setMap] = useState<any>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Refs to track map objects and avoid aggressive re-rendering
   const markersRef = useRef<any[]>([])
   const drawingManagerRef = useRef<any>(null)
-  const drawnShapesRef = useRef<any[]>([])
+  const drawnShapesRef = useRef<Map<string, any>>(new Map())
   const customLayerFeaturesRef = useRef<Map<string, any[]>>(new Map())
 
+  // Load API
   useEffect(() => {
-    // Check if script is already loaded
     if (window.google && window.google.maps) {
       setIsLoaded(true)
       return
     }
-
-    // Check if script is being loaded
     const existingScript = document.querySelector(
       'script[src*="maps.googleapis.com/maps/api/js"]',
     )
@@ -73,8 +84,6 @@ export function GoogleMap({
       existingScript.addEventListener('load', () => setIsLoaded(true))
       return
     }
-
-    // Load script with drawing library
     if (apiKey) {
       const script = document.createElement('script')
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=geometry,drawing`
@@ -88,7 +97,7 @@ export function GoogleMap({
     }
   }, [apiKey])
 
-  // Initialize Map
+  // Init Map
   useEffect(() => {
     if (isLoaded && mapRef.current && !map) {
       const gMap = new window.google.maps.Map(mapRef.current, {
@@ -110,27 +119,15 @@ export function GoogleMap({
       })
       setMap(gMap)
     }
-  }, [isLoaded, mapRef]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isLoaded, mapRef])
 
-  // Initialize Drawing Manager
+  // Drawing Manager
   useEffect(() => {
     if (map && window.google) {
       if (!drawingManagerRef.current) {
         const dm = new window.google.maps.drawing.DrawingManager({
           drawingMode: null,
           drawingControl: false,
-          markerOptions: { draggable: true },
-          polygonOptions: {
-            editable: true,
-            draggable: true,
-            fillColor: '#2563eb',
-            strokeColor: '#2563eb',
-          },
-          polylineOptions: {
-            editable: true,
-            draggable: true,
-            strokeColor: '#2563eb',
-          },
         })
         dm.setMap(map)
 
@@ -138,89 +135,182 @@ export function GoogleMap({
           dm,
           'overlaycomplete',
           (event: any) => {
+            const { type, overlay } = event
+            let coords: any
+
+            if (type === 'marker') {
+              const pos = overlay.getPosition()
+              coords = { lat: pos.lat(), lng: pos.lng() }
+            } else if (type === 'polygon' || type === 'polyline') {
+              const path = overlay.getPath()
+              coords = path.getArray().map((p: any) => ({
+                lat: p.lat(),
+                lng: p.lng(),
+              }))
+            }
+
+            overlay.setMap(null) // Remove and let React render it
+
             if (onDrawingComplete) {
-              const { type, overlay } = event
-              let coords: any
-
-              if (type === 'marker') {
-                const pos = overlay.getPosition()
-                coords = { lat: pos.lat(), lng: pos.lng() }
-              } else if (type === 'polygon' || type === 'polyline') {
-                const path = overlay.getPath()
-                coords = path.getArray().map((p: any) => ({
-                  lat: p.lat(),
-                  lng: p.lng(),
-                }))
-              }
-
-              // Remove from map as it will be re-added via props
-              overlay.setMap(null)
-
-              onDrawingComplete({
-                type,
-                coordinates: coords,
-              })
+              onDrawingComplete({ type, coordinates: coords })
             }
           },
         )
-
         drawingManagerRef.current = dm
       }
     }
   }, [map, onDrawingComplete])
 
-  // Update Drawing Mode
+  // Update Drawing Manager Options (Style & Mode)
   useEffect(() => {
     if (drawingManagerRef.current) {
-      drawingManagerRef.current.setDrawingMode(
+      const dm = drawingManagerRef.current
+      dm.setDrawingMode(
         drawingMode
           ? window.google.maps.drawing.OverlayType[drawingMode.toUpperCase()]
           : null,
       )
-    }
-  }, [drawingMode])
 
-  // Update Center & Map Type
+      const commonOptions = {
+        editable: true,
+        draggable: true,
+      }
+
+      dm.setOptions({
+        markerOptions: { ...commonOptions },
+        polygonOptions: {
+          ...commonOptions,
+          fillColor: drawingStyle.fillColor,
+          fillOpacity: drawingStyle.fillOpacity,
+          strokeColor: drawingStyle.strokeColor,
+          strokeWeight: drawingStyle.strokeWeight,
+        },
+        polylineOptions: {
+          ...commonOptions,
+          strokeColor: drawingStyle.strokeColor,
+          strokeWeight: drawingStyle.strokeWeight,
+        },
+      })
+    }
+  }, [drawingMode, drawingStyle])
+
+  // Update Map Properties
   useEffect(() => {
     if (map) {
-      if (center) {
-        // Only pan if distance is significant to avoid jitter
-        const current = map.getCenter()
-        if (
-          !current ||
-          Math.abs(current.lat() - center.lat) > 0.0001 ||
-          Math.abs(current.lng() - center.lng) > 0.0001
-        ) {
-          map.panTo(center)
-        }
+      if (
+        center &&
+        (Math.abs(map.getCenter().lat() - center.lat) > 0.0001 ||
+          Math.abs(map.getCenter().lng() - center.lng) > 0.0001)
+      ) {
+        map.panTo(center)
       }
-      if (mapType) {
-        map.setMapTypeId(mapType)
-      }
-    }
-  }, [map, center, mapType])
-
-  // Update Fullscreen Control
-  useEffect(() => {
-    if (map) {
+      if (mapType) map.setMapTypeId(mapType)
       map.setOptions({ fullscreenControl })
     }
-  }, [map, fullscreenControl])
+  }, [map, center, mapType, fullscreenControl])
 
-  // Efficient Marker Updates
+  // Render Drawings (Sync)
+  useEffect(() => {
+    if (!map || !drawings) return
+
+    const existingIds = new Set(drawnShapesRef.current.keys())
+    const currentIds = new Set(drawings.map((d) => d.id))
+
+    // Remove deleted
+    existingIds.forEach((id) => {
+      if (!currentIds.has(id)) {
+        drawnShapesRef.current.get(id).setMap(null)
+        drawnShapesRef.current.delete(id)
+      }
+    })
+
+    // Add or Update
+    drawings.forEach((d) => {
+      const isSelected = selectedDrawingId === d.id
+      const isEditable = editMode && isSelected
+      let shape = drawnShapesRef.current.get(d.id)
+
+      const shapeOptions = {
+        editable: isEditable,
+        draggable: isEditable,
+        fillColor: d.style.fillColor,
+        fillOpacity: d.style.fillOpacity,
+        strokeColor: d.style.strokeColor,
+        strokeWeight: d.style.strokeWeight,
+        clickable: true,
+        zIndex: isSelected ? 100 : 1,
+      }
+
+      if (!shape) {
+        // Create new shape
+        if (d.type === 'marker') {
+          shape = new window.google.maps.Marker({
+            position: d.coordinates,
+            map: map,
+            ...shapeOptions,
+          })
+        } else if (d.type === 'polygon') {
+          shape = new window.google.maps.Polygon({
+            paths: d.coordinates,
+            map: map,
+            ...shapeOptions,
+          })
+        } else if (d.type === 'polyline') {
+          shape = new window.google.maps.Polyline({
+            path: d.coordinates,
+            map: map,
+            ...shapeOptions,
+          })
+        }
+
+        // Event Listeners
+        shape.addListener('click', () => {
+          if (onDrawingSelect) onDrawingSelect(d.id)
+        })
+
+        if (d.type === 'marker') {
+          shape.addListener('dragend', () => {
+            const pos = shape.getPosition()
+            if (onDrawingUpdate)
+              onDrawingUpdate(d.id, { lat: pos.lat(), lng: pos.lng() })
+          })
+        } else {
+          // Polygon/Polyline editing events
+          const updatePath = () => {
+            const path = shape.getPath()
+            const coords = path
+              .getArray()
+              .map((p: any) => ({ lat: p.lat(), lng: p.lng() }))
+            if (onDrawingUpdate) onDrawingUpdate(d.id, coords)
+          }
+
+          shape.addListener('dragend', updatePath)
+          shape.getPath().addListener('set_at', updatePath)
+          shape.getPath().addListener('insert_at', updatePath)
+          shape.getPath().addListener('remove_at', updatePath)
+        }
+
+        drawnShapesRef.current.set(d.id, shape)
+      } else {
+        // Update existing shape options
+        shape.setOptions(shapeOptions)
+      }
+    })
+  }, [
+    map,
+    drawings,
+    editMode,
+    selectedDrawingId,
+    onDrawingUpdate,
+    onDrawingSelect,
+  ])
+
+  // Markers Rendering
   useEffect(() => {
     if (map) {
-      // Basic optimization: Clear all only if count differs significantly or force refresh needed.
-      // For simplicity in this iteration, we clear but using a batch operation approach.
-      // Ideally we would diff, but 'markers' prop changes usually imply a filter/search change.
-
       markersRef.current.forEach((m) => m.setMap(null))
       markersRef.current = []
 
-      const bounds = new window.google.maps.LatLngBounds()
-      let hasValidMarker = false
-
-      // Limit rendered markers for performance if too many
       const markersToRender =
         markers.length > 2000 ? markers.slice(0, 2000) : markers
 
@@ -229,152 +319,66 @@ export function GoogleMap({
           position: { lat: markerData.lat, lng: markerData.lng },
           map: map,
           title: markerData.title,
-          icon: getMarkerIcon(markerData.status, markerData.color),
-          optimized: true, // Use canvas rendering
+          icon: {
+            path: window.google.maps.SymbolPath.CIRCLE,
+            scale: 6,
+            fillColor: markerData.color || 'red',
+            fillOpacity: 1,
+            strokeColor: 'white',
+            strokeWeight: 1,
+          },
+          optimized: true,
         })
-
-        if (onMarkerClick) {
+        if (onMarkerClick)
           marker.addListener('click', () => onMarkerClick(markerData))
-        }
-
         markersRef.current.push(marker)
-        bounds.extend(marker.getPosition())
-        hasValidMarker = true
       })
     }
   }, [map, markers, onMarkerClick])
 
-  // Handle Custom Layers
+  // Custom Layers
   useEffect(() => {
     if (map && customLayers) {
-      // Clear existing custom layers
       customLayerFeaturesRef.current.forEach((features) => {
         features.forEach((f) => map.data.remove(f))
       })
       customLayerFeaturesRef.current.clear()
 
-      // Sort by zIndex
       const sortedLayers = [...customLayers].sort((a, b) => a.zIndex - b.zIndex)
-
       sortedLayers.forEach((layer) => {
         if (layer.visible && layer.data) {
           const features = map.data.addGeoJson(layer.data)
-
-          // Tag features with layer ID for styling
           features.forEach((f: any) => f.setProperty('layerId', layer.id))
-
           customLayerFeaturesRef.current.set(layer.id, features)
         }
       })
 
-      // Global Style Function
       map.data.setStyle((feature: any) => {
         const layerId = feature.getProperty('layerId')
-        // We could lookup layer specific color here if we had it in CustomLayer
-        // For now, generate a stable color based on ID string
-        const color = stringToColor(layerId || 'default')
-
+        const color = '#' + layerId.slice(0, 6) // simple deterministic color
         return {
           fillColor: color,
           strokeColor: color,
           strokeWeight: 2,
           fillOpacity: 0.3,
-          zIndex: 1, // Default zIndex for data layer
+          zIndex: 1,
         }
       })
     }
   }, [map, customLayers])
 
-  // Render Saved Drawings
-  useEffect(() => {
-    if (map && drawings) {
-      // Clear existing drawings
-      drawnShapesRef.current.forEach((shape) => shape.setMap(null))
-      drawnShapesRef.current = []
-
-      drawings.forEach((drawing) => {
-        let shape: any
-
-        if (drawing.type === 'marker') {
-          shape = new window.google.maps.Marker({
-            position: drawing.coordinates,
-            map: map,
-            draggable: false, // Saved drawings are static in view mode
-          })
-        } else if (drawing.type === 'polygon') {
-          shape = new window.google.maps.Polygon({
-            paths: drawing.coordinates,
-            map: map,
-            editable: false,
-            fillColor: '#2563eb',
-            fillOpacity: 0.3,
-            strokeColor: '#2563eb',
-            strokeWeight: 2,
-          })
-        } else if (drawing.type === 'polyline') {
-          shape = new window.google.maps.Polyline({
-            path: drawing.coordinates,
-            map: map,
-            editable: false,
-            strokeColor: '#2563eb',
-            strokeWeight: 2,
-          })
-        }
-
-        if (shape) {
-          drawnShapesRef.current.push(shape)
-        }
-      })
-    }
-  }, [map, drawings])
-
-  const getMarkerIcon = (status?: string, customColor?: string) => {
-    let color = customColor || 'red'
-    if (!customColor) {
-      if (status === 'synchronized') color = 'green'
-      if (status === 'pending') color = 'orange'
-      if (status === 'failed') color = 'red'
-    }
-
-    return {
-      path: window.google.maps.SymbolPath.CIRCLE,
-      scale: 6,
-      fillColor: color,
-      fillOpacity: 1,
-      strokeColor: 'white',
-      strokeWeight: 1,
-    }
-  }
-
-  // Helper to generate consistent colors
-  const stringToColor = (str: string) => {
-    let hash = 0
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash)
-    }
-    let color = '#'
-    for (let i = 0; i < 3; i++) {
-      const value = (hash >> (i * 8)) & 0xff
-      color += ('00' + value.toString(16)).substr(-2)
-    }
-    return color
-  }
-
-  if (error) {
+  if (error)
     return (
       <div className="flex items-center justify-center h-full bg-red-50 text-red-600 rounded-lg border border-red-200">
-        <p>{error}</p>
+        {error}
       </div>
     )
-  }
-
-  if (!isLoaded) {
+  if (!isLoaded)
     return (
       <div className="flex items-center justify-center h-full bg-slate-50 rounded-lg border">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
-  }
 
   return (
     <div ref={mapRef} className={`w-full h-full rounded-lg ${className}`} />

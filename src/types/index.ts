@@ -41,11 +41,18 @@ export interface CustomLayer {
 
 export type DrawingType = 'marker' | 'polyline' | 'polygon'
 
+export interface DrawingStyle {
+  strokeColor: string
+  strokeWeight: number
+  fillColor: string
+  fillOpacity: number
+}
+
 export interface MapDrawing {
   id: string
   type: DrawingType
   coordinates: any // lat/lng object or array of them
-  options?: any // color, stroke, etc.
+  style: DrawingStyle
   createdAt: number
 }
 
