@@ -35,6 +35,7 @@ interface Marker {
 export interface GoogleMapHandle {
   fitBounds: (points: { lat: number; lng: number }[]) => void
   panTo: (lat: number, lng: number) => void
+  getMap: () => any
 }
 
 interface GoogleMapProps {
@@ -61,6 +62,8 @@ interface GoogleMapProps {
   presentationMode?: boolean
   highContrast?: boolean
   onMapLoad?: (map: any) => void
+  directionsResult?: any
+  mapStyles?: any[]
 }
 
 const DEFAULT_STYLE: DrawingStyle = {
@@ -161,6 +164,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       zoom = 15,
       markers = [],
       drawings = [],
+      customLayers = [],
       className = '',
       onMarkerClick,
       onMapClick,
@@ -177,6 +181,8 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       presentationMode = false,
       highContrast = false,
       onMapLoad,
+      directionsResult,
+      mapStyles,
     },
     ref,
   ) => {
@@ -190,7 +196,9 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     const markersRef = useRef<any[]>([])
     const drawingManagerRef = useRef<any>(null)
     const drawnShapesRef = useRef<Map<string, any>>(new Map())
+    const customLayersRef = useRef<Map<string, any>>(new Map())
     const infoWindowRef = useRef<any>(null)
+    const directionsRendererRef = useRef<any>(null)
 
     // Library References
     const MapClassRef = useRef<any>(null)
@@ -210,6 +218,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         map.panTo({ lat, lng })
         map.setZoom(18)
       },
+      getMap: () => map,
     }))
 
     // Initialize API
@@ -227,7 +236,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setIsLoading(true)
           loadGoogleMapsApi(apiKey)
 
-          // Robust check for importLibrary availability with retry mechanism
           let attempts = 0
           while (
             (!window.google?.maps?.importLibrary ||
@@ -247,13 +255,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             )
           }
 
-          const [mapsLib, markerLib, drawingLib, geometryLib] =
-            await Promise.all([
-              window.google.maps.importLibrary('maps'),
-              window.google.maps.importLibrary('marker'),
-              window.google.maps.importLibrary('drawing'),
-              window.google.maps.importLibrary('geometry'),
-            ])
+          const [mapsLib, markerLib, drawingLib] = await Promise.all([
+            window.google.maps.importLibrary('maps'),
+            window.google.maps.importLibrary('marker'),
+            window.google.maps.importLibrary('drawing'),
+          ])
 
           if (!isMounted) return
 
@@ -300,11 +306,11 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             fullscreenControl: fullscreenControl && !presentationMode,
             zoomControl: !presentationMode,
             mapTypeControl: !presentationMode,
-            styles: highContrast ? HIGH_CONTRAST_STYLE : [],
+            styles: mapStyles || (highContrast ? HIGH_CONTRAST_STYLE : []),
             fullscreenControlOptions: {
               position: ControlPositionRef.current.RIGHT_TOP,
             },
-            mapId: mapId || undefined, // Required for AdvancedMarkerElement
+            mapId: mapId || undefined,
           }
 
           const gMap = new MapClassRef.current(mapRef.current, mapOptions)
@@ -320,20 +326,9 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setError('Erro ao renderizar o mapa.')
         }
       }
-    }, [
-      isLoaded,
-      mapId,
-      map,
-      center,
-      zoom,
-      mapType,
-      fullscreenControl,
-      presentationMode,
-      highContrast,
-      onMapLoad,
-    ])
+    }, [isLoaded, mapId, map, center, zoom, onMapLoad])
 
-    // Handle props updates that affect map options
+    // Handle props updates
     useEffect(() => {
       if (map) {
         map.setOptions({
@@ -342,12 +337,19 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           zoomControl: !presentationMode,
           mapTypeControl: !presentationMode,
           disableDefaultUI: presentationMode,
-          styles: highContrast ? HIGH_CONTRAST_STYLE : [],
+          styles: mapStyles || (highContrast ? HIGH_CONTRAST_STYLE : []),
         })
       }
-    }, [map, mapType, fullscreenControl, presentationMode, highContrast])
+    }, [
+      map,
+      mapType,
+      fullscreenControl,
+      presentationMode,
+      highContrast,
+      mapStyles,
+    ])
 
-    // Handle Map Center updates from props
+    // Handle Map Center
     useEffect(() => {
       if (map && center) {
         const c = map.getCenter()
@@ -360,6 +362,21 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         }
       }
     }, [map, center])
+
+    // Handle Directions
+    useEffect(() => {
+      if (!map || !window.google?.maps) return
+
+      if (!directionsRendererRef.current) {
+        directionsRendererRef.current =
+          new window.google.maps.DirectionsRenderer({
+            map,
+            suppressMarkers: false,
+          })
+      }
+
+      directionsRendererRef.current.setDirections(directionsResult)
+    }, [map, directionsResult])
 
     // Handle Map Click
     useEffect(() => {
@@ -386,7 +403,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       })
       markersRef.current = []
 
-      if (presentationMode && markers.length > 5000) return // Optimization for heavy mode
+      if (presentationMode && markers.length > 5000) return
 
       const markersToRender =
         markers.length > 3000 ? markers.slice(0, 3000) : markers
@@ -394,13 +411,12 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       markersToRender.forEach((markerData) => {
         let markerInstance
 
-        // Use Advanced Marker if available and Map ID is present
         if (AdvancedMarkerElementRef.current && mapId) {
           const AdvancedMarkerElement = AdvancedMarkerElementRef.current
           const content = createAdvancedMarkerContent(
             markerData.icon || 'circle',
             markerData.color || 'red',
-            1.0, // scale
+            1.0,
           )
 
           markerInstance = new AdvancedMarkerElement({
@@ -414,7 +430,6 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
             markerInstance.addListener('click', () => onMarkerClick(markerData))
           }
         } else {
-          // Fallback to legacy Marker
           let iconSymbol
           if (markerData.icon) {
             iconSymbol = getGoogleIconSymbol(
@@ -450,6 +465,48 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
         markersRef.current.push(markerInstance)
       })
     }, [map, markers, mapId, onMarkerClick, presentationMode, isLoaded])
+
+    // Custom Layers (GeoJSON)
+    useEffect(() => {
+      if (!map || !isLoaded) return
+
+      // Clean up removed layers
+      const activeLayerIds = new Set(customLayers.map((l) => l.id))
+      customLayersRef.current.forEach((layer, id) => {
+        if (!activeLayerIds.has(id)) {
+          layer.setMap(null)
+          customLayersRef.current.delete(id)
+        }
+      })
+
+      // Add/Update layers
+      customLayers.forEach((layerConfig) => {
+        if (!layerConfig.visible) {
+          const existing = customLayersRef.current.get(layerConfig.id)
+          if (existing) {
+            existing.setMap(null)
+            customLayersRef.current.delete(layerConfig.id)
+          }
+          return
+        }
+
+        let dataLayer = customLayersRef.current.get(layerConfig.id)
+        if (!dataLayer) {
+          dataLayer = new window.google.maps.Data()
+          dataLayer.addGeoJson(layerConfig.data)
+          dataLayer.setMap(map)
+          customLayersRef.current.set(layerConfig.id, dataLayer)
+
+          // Basic styling
+          dataLayer.setStyle({
+            fillColor: '#3b82f6',
+            strokeColor: '#2563eb',
+            strokeWeight: 2,
+            zIndex: layerConfig.zIndex,
+          })
+        }
+      })
+    }, [map, customLayers, isLoaded])
 
     // Drawing Manager
     useEffect(() => {

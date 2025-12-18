@@ -1,7 +1,7 @@
 /**
  * Simple KML to GeoJSON parser.
- * Handles Basic Placemarks (Point, Polygon).
- * Note: This is a simplified client-side parser.
+ * Handles Placemarks (Point, Polygon, LineString).
+ * Note: This is a simplified client-side parser for basic KML files.
  */
 export function parseKML(xmlString: string): any {
   const parser = new DOMParser()
@@ -17,6 +17,9 @@ export function parseKML(xmlString: string): any {
       placemark.getElementsByTagName('description')[0]?.textContent || ''
     const point = placemark.getElementsByTagName('Point')[0]
     const polygon = placemark.getElementsByTagName('Polygon')[0]
+    const lineString = placemark.getElementsByTagName('LineString')[0]
+
+    let geometry = null
 
     if (point) {
       const coords = point
@@ -24,14 +27,10 @@ export function parseKML(xmlString: string): any {
         ?.textContent?.trim()
       if (coords) {
         const [lng, lat] = coords.split(',').map((c) => parseFloat(c))
-        features.push({
-          type: 'Feature',
-          properties: { name, description },
-          geometry: {
-            type: 'Point',
-            coordinates: [lng, lat],
-          },
-        })
+        geometry = {
+          type: 'Point',
+          coordinates: [lng, lat],
+        }
       }
     } else if (polygon) {
       const outerBoundary = polygon.getElementsByTagName('outerBoundaryIs')[0]
@@ -44,16 +43,34 @@ export function parseKML(xmlString: string): any {
             const [lng, lat] = pair.split(',').map((c) => parseFloat(c))
             return [lng, lat]
           })
-          features.push({
-            type: 'Feature',
-            properties: { name, description },
-            geometry: {
-              type: 'Polygon',
-              coordinates: [coords],
-            },
-          })
+          geometry = {
+            type: 'Polygon',
+            coordinates: [coords],
+          }
         }
       }
+    } else if (lineString) {
+      const coordsStr = lineString
+        .getElementsByTagName('coordinates')[0]
+        ?.textContent?.trim()
+      if (coordsStr) {
+        const coords = coordsStr.split(/\s+/).map((pair) => {
+          const [lng, lat] = pair.split(',').map((c) => parseFloat(c))
+          return [lng, lat]
+        })
+        geometry = {
+          type: 'LineString',
+          coordinates: coords,
+        }
+      }
+    }
+
+    if (geometry) {
+      features.push({
+        type: 'Feature',
+        properties: { name, description },
+        geometry,
+      })
     }
   }
 

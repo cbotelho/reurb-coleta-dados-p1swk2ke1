@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { CustomLayer } from '@/types'
 import { toast } from 'sonner'
 import { Upload, Link as LinkIcon, Loader2 } from 'lucide-react'
+import { parseKML } from '@/utils/kmlParser'
 
 interface ExternalDataDialogProps {
   open: boolean
@@ -49,7 +50,7 @@ export function ExternalDataDialog({
         name,
         data: json,
         visible: true,
-        zIndex: 10, // Default on top of basemap
+        zIndex: 10,
       }
 
       onAddLayer(layer)
@@ -75,7 +76,13 @@ export function ExternalDataDialog({
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string
-        const json = JSON.parse(content)
+        let json
+
+        if (file.name.toLowerCase().endsWith('.kml')) {
+          json = parseKML(content)
+        } else {
+          json = JSON.parse(content)
+        }
 
         const layer: CustomLayer = {
           id: crypto.randomUUID(),
@@ -86,11 +93,14 @@ export function ExternalDataDialog({
         }
 
         onAddLayer(layer)
-        toast.success('Camada importada com sucesso!')
+        toast.success(
+          `Camada ${file.name.toLowerCase().endsWith('.kml') ? 'KML' : 'GeoJSON'} importada!`,
+        )
         onOpenChange(false)
         resetForm()
       } catch (error) {
-        toast.error('Arquivo GeoJSON inválido.')
+        console.error(error)
+        toast.error('Arquivo inválido ou corrompido.')
       } finally {
         setLoading(false)
       }
@@ -110,7 +120,7 @@ export function ExternalDataDialog({
         <DialogHeader>
           <DialogTitle>Adicionar Dados Externos</DialogTitle>
           <DialogDescription>
-            Importe arquivos GeoJSON ou conecte a uma API externa.
+            Importe arquivos GeoJSON, KML ou conecte a uma API.
           </DialogDescription>
         </DialogHeader>
 
@@ -149,10 +159,10 @@ export function ExternalDataDialog({
             </TabsContent>
             <TabsContent value="file" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Arquivo (.json, .geojson)</Label>
+                <Label>Arquivo (.json, .geojson, .kml)</Label>
                 <Input
                   type="file"
-                  accept=".json,.geojson"
+                  accept=".json,.geojson,.kml"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
                 />
               </div>
