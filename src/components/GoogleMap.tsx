@@ -320,7 +320,18 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           setError('Erro ao renderizar o mapa.')
         }
       }
-    }, [isLoaded, mapId, map]) // Removing center/zoom from deps to prevent re-init, handled below
+    }, [
+      isLoaded,
+      mapId,
+      map,
+      center,
+      zoom,
+      mapType,
+      fullscreenControl,
+      presentationMode,
+      highContrast,
+      onMapLoad,
+    ])
 
     // Handle props updates that affect map options
     useEffect(() => {
@@ -336,7 +347,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       }
     }, [map, mapType, fullscreenControl, presentationMode, highContrast])
 
-    // Handle Map Center/Zoom updates from props
+    // Handle Map Center updates from props
     useEffect(() => {
       if (map && center) {
         const c = map.getCenter()
@@ -346,13 +357,9 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
           Math.abs(c.lng() - center.lng) > 0.0001
         ) {
           map.panTo(center)
-          // Only change zoom if explicitly different and significantly changed to avoid fighting user scroll
-          if (Math.abs(zoom - map.getZoom()) > 1) {
-            // map.setZoom(zoom) // Often better to let user control zoom after initial load
-          }
         }
       }
-    }, [map, center]) // zoom removed to prevent aggressive zoom reset
+    }, [map, center])
 
     // Handle Map Click
     useEffect(() => {
