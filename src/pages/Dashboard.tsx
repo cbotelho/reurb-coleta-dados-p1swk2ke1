@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { useSync } from '@/contexts/SyncContext'
+import { useSync } from '@/contexts/SyncContext' // Used for online status
+import { api } from '@/services/api'
 import {
   Card,
   CardContent,
@@ -15,31 +16,52 @@ import {
   Database,
   Image as ImageIcon,
   ArrowRight,
-  RefreshCw,
   Folder,
   Map as MapIcon,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { GoogleMap, GoogleMapHandle } from '@/components/GoogleMap'
 import { db } from '@/services/db'
-import { Project, Lote, MapKey, MarkerIconType } from '@/types'
+import { Project, Lote, MapKey, MarkerIconType, DashboardStats } from '@/types'
 import { getBoundsCoordinates } from '@/utils/geoUtils'
 
 export default function Dashboard() {
-  const { isOnline, isSyncing, stats, triggerSync, refreshStats } = useSync()
+  const { isOnline } = useSync()
   const mapRef = useRef<GoogleMapHandle>(null)
   const [activeKey, setActiveKey] = useState<MapKey | undefined>()
   const [projects, setProjects] = useState<Project[]>([])
   const [lotes, setLotes] = useState<Lote[]>([])
+  const [stats, setStats] = useState<DashboardStats>({
+    collected: 0,
+    synced: 0,
+    pending: 0,
+    pendingImages: 0,
+    totalProjects: 0,
+  })
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    refreshStats()
+    loadDashboardData()
     const key = db.getActiveMapKey()
     setActiveKey(key)
-    setProjects(db.getProjects())
-    setLotes(db.getAllLotes())
-  }, [refreshStats])
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      const s = await api.getDashboardStats()
+      setStats(s)
+      const p = await api.getProjects()
+      setProjects(p)
+      const l = await api.getAllLotes()
+      setLotes(l)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Prepare markers for map
   const projectMarkers = projects
@@ -47,7 +69,7 @@ export default function Dashboard() {
     .map((p) => ({
       lat: parseFloat(String(p.latitude).replace(',', '.')),
       lng: parseFloat(String(p.longitude).replace(',', '.')),
-      title: `Projeto: ${p.field_348}`,
+      title: `Projeto: ${p.name}`,
       id: p.local_id,
       color: '#7c3aed',
       icon: 'flag' as MarkerIconType,
@@ -59,15 +81,10 @@ export default function Dashboard() {
     .map((l) => ({
       lat: parseFloat(String(l.latitude).replace(',', '.')),
       lng: parseFloat(String(l.longitude).replace(',', '.')),
-      title: l.field_338,
+      title: l.name,
       status: l.sync_status,
       id: l.local_id,
-      color:
-        l.sync_status === 'synchronized'
-          ? '#22c55e'
-          : l.sync_status === 'failed'
-            ? '#ef4444'
-            : '#f97316',
+      color: '#22c55e', // Default to synced color since we are online
       icon: 'circle' as MarkerIconType,
     }))
     .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
@@ -75,7 +92,6 @@ export default function Dashboard() {
   const allMarkers = [...projectMarkers, ...loteMarkers]
 
   const handleMapLoad = () => {
-    // Auto fit bounds when map loads
     setTimeout(() => {
       if (mapRef.current && allMarkers.length > 0) {
         const points = getBoundsCoordinates(lotes, [], projects)
@@ -85,6 +101,13 @@ export default function Dashboard() {
       }
     }, 500)
   }
+
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
 
   return (
     <div className="space-y-6">
@@ -150,7 +173,7 @@ export default function Dashboard() {
               {stats.collected}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Armazenados localmente
+              Armazenados na nuvem
             </p>
           </CardContent>
           <CardFooter>
@@ -179,7 +202,7 @@ export default function Dashboard() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {stats.lastSync
-                ? `Última: ${new Date(stats.lastSync).toLocaleTimeString()}`
+                ? `Atualizado: ${new Date(stats.lastSync).toLocaleTimeString()}`
                 : 'Nunca sincronizado'}
             </p>
           </CardContent>
@@ -193,20 +216,16 @@ export default function Dashboard() {
           </CardFooter>
         </Card>
 
-        {/* Pendentes */}
-        <Card
-          className={
-            stats.pending > 0 ? 'border-orange-200 bg-orange-50/50' : ''
-          }
-        >
+        {/* Pendentes - Should be 0 in Online Mode */}
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Pendentes
             </CardTitle>
-            <RefreshCw className="h-4 w-4 text-orange-600" />
+            <AlertTriangle className="h-4 w-4 text-gray-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-orange-600">
+            <div className="text-3xl font-bold text-gray-600">
               {stats.pending}
             </div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
@@ -215,13 +234,7 @@ export default function Dashboard() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button
-              className="w-full bg-blue-600 hover:bg-blue-700"
-              onClick={triggerSync}
-              disabled={isSyncing || stats.pending === 0 || !isOnline}
-            >
-              {isSyncing ? 'Enviando...' : 'Sincronizar'}
-            </Button>
+            <span className="text-xs text-gray-400">Modo Online Ativo</span>
           </CardFooter>
         </Card>
       </div>
@@ -269,30 +282,6 @@ export default function Dashboard() {
             )}
           </div>
         </Card>
-      </div>
-
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold mb-4">Acesso Rápido</h2>
-        <div className="grid grid-cols-2 gap-4">
-          <Link to="/projetos">
-            <Button
-              variant="outline"
-              className="w-full h-24 flex flex-col gap-2 border-dashed border-2 hover:border-blue-300 hover:bg-blue-50 transition-colors"
-            >
-              <Folder className="h-6 w-6 text-blue-500" />
-              <span>Acessar Projetos</span>
-            </Button>
-          </Link>
-          <Link to="/sincronizacao">
-            <Button
-              variant="outline"
-              className="w-full h-24 flex flex-col gap-2 border-dashed border-2 hover:border-orange-300 hover:bg-orange-50 transition-colors"
-            >
-              <RefreshCw className="h-6 w-6 text-orange-500" />
-              <span>Ver Status de Sincronização</span>
-            </Button>
-          </Link>
-        </div>
       </div>
     </div>
   )

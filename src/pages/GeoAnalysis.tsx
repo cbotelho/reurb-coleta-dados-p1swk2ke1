@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react'
-import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { Project, Lote } from '@/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import {
-  Download,
-  Map as MapIcon,
-  BarChart2,
-  PieChart as PieChartIcon,
-} from 'lucide-react'
+import { Download, Map as MapIcon, BarChart2 } from 'lucide-react'
 import { geoExporter } from '@/utils/geoExporter'
 import {
   ChartContainer,
@@ -17,7 +12,7 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart'
-import { PieChart, Pie, Cell } from 'recharts'
+import { PieChart, Pie } from 'recharts'
 
 export default function GeoAnalysis() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -28,38 +23,38 @@ export default function GeoAnalysis() {
   })
 
   useEffect(() => {
-    const projs = db.getProjects()
-    const lotes = db.getAllLotes()
-    setProjects(projs)
-
-    const totalLotes = lotes.length
-    const totalArea = lotes.reduce((acc, l) => {
-      const area = parseFloat(l.field_339.replace(/[^\d.-]/g, '')) || 0
-      return acc + area
-    }, 0)
-
-    setStats({
-      totalLotes,
-      totalArea,
-      avgArea: totalLotes > 0 ? totalArea / totalLotes : 0,
-    })
+    loadData()
   }, [])
 
-  const handleExportAll = (format: 'kml' | 'geojson') => {
-    // Export functionality usually per project, but here implies analysis enablement
-    // For simplicity, we just trigger export for the first project as demo or all if implemented
-    // User story says: "export functionality... is enhanced".
-    // We demonstrate via the existing exporter which now supports rich attributes.
+  const loadData = async () => {
+    try {
+      const projs = await api.getProjects()
+      const lotes = await api.getAllLotes()
+      setProjects(projs)
+
+      const totalLotes = lotes.length
+      const totalArea = lotes.reduce((acc, l) => {
+        const area = parseFloat(l.area.replace(/[^\d.-]/g, '')) || 0
+        return acc + area
+      }, 0)
+
+      setStats({
+        totalLotes,
+        totalArea,
+        avgArea: totalLotes > 0 ? totalArea / totalLotes : 0,
+      })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const handleExportAll = async (format: 'kml' | 'geojson') => {
     if (projects.length > 0) {
       const p = projects[0]
-      const l = db.getLotesByQuadra(
-        db.getQuadrasByProject(p.local_id)[0]?.local_id || '',
-      ) // Just sample
-      // Real implementation would loop or zip all.
-      const allLotes = db.getAllLotes()
+      const allLotes = await api.getAllLotes()
 
       if (format === 'kml') {
-        geoExporter.exportProjectKML(p, allLotes) // Passing all lotes for demo export
+        geoExporter.exportProjectKML(p, allLotes)
       } else {
         geoExporter.exportProjectGeoJSON(p, allLotes)
       }
@@ -67,7 +62,7 @@ export default function GeoAnalysis() {
   }
 
   const chartData = [
-    { name: 'Sincronizado', value: 300, fill: 'hsl(var(--chart-1))' }, // Mock for visual
+    { name: 'Sincronizado', value: 300, fill: 'hsl(var(--chart-1))' },
     { name: 'Pendente', value: 50, fill: 'hsl(var(--chart-2))' },
   ]
 

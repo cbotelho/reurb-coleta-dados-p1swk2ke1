@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Map, Loader2 } from 'lucide-react'
 import { Project, SavedCoordinate } from '@/types'
 import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { toast } from 'sonner'
 import {
   Select,
@@ -65,23 +66,17 @@ export function ProjectMapUpdateDialog({
 
     setLoading(true)
 
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
     // Generate URL (Using allowed placeholder service to mock Google Maps Static)
     const mapUrl = `https://img.usecurling.com/p/800/400?q=satellite%20map%20${lat}%20${lng}&color=green`
 
-    const updatedProject = {
-      ...project,
-      field_351: mapUrl,
-      latitude: lat,
-      longitude: lng,
-      auto_update_map: autoUpdate,
-      last_map_update: Date.now(),
-    }
-
     try {
-      const result = db.updateProject(updatedProject)
+      const result = await api.updateProject(project.local_id, {
+        image_url: mapUrl,
+        latitude: lat,
+        longitude: lng,
+        auto_update_map: autoUpdate,
+        last_map_update: Date.now(),
+      })
       onUpdate(result)
       toast.success('Imagem do projeto atualizada com sucesso!')
       setOpen(false)

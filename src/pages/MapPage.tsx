@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { db } from '@/services/db'
+import { api } from '@/services/api'
 import {
   Project,
   Lote,
@@ -156,7 +157,6 @@ const DARK_MAP_STYLE = [
   },
 ]
 
-// Marabaixo 1 coordinates
 const MARABAIXO_COORDS = { lat: 0.036161, lng: -51.130895 }
 
 export default function MapPage() {
@@ -168,7 +168,6 @@ export default function MapPage() {
 
   const [projects, setProjects] = useState<Project[]>([])
   const [lotes, setLotes] = useState<Lote[]>([])
-  // Initialize with fallback logic synchronously
   const [activeKey, setActiveKey] = useState<MapKey | undefined>(() =>
     db.getEffectiveMapKey(),
   )
@@ -229,10 +228,17 @@ export default function MapPage() {
   )
   const [directionsResult, setDirectionsResult] = useState<any>(null)
 
-  const refreshData = useCallback(() => {
-    const projs = db.getProjects()
-    setProjects(projs)
-    setLotes(db.getAllLotes())
+  const refreshData = useCallback(async () => {
+    try {
+      const [projs, allLotes] = await Promise.all([
+        api.getProjects(),
+        api.getAllLotes(),
+      ])
+      setProjects(projs)
+      setLotes(allLotes)
+    } catch (e) {
+      console.error('Failed to fetch map data', e)
+    }
 
     const key = db.getEffectiveMapKey()
     setActiveKey((prev) => (prev?.key === key?.key ? prev : key))
@@ -247,7 +253,7 @@ export default function MapPage() {
 
   useEffect(() => {
     refreshData()
-    const interval = setInterval(refreshData, 5000)
+    const interval = setInterval(refreshData, 30000)
     return () => clearInterval(interval)
   }, [refreshData])
 
@@ -299,7 +305,7 @@ export default function MapPage() {
     }
 
     const project = projects.find((p) =>
-      p.field_348.toLowerCase().includes(searchTerm.toLowerCase()),
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()),
     )
 
     if (project && project.latitude && project.longitude) {
@@ -311,13 +317,13 @@ export default function MapPage() {
         if (mapRef.current) {
           mapRef.current.panTo(lat, lng)
         }
-        toast.success(`Projeto localizado: ${project.field_348}`)
+        toast.success(`Projeto localizado: ${project.name}`)
         return
       }
     }
 
     const lote = lotes.find((l) =>
-      l.field_338.toLowerCase().includes(searchTerm.toLowerCase()),
+      l.name.toLowerCase().includes(searchTerm.toLowerCase()),
     )
     if (lote && lote.latitude && lote.longitude) {
       const lat = parseFloat(String(lote.latitude).replace(',', '.'))
@@ -328,7 +334,7 @@ export default function MapPage() {
         if (mapRef.current) {
           mapRef.current.panTo(lat, lng)
         }
-        toast.success(`Lote localizado: ${lote.field_338}`)
+        toast.success(`Lote localizado: ${lote.name}`)
         return
       }
     }
@@ -357,7 +363,7 @@ export default function MapPage() {
         if (mapRef.current) {
           mapRef.current.panTo(lat, lng)
         }
-        toast.success(`Visualizando: ${project.field_348}`)
+        toast.success(`Visualizando: ${project.name}`)
       } else {
         toast.warning('Projeto sem coordenadas válidas.')
       }
@@ -385,22 +391,20 @@ export default function MapPage() {
       }
     }
 
-    // Default to Marabaixo 1 if no specific project or if "all" is selected
-    // but no fit bounds logic applies (e.g. empty lotes)
-    const marabaixo = projects.find((p) => p.local_id === 'proj-1')
-    if (marabaixo && marabaixo.latitude && marabaixo.longitude) {
-      const lat = parseFloat(String(marabaixo.latitude).replace(',', '.'))
-      const lng = parseFloat(String(marabaixo.longitude).replace(',', '.'))
+    const validProj = projects.find((p) => p.latitude && p.longitude)
+    if (validProj) {
+      const lat = parseFloat(String(validProj.latitude).replace(',', '.'))
+      const lng = parseFloat(String(validProj.longitude).replace(',', '.'))
       if (!isNaN(lat) && !isNaN(lng)) {
         mapRef.current.panTo(lat, lng)
-        toast.info('Centralizado em Marabaixo 1')
+        toast.info(`Centralizado em ${validProj.name}`)
         return
       }
     }
 
     // Fallback to coordinates
     mapRef.current.panTo(MARABAIXO_COORDS.lat, MARABAIXO_COORDS.lng)
-    toast.info('Centralizado em Marabaixo 1 (Padrão)')
+    toast.info('Centralizado (Padrão)')
   }, [projects, selectedProjectId])
 
   const handleMapLoad = useCallback((_map: any) => {
@@ -408,21 +412,14 @@ export default function MapPage() {
   }, [])
 
   useEffect(() => {
-    if (mapReady && !initialFocusRef.current) {
+    if (mapReady && !initialFocusRef.current && projects.length > 0) {
       setTimeout(() => {
         if (mapRef.current) {
-          // Priority: Selected Project -> Marabaixo 1 -> Bounds -> Default
-
           if (selectedProjectId !== 'all') {
             const activeProj = projects.find(
               (p) => p.local_id === selectedProjectId,
             )
-            if (
-              activeProj &&
-              activeProj.latitude &&
-              activeProj.longitude &&
-              activeProj.latitude !== '0'
-            ) {
+            if (activeProj?.latitude && activeProj?.longitude) {
               const lat = parseFloat(
                 String(activeProj.latitude).replace(',', '.'),
               )
@@ -438,30 +435,18 @@ export default function MapPage() {
             }
           }
 
-          // Try centering on Marabaixo 1 by default
-          const marabaixo = projects.find((p) => p.local_id === 'proj-1')
-          let targetLat = MARABAIXO_COORDS.lat
-          let targetLng = MARABAIXO_COORDS.lng
-
-          if (
-            marabaixo &&
-            marabaixo.latitude &&
-            marabaixo.longitude &&
-            marabaixo.latitude !== '0'
-          ) {
-            const lat = parseFloat(String(marabaixo.latitude).replace(',', '.'))
+          const validProj = projects.find((p) => p.latitude && p.longitude)
+          if (validProj) {
+            const lat = parseFloat(String(validProj.latitude).replace(',', '.'))
             const lng = parseFloat(
-              String(marabaixo.longitude).replace(',', '.'),
+              String(validProj.longitude).replace(',', '.'),
             )
             if (!isNaN(lat) && !isNaN(lng)) {
-              targetLat = lat
-              targetLng = lng
+              setMapCenter({ lat, lng })
+              mapRef.current.panTo(lat, lng)
+              initialFocusRef.current = true
             }
           }
-
-          setMapCenter({ lat: targetLat, lng: targetLng })
-          mapRef.current.panTo(targetLat, targetLng)
-          initialFocusRef.current = true
         }
       }, 500)
     }
@@ -510,7 +495,7 @@ export default function MapPage() {
     const config = markerConfigs.find(
       (c) => c.id === (markerMode === 'default' ? 'default' : lote.sync_status),
     )
-    return config ? config.color : 'red'
+    return config ? config.color : '#22c55e'
   }
 
   const getGoogleMapType = () => {
@@ -662,7 +647,6 @@ export default function MapPage() {
 
   const handleMapClick = async (lat: number, lng: number) => {
     if (routePointMode) {
-      // Routing Click
       toast.info(
         `${routePointMode === 'start' ? 'Origem' : 'Destino'}: ${lat.toFixed(5)}, ${lng.toFixed(5)} (Copie e cole na caixa)`,
       )
@@ -740,7 +724,7 @@ export default function MapPage() {
     .map((p) => ({
       lat: parseFloat(String(p.latitude).replace(',', '.')),
       lng: parseFloat(String(p.longitude).replace(',', '.')),
-      title: `Projeto: ${p.field_348}`,
+      title: `Projeto: ${p.name}`,
       id: p.local_id,
       color: '#7c3aed',
       icon: 'flag' as MarkerIconType,
@@ -754,16 +738,13 @@ export default function MapPage() {
         l.longitude &&
         (selectedProjectId === 'all' ||
           projects.find((p) => p.local_id === selectedProjectId)?.local_id ===
-            projects.find((p) =>
-              db
-                .getQuadrasByProject(p.local_id)
-                .some((q) => q.local_id === l.parent_item_id),
-            )?.local_id),
+            projects.find((p) => p.local_id === l.parent_item_id || true)
+              ?.local_id),
     )
     .map((l) => ({
       lat: parseFloat(String(l.latitude).replace(',', '.')),
       lng: parseFloat(String(l.longitude).replace(',', '.')),
-      title: l.field_338,
+      title: l.name,
       status: l.sync_status,
       id: l.local_id,
       color: getMarkerColor(l),
@@ -790,7 +771,7 @@ export default function MapPage() {
                 <SelectItem value="all">Todos os Projetos</SelectItem>
                 {projects.map((p) => (
                   <SelectItem key={p.local_id} value={p.local_id}>
-                    {p.field_348}
+                    {p.name}
                   </SelectItem>
                 ))}
               </SelectContent>

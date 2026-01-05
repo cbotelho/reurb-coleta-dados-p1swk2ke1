@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { Quadra, Lote } from '@/types'
 import {
   Card,
@@ -16,43 +16,56 @@ import {
   Clock,
   FileText,
   Image as ImageIcon,
+  Loader2,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import { toast } from 'sonner'
 
 export default function QuadraDetails() {
   const { quadraId } = useParams<{ quadraId: string }>()
   const [quadra, setQuadra] = useState<Quadra | undefined>()
   const [lotes, setLotes] = useState<Lote[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (quadraId) {
-      setQuadra(db.getQuadra(quadraId))
-      setLotes(db.getLotesByQuadra(quadraId))
+      loadData(quadraId)
     }
   }, [quadraId])
 
-  if (!quadra)
-    return <div className="p-4 text-center">Quadra não encontrada.</div>
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'synchronized':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />
-      case 'failed':
-        return <AlertCircle className="h-4 w-4 text-red-500" />
-      default:
-        return <Clock className="h-4 w-4 text-orange-400" />
+  const loadData = async (id: string) => {
+    try {
+      setLoading(true)
+      const q = await api.getQuadra(id)
+      if (q) {
+        setQuadra(q)
+        const l = await api.getLotes(id)
+        setLotes(l)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao carregar quadra.')
+    } finally {
+      setLoading(false)
     }
   }
+
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
+
+  if (!quadra)
+    return <div className="p-4 text-center">Quadra não encontrada.</div>
 
   return (
     <div className="space-y-6 pb-20">
       <div className="bg-white p-6 rounded-lg border shadow-sm space-y-4">
         <div>
-          <h2 className="text-2xl font-bold">{quadra.field_329}</h2>
-          <p className="text-muted-foreground">
-            Projeto: {quadra.field_349} • Área: {quadra.field_330}
-          </p>
+          <h2 className="text-2xl font-bold">{quadra.name}</h2>
+          <p className="text-muted-foreground">Área: {quadra.area}</p>
         </div>
 
         <Separator />
@@ -63,7 +76,7 @@ export default function QuadraDetails() {
               <FileText className="w-4 h-4" /> Arquivo de Documento
             </span>
             <p className="font-mono bg-muted p-2 rounded break-all">
-              {quadra.field_331 || 'Nenhum documento anexado'}
+              {quadra.document_url || 'Nenhum documento anexado'}
             </p>
           </div>
           <div className="space-y-1">
@@ -71,7 +84,7 @@ export default function QuadraDetails() {
               <ImageIcon className="w-4 h-4" /> Imagem da Quadra
             </span>
             <p className="font-mono bg-muted p-2 rounded break-all">
-              {quadra.field_332 || 'Nenhuma imagem definida'}
+              {quadra.image_url || 'Nenhuma imagem definida'}
             </p>
           </div>
         </div>
@@ -93,14 +106,14 @@ export default function QuadraDetails() {
                     <div className="flex justify-between items-start">
                       <div>
                         <CardTitle className="text-base font-bold">
-                          {lote.field_338}
+                          {lote.name}
                         </CardTitle>
                         <CardDescription className="text-xs mt-1">
-                          {lote.field_339} • {lote.field_352.length} fotos
+                          {lote.area} • {lote.images.length} fotos
                         </CardDescription>
                       </div>
-                      <div title={`Status: ${lote.sync_status}`}>
-                        {getStatusIcon(lote.sync_status)}
+                      <div title="Sincronizado">
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
                       </div>
                     </div>
                   </CardHeader>

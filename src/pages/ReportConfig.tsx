@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { Project, Lote, Quadra } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Printer, ArrowLeft, BarChart } from 'lucide-react'
+import { Printer, ArrowLeft, BarChart, Loader2 } from 'lucide-react'
 import {
   ChartContainer,
   ChartTooltip,
@@ -15,21 +15,14 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart'
-import {
-  Bar,
-  BarChart as RechartsBarChart,
-  XAxis,
-  YAxis,
-  PieChart,
-  Pie,
-  Cell,
-} from 'recharts'
+import { PieChart, Pie, Cell } from 'recharts'
 
 export default function ReportConfig() {
   const { projectId } = useParams()
   const [project, setProject] = useState<Project | undefined>()
   const [lotes, setLotes] = useState<Lote[]>([])
   const [quadras, setQuadras] = useState<Quadra[]>([])
+  const [loading, setLoading] = useState(true)
 
   // Config State
   const [showCharts, setShowCharts] = useState(true)
@@ -42,17 +35,31 @@ export default function ReportConfig() {
 
   useEffect(() => {
     if (projectId) {
-      setProject(db.getProject(projectId))
-      setQuadras(db.getQuadrasByProject(projectId))
-      // Get lotes from these quadras
-      const projectQuadras = db.getQuadrasByProject(projectId)
-      const projectQuadraIds = projectQuadras.map((q) => q.local_id)
-      const allLotes = db
-        .getAllLotes()
-        .filter((l) => projectQuadraIds.includes(l.parent_item_id))
-      setLotes(allLotes)
+      loadData(projectId)
     }
   }, [projectId])
+
+  const loadData = async (id: string) => {
+    try {
+      const p = await api.getProject(id)
+      if (p) {
+        setProject(p)
+        const q = await api.getQuadras(id)
+        setQuadras(q)
+        // Fetch lots for all quadras
+        const allLotes = []
+        for (const quadra of q) {
+          const quadraLotes = await api.getLotes(quadra.local_id)
+          allLotes.push(...quadraLotes)
+        }
+        setLotes(allLotes)
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handlePrint = () => {
     window.print()
@@ -95,6 +102,12 @@ export default function ReportConfig() {
     },
   }
 
+  if (loading)
+    return (
+      <div className="p-10 text-center">
+        <Loader2 className="animate-spin mx-auto" />
+      </div>
+    )
   if (!project) return <div>Projeto não encontrado</div>
 
   return (
@@ -175,9 +188,7 @@ export default function ReportConfig() {
         {/* Report Preview - Full Width on Print */}
         <div className="lg:col-span-3 print:col-span-4 bg-white p-8 shadow-sm border rounded-lg print:border-none print:shadow-none min-h-screen">
           <div className="text-center mb-8 border-b pb-4">
-            <h1 className="text-3xl font-bold text-gray-900">
-              {project.field_348}
-            </h1>
+            <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
             <p className="text-gray-500">Relatório Geral de Acompanhamento</p>
             <p className="text-sm text-gray-400 mt-1">
               Gerado em {new Date().toLocaleDateString()}
@@ -244,10 +255,10 @@ export default function ReportConfig() {
                   return (
                     <tr key={lote.local_id} className="border-b">
                       {fields.name && (
-                        <td className="p-2 font-medium">{lote.field_338}</td>
+                        <td className="p-2 font-medium">{lote.name}</td>
                       )}
-                      <td className="p-2">{quadra?.field_329 || '-'}</td>
-                      {fields.area && <td className="p-2">{lote.field_339}</td>}
+                      <td className="p-2">{quadra?.name || '-'}</td>
+                      {fields.area && <td className="p-2">{lote.area}</td>}
                       {fields.status && (
                         <td className="p-2">
                           <span
@@ -265,7 +276,7 @@ export default function ReportConfig() {
                       )}
                       {fields.description && (
                         <td className="p-2 text-gray-500 max-w-[200px] truncate">
-                          {lote.field_340}
+                          {lote.description}
                         </td>
                       )}
                     </tr>

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { db } from '@/services/db'
+import { db } from '@/services/db' // Still used for Group Definitions mockup
 import { User, UserGroup } from '@/types'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
@@ -53,11 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const mapSupabaseUser = (sbUser: any) => {
     // Map Supabase user to local User type
+    // In a real app, we would fetch user profile from 'profiles' table
+    // Here we will just use the metadata
     const mappedUser: User = {
       id: sbUser.id,
       username: sbUser.email || '',
       name: sbUser.user_metadata?.full_name || sbUser.email || 'Usuário',
-      groupIds: ['g1'], // Defaulting to Master for demo purposes as seeding roles is complex
+      groupIds: ['g1'], // Defaulting to Master for demo purposes
       active: true,
     }
     setUser(mappedUser)
@@ -76,26 +78,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (username: string, pass: string) => {
     setIsLoading(true)
 
-    // Try Supabase Auth
     const { data, error } = await supabase.auth.signInWithPassword({
       email: username,
       password: pass,
     })
 
     if (error) {
-      // Fallback to Mock DB Auth for legacy/offline-demo support
-      const localUser = db.authenticate(username, pass)
-      if (localUser) {
-        setUser(localUser)
-        setGroups(
-          db.getGroups().filter((g) => localUser.groupIds.includes(g.id)),
-        )
-        setIsAuthenticated(true)
-        toast.success(`Bem-vindo (Local), ${localUser.name}!`)
-        setIsLoading(false)
-        return true
-      }
-
       toast.error(error.message || 'Credenciais inválidas.')
       setIsLoading(false)
       return false

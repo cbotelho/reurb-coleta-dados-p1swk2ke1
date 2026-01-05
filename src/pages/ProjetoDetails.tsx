@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { exporter } from '@/utils/exporter'
 import { geoExporter } from '@/utils/geoExporter'
 import { useAuth } from '@/contexts/AuthContext'
@@ -28,6 +29,7 @@ import {
   FileSpreadsheet,
   Globe,
   RefreshCw,
+  Loader2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
@@ -50,6 +52,7 @@ export default function ProjetoDetails() {
   const [effectiveKey, setEffectiveKey] = useState<MapKey | undefined>(
     db.getEffectiveMapKey(),
   )
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setSettings(db.getSettings())
@@ -58,75 +61,100 @@ export default function ProjetoDetails() {
 
   useEffect(() => {
     if (projectId) {
-      const p = db.getProject(projectId)
-      setProject(p)
-      if (p) {
-        setQuadras(db.getQuadrasByProject(projectId))
-
-        // Simulate auto-update check on load
-        if (p.auto_update_map && p.last_map_update) {
-          const hoursSinceUpdate =
-            (Date.now() - p.last_map_update) / (1000 * 60 * 60)
-          if (hoursSinceUpdate > 24) {
-            handleForceMapUpdate(p)
-          }
-        }
-      }
+      loadData(projectId)
     }
   }, [projectId])
 
-  const handleForceMapUpdate = async (p: Project) => {
-    setIsUpdatingMap(true)
-    // Simulate update
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    const updated = db.updateProject({
-      ...p,
-      last_map_update: Date.now(),
-    })
-    setProject(updated)
-    setIsUpdatingMap(false)
-    toast.success('Mapa atualizado automaticamente.')
+  const loadData = async (id: string) => {
+    try {
+      setLoading(true)
+      const p = await api.getProject(id)
+      if (p) {
+        setProject(p)
+        const q = await api.getQuadras(id)
+        setQuadras(q)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Erro ao carregar detalhes do projeto.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleExport = (type: 'csv' | 'excel' | 'kml' | 'geojson') => {
+  const handleForceMapUpdate = async (p: Project) => {
+    setIsUpdatingMap(true)
+    try {
+      const updated = await api.updateProject(p.local_id, {
+        last_map_update: Date.now(),
+      })
+      setProject(updated)
+      toast.success('Mapa atualizado automaticamente.')
+    } catch (e) {
+      toast.error('Falha na atualização automática.')
+    } finally {
+      setIsUpdatingMap(false)
+    }
+  }
+
+  const handleExport = async (type: 'csv' | 'excel' | 'kml' | 'geojson') => {
     if (!project) return
-    const projectQuadras = db.getQuadrasByProject(project.local_id)
-    const projectQuadraIds = projectQuadras.map((q) => q.local_id)
-    const allLotes = db
-      .getAllLotes()
-      .filter((l) => projectQuadraIds.includes(l.parent_item_id))
-      .map((l) => ({
-        ...l,
-        projectName: project.field_348,
-        quadraName: projectQuadras.find((q) => q.local_id === l.parent_item_id)
-          ?.field_329,
-      }))
+    toast.loading('Preparando exportação...', { id: 'export' })
 
-    if (type === 'kml') {
-      geoExporter.exportProjectKML(project, allLotes)
-      return
-    }
-    if (type === 'geojson') {
-      geoExporter.exportProjectGeoJSON(project, allLotes)
-      return
-    }
+    try {
+      // Fetch all lotes for this project (via quadras)
+      // This might be heavy, but it's for export
+      const allLotes = []
+      for (const quadra of quadras) {
+        const quadraLotes = await api.getLotes(quadra.local_id)
+        allLotes.push(
+          ...quadraLotes.map((l) => ({
+            ...l,
+            projectName: project.name,
+            quadraName: quadra.name,
+          })),
+        )
+      }
 
-    const columns = [
-      { key: 'local_id', label: 'ID' },
-      { key: 'field_338', label: 'Nome do Lote' },
-      { key: 'quadraName', label: 'Quadra' },
-      { key: 'projectName', label: 'Projeto' },
-      { key: 'field_339', label: 'Área' },
-      { key: 'latitude', label: 'Latitude' },
-      { key: 'longitude', label: 'Longitude' },
-      { key: 'sync_status', label: 'Status' },
-    ]
+      toast.dismiss('export')
 
-    if (type === 'csv') {
-      exporter.toCSV(allLotes, `lotes_${project.field_348}.csv`, columns)
-    } else {
-      exporter.toExcel(allLotes, `lotes_${project.field_348}.xls`, columns)
+      if (type === 'kml') {
+        geoExporter.exportProjectKML(project, allLotes)
+        return
+      }
+      if (type === 'geojson') {
+        geoExporter.exportProjectGeoJSON(project, allLotes)
+        return
+      }
+
+      const columns = [
+        { key: 'local_id', label: 'ID' },
+        { key: 'name', label: 'Nome do Lote' },
+        { key: 'quadraName', label: 'Quadra' },
+        { key: 'projectName', label: 'Projeto' },
+        { key: 'area', label: 'Área' },
+        { key: 'latitude', label: 'Latitude' },
+        { key: 'longitude', label: 'Longitude' },
+        { key: 'sync_status', label: 'Status' },
+      ]
+
+      if (type === 'csv') {
+        exporter.toCSV(allLotes, `lotes_${project.name}.csv`, columns)
+      } else {
+        exporter.toExcel(allLotes, `lotes_${project.name}.xls`, columns)
+      }
+    } catch (e) {
+      toast.dismiss('export')
+      toast.error('Erro ao exportar dados.')
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
   }
 
   if (!project) {
@@ -169,23 +197,13 @@ export default function ProjetoDetails() {
           </Button>
           <div>
             <h2 className="text-3xl font-bold tracking-tight">
-              Loteamento {project.field_348}
+              Loteamento {project.name}
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className="text-xs">
-                ID: {project.id}
+                ID: {project.local_id.slice(0, 8)}
               </Badge>
-              <Badge
-                variant={
-                  project.sync_status === 'synchronized'
-                    ? 'secondary'
-                    : 'default'
-                }
-              >
-                {project.sync_status === 'synchronized'
-                  ? 'Sincronizado'
-                  : 'Pendente'}
-              </Badge>
+              <Badge variant="default">Online</Badge>
             </div>
           </div>
         </div>
@@ -239,8 +257,8 @@ export default function ProjetoDetails() {
           <Card className="overflow-hidden">
             <div className="aspect-video w-full bg-muted relative group">
               <img
-                src={getProjectImageUrl(project.field_351)}
-                alt={`Mapa do ${project.field_348}`}
+                src={getProjectImageUrl(project.image_url)}
+                alt={`Mapa do ${project.name}`}
                 className="w-full h-full object-cover"
               />
               {project.auto_update_map && (
@@ -284,10 +302,10 @@ export default function ProjetoDetails() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                    <FileText className="w-4 h-4" /> Arquivo de Levantamento
+                    <FileText className="w-4 h-4" /> Descrição
                   </span>
                   <p className="text-sm break-all font-mono bg-muted p-2 rounded">
-                    {project.field_350 || 'Nenhum arquivo anexado'}
+                    {project.description || 'Nenhuma descrição'}
                   </p>
                 </div>
                 <div className="space-y-1">
@@ -339,10 +357,10 @@ export default function ProjetoDetails() {
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex justify-between">
-                      {quadra.field_329}
-                      <Badge variant="outline">{quadra.sync_status}</Badge>
+                      {quadra.name}
+                      <Badge variant="outline">Sync</Badge>
                     </CardTitle>
-                    <CardDescription>{quadra.field_330}</CardDescription>
+                    <CardDescription>{quadra.area}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Button
@@ -376,21 +394,11 @@ export default function ProjetoDetails() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-3">
-                {project.sync_status === 'synchronized' ? (
-                  <CheckCircle2 className="w-8 h-8 text-green-500" />
-                ) : (
-                  <Clock className="w-8 h-8 text-yellow-500" />
-                )}
+                <CheckCircle2 className="w-8 h-8 text-green-500" />
                 <div>
-                  <p className="font-medium">
-                    {project.sync_status === 'synchronized'
-                      ? 'Sincronizado'
-                      : 'Pendente'}
-                  </p>
+                  <p className="font-medium">Online</p>
                   <p className="text-xs text-muted-foreground">
-                    {project.sync_status === 'synchronized'
-                      ? 'Os dados estão salvos no servidor.'
-                      : 'Aguardando sincronização.'}
+                    Os dados são carregados diretamente do servidor.
                   </p>
                 </div>
               </div>
@@ -404,15 +412,11 @@ export default function ProjetoDetails() {
             <CardContent className="text-sm space-y-2">
               <div className="flex justify-between py-1 border-b">
                 <span className="text-muted-foreground">Criado por</span>
-                <span>User {project.created_by || '-'}</span>
+                <span>{project.created_by ? 'Usuário' : '-'}</span>
               </div>
               <div className="flex justify-between py-1 border-b">
                 <span className="text-muted-foreground">Parent ID</span>
                 <span>{project.parent_id ?? '-'}</span>
-              </div>
-              <div className="flex justify-between py-1 border-b">
-                <span className="text-muted-foreground">Sort Order</span>
-                <span>{project.sort_order ?? 0}</span>
               </div>
             </CardContent>
           </Card>

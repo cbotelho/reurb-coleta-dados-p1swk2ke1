@@ -87,8 +87,8 @@ export const geoExporter = {
     // Add project center if available
     if (project.latitude && project.longitude) {
       items.push({
-        name: `Projeto: ${project.field_348}`,
-        description: `Levantamento: ${project.field_350}\nID: ${project.local_id}`,
+        name: `Projeto: ${project.name}`,
+        description: `Levantamento: ${project.description}\nID: ${project.local_id}`,
         latitude: project.latitude,
         longitude: project.longitude,
         extendedData: {
@@ -105,17 +105,17 @@ export const geoExporter = {
     lotes.forEach((lote) => {
       if (lote.latitude && lote.longitude) {
         items.push({
-          name: lote.field_338,
-          description: `Área: ${lote.field_339}\nDescrição: ${lote.field_340 || 'N/A'}\nImagens: ${lote.field_352.length}`,
+          name: lote.name,
+          description: `Área: ${lote.area}\nDescrição: ${lote.description || 'N/A'}\nImagens: ${lote.images.length}`,
           latitude: lote.latitude,
           longitude: lote.longitude,
           extendedData: {
             type: 'Lote',
             status: lote.sync_status,
-            area: lote.field_339,
+            area: lote.area,
             quadra_id: lote.parent_item_id,
-            memorial: lote.field_340,
-            image_count: lote.field_352.length,
+            memorial: lote.description,
+            image_count: lote.images.length,
             local_id: lote.local_id,
             parent_project_id: project.local_id,
           },
@@ -126,7 +126,7 @@ export const geoExporter = {
     const kml = formatKML(items)
     downloadFile(
       kml,
-      `projeto_${project.field_348.replace(/\s+/g, '_')}_advanced.kml`,
+      `projeto_${project.name.replace(/\s+/g, '_')}_advanced.kml`,
       'application/vnd.google-earth.kml+xml',
     )
   },
@@ -136,8 +136,8 @@ export const geoExporter = {
 
     if (project.latitude && project.longitude) {
       items.push({
-        name: `Projeto: ${project.field_348}`,
-        description: `Levantamento: ${project.field_350}`,
+        name: `Projeto: ${project.name}`,
+        description: `Levantamento: ${project.description}`,
         latitude: project.latitude,
         longitude: project.longitude,
         extendedData: {
@@ -153,16 +153,16 @@ export const geoExporter = {
     lotes.forEach((lote) => {
       if (lote.latitude && lote.longitude) {
         items.push({
-          name: lote.field_338,
-          description: lote.field_340 || '',
+          name: lote.name,
+          description: lote.description || '',
           latitude: lote.latitude,
           longitude: lote.longitude,
           extendedData: {
             type: 'Lote',
             status: lote.sync_status,
-            area: lote.field_339,
+            area: lote.area,
             quadra_id: lote.parent_item_id,
-            image_count: lote.field_352.length,
+            image_count: lote.images.length,
             local_id: lote.local_id,
             parent_project_id: project.local_id,
           },
@@ -173,7 +173,7 @@ export const geoExporter = {
     const geojson = formatGeoJSON(items)
     downloadFile(
       geojson,
-      `projeto_${project.field_348.replace(/\s+/g, '_')}_advanced.geojson`,
+      `projeto_${project.name.replace(/\s+/g, '_')}_advanced.geojson`,
       'application/geo+json',
     )
   },

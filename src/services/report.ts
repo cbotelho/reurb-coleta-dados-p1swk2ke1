@@ -15,7 +15,7 @@ export const reportService = {
         </div>
 
         <div style="margin-bottom: 30px;">
-          <h2 style="color: #2563eb;">${project.field_348}</h2>
+          <h2 style="color: #2563eb;">${project.name}</h2>
           <p><strong>ID:</strong> ${project.id || project.local_id}</p>
           <p><strong>Status:</strong> ${project.sync_status}</p>
           <p><strong>Total de Quadras:</strong> ${quadras.length}</p>
@@ -37,8 +37,8 @@ export const reportService = {
                 .map(
                   (q) => `
                 <tr>
-                  <td style="padding: 10px; border: 1px solid #ddd;">${q.field_329}</td>
-                  <td style="padding: 10px; border: 1px solid #ddd;">${q.field_330}</td>
+                  <td style="padding: 10px; border: 1px solid #ddd;">${q.name}</td>
+                  <td style="padding: 10px; border: 1px solid #ddd;">${q.area}</td>
                   <td style="padding: 10px; border: 1px solid #ddd;">${q.sync_status}</td>
                 </tr>
               `,
@@ -68,11 +68,11 @@ export const reportService = {
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
           <div>
             <h3 style="color: #666; margin-bottom: 5px;">Identificação</h3>
-            <p style="font-size: 1.2em; font-weight: bold; margin: 0;">${lote.field_338}</p>
+            <p style="font-size: 1.2em; font-weight: bold; margin: 0;">${lote.name}</p>
           </div>
           <div>
             <h3 style="color: #666; margin-bottom: 5px;">Área</h3>
-            <p style="font-size: 1.2em; margin: 0;">${lote.field_339}</p>
+            <p style="font-size: 1.2em; margin: 0;">${lote.area}</p>
           </div>
         </div>
 
@@ -85,16 +85,16 @@ export const reportService = {
         <div style="margin-bottom: 30px;">
           <h3>Memorial Descritivo</h3>
           <div style="padding: 15px; border: 1px solid #ddd; border-radius: 4px; min-height: 100px;">
-            ${lote.field_340 || 'Nenhuma descrição informada.'}
+            ${lote.description || 'Nenhuma descrição informada.'}
           </div>
         </div>
 
         <div>
           <h3>Anexos</h3>
-          <p>${lote.field_352 && lote.field_352.length > 0 ? `${lote.field_352.length} imagens anexadas.` : 'Nenhuma imagem anexada.'}</p>
+          <p>${lote.images && lote.images.length > 0 ? `${lote.images.length} imagens anexadas.` : 'Nenhuma imagem anexada.'}</p>
           <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
             ${
-              lote.field_352
+              lote.images
                 ?.map(
                   (img, i) => `
               <div style="width: 150px; height: 150px; background-color: #eee; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center;">

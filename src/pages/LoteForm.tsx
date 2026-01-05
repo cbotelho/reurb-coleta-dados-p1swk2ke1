@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { reportService } from '@/services/report'
 import { Lote } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,14 @@ import {
 } from '@/components/ui/form'
 import { PhotoCapture } from '@/components/PhotoCapture'
 import { useToast } from '@/hooks/use-toast'
-import { Save, X as XIcon, Trash2, Printer, MapPin } from 'lucide-react'
+import {
+  Save,
+  X as XIcon,
+  Trash2,
+  Printer,
+  MapPin,
+  Loader2,
+} from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,12 +41,12 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 
 const formSchema = z.object({
-  field_338: z.string().min(1, 'Nome do lote é obrigatório'),
-  field_339: z.string().min(1, 'Área é obrigatória'),
-  field_340: z.string().optional(),
+  name: z.string().min(1, 'Nome do lote é obrigatório'),
+  area: z.string().min(1, 'Área é obrigatória'),
+  description: z.string().optional(),
   latitude: z.string().optional(),
   longitude: z.string().optional(),
-  field_352: z.array(z.string()).optional(),
+  images: z.array(z.string()).optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -52,6 +59,7 @@ export default function LoteForm() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(false)
   const [parentQuadraId, setParentQuadraId] = useState<string | undefined>(
     quadraId,
   )
@@ -63,29 +71,36 @@ export default function LoteForm() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      field_338: '',
-      field_339: '',
-      field_340: '',
+      name: '',
+      area: '',
+      description: '',
       latitude: '',
       longitude: '',
-      field_352: [],
+      images: [],
     },
   })
 
   useEffect(() => {
     if (loteId) {
-      const lote = db.getLote(loteId)
+      loadLote(loteId)
+    }
+  }, [loteId])
+
+  const loadLote = async (id: string) => {
+    setFetching(true)
+    try {
+      const lote = await api.getLote(id)
       if (lote) {
         setIsEditMode(true)
         setParentQuadraId(lote.parent_item_id)
         setCurrentLote(lote)
         form.reset({
-          field_338: lote.field_338,
-          field_339: lote.field_339,
-          field_340: lote.field_340,
+          name: lote.name,
+          area: lote.area,
+          description: lote.description,
           latitude: lote.latitude || '',
           longitude: lote.longitude || '',
-          field_352: lote.field_352 || [],
+          images: lote.images || [],
         })
       } else {
         toast({
@@ -95,8 +110,17 @@ export default function LoteForm() {
         })
         navigate(-1)
       }
+    } catch (e) {
+      console.error(e)
+      toast({
+        title: 'Erro',
+        description: 'Erro ao carregar lote',
+        variant: 'destructive',
+      })
+    } finally {
+      setFetching(false)
     }
-  }, [loteId, navigate, form, toast])
+  }
 
   const onSubmit = async (values: FormValues) => {
     if (!canEdit) {
@@ -119,21 +143,16 @@ export default function LoteForm() {
 
     setLoading(true)
     try {
-      // Simulate async save
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      db.saveLote(
-        {
-          local_id: loteId, // Undefined if creating
-          field_338: values.field_338,
-          field_339: values.field_339,
-          field_340: values.field_340 || '',
-          latitude: values.latitude,
-          longitude: values.longitude,
-          field_352: values.field_352 || [],
-        },
-        parentQuadraId,
-      )
+      await api.saveLote({
+        local_id: isEditMode ? loteId : undefined,
+        quadra_id: parentQuadraId,
+        name: values.name,
+        area: values.area,
+        description: values.description || '',
+        latitude: values.latitude,
+        longitude: values.longitude,
+        images: values.images || [],
+      })
 
       toast({ title: 'Sucesso', description: 'Lote salvo com sucesso!' })
       navigate(-1)
@@ -149,22 +168,34 @@ export default function LoteForm() {
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (loteId && canEdit) {
-      db.deleteLote(loteId)
-      toast({ title: 'Sucesso', description: 'Lote removido.' })
-      navigate(-1)
+      try {
+        await api.deleteLote(loteId)
+        toast({ title: 'Sucesso', description: 'Lote removido.' })
+        navigate(-1)
+      } catch (e) {
+        toast({
+          title: 'Erro',
+          description: 'Erro ao deletar lote',
+          variant: 'destructive',
+        })
+      }
     }
   }
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (currentLote && parentQuadraId) {
-      const quadra = db.getQuadra(parentQuadraId)
-      const project = quadra ? db.getProject(quadra.parent_item_id) : undefined
+      // Need fetching extra data for report
+      const quadra = await api.getQuadra(parentQuadraId)
+      const project = quadra
+        ? await api.getProject(quadra.parent_item_id)
+        : undefined
+
       reportService.generateLoteReport(
         currentLote,
-        quadra?.field_329 || 'Desconhecida',
-        project?.field_348 || 'Desconhecido',
+        quadra?.name || 'Desconhecida',
+        project?.name || 'Desconhecido',
       )
     }
   }
@@ -195,6 +226,14 @@ export default function LoteForm() {
         variant: 'destructive',
       })
     }
+  }
+
+  if (fetching) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
   }
 
   return (
@@ -229,7 +268,7 @@ export default function LoteForm() {
                   <AlertDialogTitle>Excluir Lote?</AlertDialogTitle>
                   <AlertDialogDescription>
                     Esta ação não pode ser desfeita. O lote e suas fotos serão
-                    removidos localmente.
+                    removidos permanentemente do banco de dados.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -255,7 +294,7 @@ export default function LoteForm() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="field_338"
+              name="name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Identificação do Lote *</FormLabel>
@@ -273,7 +312,7 @@ export default function LoteForm() {
 
             <FormField
               control={form.control}
-              name="field_339"
+              name="area"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Área (m²) *</FormLabel>
@@ -347,7 +386,7 @@ export default function LoteForm() {
 
           <FormField
             control={form.control}
-            name="field_340"
+            name="description"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Memorial Descritivo</FormLabel>
@@ -366,7 +405,7 @@ export default function LoteForm() {
 
           <FormField
             control={form.control}
-            name="field_352"
+            name="images"
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Documentos / Fotos</FormLabel>

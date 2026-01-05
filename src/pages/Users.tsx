@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { User, UserGroup } from '@/types'
 import {
   Table,
@@ -22,24 +22,38 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Trash2, Edit2 } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Navigate } from 'react-router-dom'
+
+// Mock groups for UI selection (Roles)
+const ROLES = [
+  { id: 'admin', name: 'Administrador' },
+  { id: 'manager', name: 'Gerente' },
+  { id: 'viewer', name: 'Visualizador' },
+]
 
 export default function Users() {
   const { user, hasPermission } = useAuth()
   const [users, setUsers] = useState<User[]>([])
-  const [groups, setGroups] = useState<UserGroup[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<Partial<User>>({})
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadData()
   }, [])
 
-  const loadData = () => {
-    setUsers(db.getUsers())
-    setGroups(db.getGroups())
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const data = await api.getUsers()
+      setUsers(data)
+    } catch (e) {
+      toast.error('Erro ao carregar usuários')
+    } finally {
+      setLoading(false)
+    }
   }
 
   // Security Check
@@ -47,54 +61,39 @@ export default function Users() {
     return <Navigate to="/" replace />
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentUser.username || !currentUser.name) {
       toast.error('Preencha os campos obrigatórios')
       return
     }
 
-    // Constraint enforcement for UI feedback (DB handles it too, but better UX here)
-    if (currentUser.id === 'u1') {
-      if (!currentUser.groupIds?.includes('g1')) {
-        toast.warning(
-          'O usuário Carlos Botelho deve pertencer ao grupo Administrador Master. Adicionando automaticamente.',
-        )
-        // Logic handled in DB, just warning the user
-      }
+    try {
+      await api.saveUser(currentUser)
+      toast.success('Perfil atualizado com sucesso')
+      setIsDialogOpen(false)
+      loadData()
+    } catch (e) {
+      toast.error('Erro ao salvar usuário')
     }
-
-    const userData: User = {
-      id: currentUser.id || '',
-      username: currentUser.username,
-      name: currentUser.name,
-      groupIds: currentUser.groupIds || [],
-      active: currentUser.active ?? true,
-      sync_status: 'synchronized', // Default needed for type
-      date_added: Date.now(),
-      date_updated: Date.now(),
-      local_id: '',
-    } as any // Bypassing base entity strictness for User mock
-
-    db.saveUser(userData as User)
-    toast.success('Usuário salvo com sucesso')
-    setIsDialogOpen(false)
-    loadData()
   }
 
-  const handleDelete = (id: string) => {
-    if (id === 'u1') {
-      toast.error('O usuário mestre não pode ser removido.')
-      return
-    }
-
-    if (confirm('Tem certeza que deseja remover este usuário?')) {
+  const handleDelete = async (id: string) => {
+    if (
+      confirm(
+        'Tem certeza que deseja remover este perfil? O acesso do usuário pode não ser revogado completamente sem Admin.',
+      )
+    ) {
       if (id === user?.id) {
-        toast.error('Você não pode remover seu próprio usuário')
+        toast.error('Você não pode remover seu próprio perfil')
         return
       }
-      db.deleteUser(id)
-      toast.success('Usuário removido')
-      loadData()
+      try {
+        await api.deleteUser(id)
+        toast.success('Perfil removido')
+        loadData()
+      } catch (e) {
+        toast.error('Erro ao remover perfil')
+      }
     }
   }
 
@@ -103,53 +102,29 @@ export default function Users() {
     setIsDialogOpen(true)
   }
 
-  const openNew = () => {
-    setCurrentUser({
-      name: '',
-      username: '',
-      groupIds: [],
-      active: true,
-    })
-    setIsDialogOpen(true)
+  const toggleRole = (roleId: string) => {
+    // Allow only single role selection for simplicity in this implementation
+    setCurrentUser({ ...currentUser, groupIds: [roleId] })
   }
 
-  const toggleGroup = (groupId: string) => {
-    // Prevent removing protected user from protected group
-    if (currentUser.id === 'u1' && groupId === 'g1') {
-      if (currentUser.groupIds?.includes('g1')) {
-        toast.warning('Este usuário não pode ser removido do grupo Master.')
-        return
-      }
-    }
-
-    const currentGroups = currentUser.groupIds || []
-    if (currentGroups.includes(groupId)) {
-      setCurrentUser({
-        ...currentUser,
-        groupIds: currentGroups.filter((g) => g !== groupId),
-      })
-    } else {
-      setCurrentUser({
-        ...currentUser,
-        groupIds: [...currentGroups, groupId],
-      })
-    }
-  }
+  if (loading)
+    return (
+      <div className="p-10 flex justify-center">
+        <Loader2 className="animate-spin text-blue-600" />
+      </div>
+    )
 
   return (
     <div className="space-y-6 pb-20">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">
-            Gerenciar Usuários
+            Gerenciar Perfis
           </h2>
           <p className="text-muted-foreground mt-1">
-            Controle de acesso e permissões do sistema.
+            Gerencie perfis e funções de usuários cadastrados.
           </p>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="w-4 h-4 mr-2" /> Novo Usuário
-        </Button>
       </div>
 
       <div className="border rounded-lg bg-white overflow-hidden">
@@ -157,8 +132,8 @@ export default function Users() {
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Usuário</TableHead>
-              <TableHead>Grupos</TableHead>
+              <TableHead>Email (Username)</TableHead>
+              <TableHead>Função</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -170,20 +145,19 @@ export default function Users() {
                 <TableCell>{u.username}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {u.groupIds.map((gid) => {
-                      const g = groups.find((gr) => gr.id === gid)
-                      return (
-                        <Badge key={gid} variant="outline" className="text-xs">
-                          {g?.name || gid}
-                        </Badge>
-                      )
-                    })}
+                    {u.groupIds.map((gid) => (
+                      <Badge
+                        key={gid}
+                        variant="outline"
+                        className="text-xs uppercase"
+                      >
+                        {gid}
+                      </Badge>
+                    ))}
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={u.active ? 'default' : 'destructive'}>
-                    {u.active ? 'Ativo' : 'Inativo'}
-                  </Badge>
+                  <Badge variant="default">Ativo</Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
@@ -198,7 +172,7 @@ export default function Users() {
                       variant="ghost"
                       size="icon"
                       onClick={() => handleDelete(u.id)}
-                      disabled={u.id === user?.id || u.id === 'u1'}
+                      disabled={u.id === user?.id}
                     >
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>
@@ -213,9 +187,7 @@ export default function Users() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>
-              {currentUser.id ? 'Editar Usuário' : 'Novo Usuário'}
-            </DialogTitle>
+            <DialogTitle>Editar Perfil</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -226,53 +198,36 @@ export default function Users() {
                   onChange={(e) =>
                     setCurrentUser({ ...currentUser, name: e.target.value })
                   }
-                  disabled={currentUser.id === 'u1'} // Prevent rename of master user for clarity, though not explicitly requested, good practice
                 />
               </div>
               <div className="space-y-2">
-                <Label>Nome de Usuário</Label>
+                <Label>Email</Label>
                 <Input
                   value={currentUser.username}
-                  onChange={(e) =>
-                    setCurrentUser({ ...currentUser, username: e.target.value })
-                  }
-                  disabled={currentUser.id === 'u1'}
+                  disabled // Email shouldn't be changed here without auth update
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label>Grupos de Acesso</Label>
-              <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
-                {groups.map((g) => (
-                  <div key={g.id} className="flex items-center space-x-2">
+              <Label>Função (Role)</Label>
+              <div className="border rounded-md p-3 space-y-2">
+                {ROLES.map((role) => (
+                  <div key={role.id} className="flex items-center space-x-2">
                     <Checkbox
-                      id={g.id}
-                      checked={currentUser.groupIds?.includes(g.id)}
-                      onCheckedChange={() => toggleGroup(g.id)}
-                      disabled={currentUser.id === 'u1' && g.id === 'g1'}
+                      id={role.id}
+                      checked={currentUser.groupIds?.includes(role.id)}
+                      onCheckedChange={() => toggleRole(role.id)}
                     />
                     <label
-                      htmlFor={g.id}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      htmlFor={role.id}
+                      className="text-sm font-medium leading-none cursor-pointer"
                     >
-                      {g.name}
+                      {role.name}
                     </label>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="active"
-                checked={currentUser.active}
-                onCheckedChange={(c) =>
-                  setCurrentUser({ ...currentUser, active: c === true })
-                }
-                disabled={currentUser.id === 'u1'}
-              />
-              <Label htmlFor="active">Usuário Ativo</Label>
             </div>
           </div>
           <DialogFooter>

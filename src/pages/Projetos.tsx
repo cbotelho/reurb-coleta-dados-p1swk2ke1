@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { db } from '@/services/db'
+import { api } from '@/services/api'
 import { Project, AppSettings } from '@/types'
+import { db } from '@/services/db' // For settings
 import {
   Card,
   CardContent,
@@ -11,20 +12,34 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Calendar, FileText, Map } from 'lucide-react'
+import { Building2, Calendar, FileText, Map, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
 
 export default function Projetos() {
   const [projects, setProjects] = useState<Project[]>([])
   const [settings, setSettings] = useState<AppSettings>(db.getSettings())
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setProjects(db.getProjects())
     setSettings(db.getSettings())
+    fetchProjects()
   }, [])
 
+  const fetchProjects = async () => {
+    try {
+      setLoading(true)
+      const data = await api.getProjects()
+      setProjects(data)
+    } catch (error) {
+      console.error(error)
+      toast.error('Erro ao carregar projetos.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const getProjectImageUrl = (project: Project) => {
-    // If API Key is present and project has coordinates, use Google Static Maps
     if (
       settings.googleMapsApiKey &&
       project.latitude &&
@@ -35,10 +50,18 @@ export default function Projetos() {
       return `https://maps.googleapis.com/maps/api/staticmap?center=${project.latitude},${project.longitude}&zoom=15&size=400x250&maptype=satellite&key=${settings.googleMapsApiKey}`
     }
 
-    if (!project.field_351)
+    if (!project.image_url)
       return 'https://img.usecurling.com/p/400/250?q=city%20map&color=blue'
-    if (project.field_351.startsWith('http')) return project.field_351
+    if (project.image_url.startsWith('http')) return project.image_url
     return `https://img.usecurling.com/p/400/250?q=project%20map&color=blue`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
   }
 
   return (
@@ -63,21 +86,15 @@ export default function Projetos() {
             <div className="aspect-video w-full overflow-hidden bg-muted relative">
               <img
                 src={getProjectImageUrl(project)}
-                alt={`Imagem do projeto ${project.field_348}`}
+                alt={`Imagem do projeto ${project.name}`}
                 className="w-full h-full object-cover transition-transform hover:scale-105 duration-500"
               />
               <div className="absolute top-2 right-2">
                 <Badge
-                  variant={
-                    project.sync_status === 'synchronized'
-                      ? 'default'
-                      : 'secondary'
-                  }
+                  variant="default"
                   className="bg-white/90 text-black hover:bg-white"
                 >
-                  {project.sync_status === 'synchronized'
-                    ? 'Sincronizado'
-                    : 'Pendente'}
+                  Online
                 </Badge>
               </div>
             </div>
@@ -85,11 +102,11 @@ export default function Projetos() {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-xl">
-                    Loteamento {project.field_348}
+                    Loteamento {project.name}
                   </CardTitle>
                   <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
                     <Map className="w-3 h-3" /> ID:{' '}
-                    {project.id || project.local_id.slice(0, 8)}
+                    {project.local_id.slice(0, 8)}
                   </p>
                 </div>
               </div>
@@ -99,7 +116,9 @@ export default function Projetos() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <FileText className="w-4 h-4" />
                   <span className="truncate max-w-[200px]">
-                    {project.field_350 ? project.field_350 : 'Sem levantamento'}
+                    {project.description
+                      ? project.description
+                      : 'Sem descrição'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">

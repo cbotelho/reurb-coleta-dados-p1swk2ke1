@@ -5,15 +5,13 @@ import React, {
   useEffect,
   useCallback,
 } from 'react'
-import { db } from '@/services/db'
-import { syncService } from '@/services/syncService'
+import { api } from '@/services/api'
 import { DashboardStats } from '@/types'
-import { useToast } from '@/hooks/use-toast'
-import { notificationService } from '@/services/notification'
+import { toast } from 'sonner'
 
 interface SyncContextType {
   isOnline: boolean
-  isSyncing: boolean
+  isSyncing: boolean // Deprecated mostly, but good for loading spinners
   stats: DashboardStats
   triggerSync: (force?: boolean) => Promise<void>
   refreshStats: () => void
@@ -24,123 +22,51 @@ const SyncContext = createContext<SyncContextType | undefined>(undefined)
 export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSyncing, setIsSyncing] = useState(false)
-  const [stats, setStats] = useState<DashboardStats>(db.getDashboardStats())
-  const { toast } = useToast()
+  const [stats, setStats] = useState<DashboardStats>({
+    collected: 0,
+    synced: 0,
+    pending: 0,
+    pendingImages: 0,
+    totalProjects: 0,
+  })
 
-  const refreshStats = useCallback(() => {
-    setStats(db.getDashboardStats())
+  const refreshStats = useCallback(async () => {
+    try {
+      const s = await api.getDashboardStats()
+      setStats(s)
+    } catch (error) {
+      console.error('Failed to refresh stats', error)
+    }
   }, [])
 
   const triggerSync = useCallback(
     async (force = false) => {
-      // Check connection (allow force for manual triggers or event callbacks)
-      if (!isOnline && !force) {
-        toast({
-          title: 'Sem conexão',
-          description: 'Você está offline. Conecte-se para sincronizar.',
-          variant: 'destructive',
-        })
-        return
-      }
-      if (isSyncing) return
-
+      // In Online-First mode, sync is just refreshing data
       setIsSyncing(true)
-      db.logActivity(
-        'Sistema',
-        'Iniciado',
-        'Iniciando sincronização com nuvem...',
-      )
-      toast({
-        title: 'Sincronização iniciada',
-        description: 'Trocando dados com o servidor...',
-      })
-
       try {
-        // 1. Pull Remote Data
-        const pCount = await syncService.pullProjects()
-        const qCount = await syncService.pullQuadras()
-        const lCount = await syncService.pullLotes()
-
-        db.logActivity(
-          'Sistema',
-          'Sucesso',
-          `Recebidos: ${pCount} projetos, ${qCount} quadras, ${lCount} lotes.`,
-        )
-
-        // 2. Push Local Data
-        const { successCount, failCount } = await syncService.pushPendingItems()
-
-        refreshStats()
-
-        if (failCount > 0) {
-          notificationService.send(
-            'Falha na Sincronização',
-            `${failCount} itens falharam ao enviar.`,
-            'error',
-          )
-        } else if (successCount > 0) {
-          notificationService.send(
-            'Sincronização Concluída',
-            `${successCount} itens enviados. Dados atualizados.`,
-            'success',
-          )
-        } else {
-          toast({
-            title: 'Tudo atualizado',
-            description: 'Dados sincronizados com sucesso.',
-          })
-        }
-      } catch (error) {
-        console.error(error)
-        notificationService.send(
-          'Erro na Sincronização',
-          'Falha ao comunicar com o servidor Supabase.',
-          'error',
-        )
+        await refreshStats()
+        toast.success('Dados atualizados')
       } finally {
         setIsSyncing(false)
-        refreshStats()
       }
     },
-    [isOnline, isSyncing, refreshStats, toast],
+    [refreshStats],
   )
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      notificationService.send(
-        'Conectado',
-        'Conexão com internet restabelecida.',
-        'success',
-      )
-      // Auto pull when back online
-      // We force sync because isOnline state might be stale in this closure
-      triggerSync(true)
-    }
-    const handleOffline = () => {
-      setIsOnline(false)
-      notificationService.send(
-        'Sem Conexão',
-        'O aplicativo está operando em modo offline.',
-        'warning',
-      )
-    }
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+
+    // Initial fetch
+    refreshStats()
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [triggerSync])
-
-  // Auto-sync interval if online
-  useEffect(() => {
-    if (!isOnline) return
-    const interval = setInterval(() => {
-      triggerSync()
-    }, 60000 * 5) // Every 5 minutes
-    return () => clearInterval(interval)
-  }, [isOnline, triggerSync])
+  }, [refreshStats])
 
   return (
     <SyncContext.Provider
