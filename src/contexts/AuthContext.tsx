@@ -16,6 +16,7 @@ interface AuthContextType {
     fullName: string,
   ) => Promise<{ error: any }>
   signOut: () => Promise<void>
+  resendConfirmation: (email: string) => Promise<{ error: any }>
   hasPermission: (permission: string) => boolean
 }
 
@@ -138,6 +139,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error }
   }
 
+  const resendConfirmation = async (email: string) => {
+    const redirectUrl = `${window.location.origin}/`
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim(),
+      options: {
+        emailRedirectTo: redirectUrl,
+      },
+    })
+    return { error }
+  }
+
   const signOut = async () => {
     await supabase.auth.signOut()
     toast.info('Sessão encerrada.')
@@ -161,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signUp,
         signOut,
+        resendConfirmation,
         hasPermission,
       }}
     >

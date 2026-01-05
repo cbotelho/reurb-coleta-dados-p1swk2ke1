@@ -13,15 +13,23 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Lock, User as UserIcon, AlertCircle, Mail } from 'lucide-react'
+import {
+  Lock,
+  User as UserIcon,
+  AlertCircle,
+  Mail,
+  RefreshCw,
+} from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, resendConfirmation } = useAuth()
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [needsConfirmation, setNeedsConfirmation] = useState(false)
 
   // Form State
   const [email, setEmail] = useState('')
@@ -36,14 +44,23 @@ export default function Login() {
     }
 
     setError(null)
+    setNeedsConfirmation(false)
     setIsLoading(true)
 
     try {
       const { error } = await signIn(email, password)
       if (error) {
         console.error('Login error:', error)
-        // More descriptive error messages
-        if (error.status === 400) {
+        // Check for "Email not confirmed" error
+        if (
+          error.message === 'Email not confirmed' ||
+          error.message.includes('Email not confirmed')
+        ) {
+          setError(
+            'Seu e-mail ainda não foi confirmado. Verifique sua caixa de entrada ou solicite um novo link.',
+          )
+          setNeedsConfirmation(true)
+        } else if (error.status === 400) {
           setError(
             'Solicitação inválida. Verifique o formato do email e senha.',
           )
@@ -72,6 +89,7 @@ export default function Login() {
     }
 
     setError(null)
+    setNeedsConfirmation(false)
     setIsLoading(true)
 
     try {
@@ -86,6 +104,28 @@ export default function Login() {
       }
     } catch (err) {
       setError('Erro ao tentar registrar. Tente novamente.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!email) {
+      toast.error('Preencha o email para reenviar a confirmação.')
+      return
+    }
+    setIsLoading(true)
+    try {
+      const { error } = await resendConfirmation(email)
+      if (error) {
+        toast.error('Erro ao reenviar: ' + error.message)
+      } else {
+        toast.success('Link de confirmação reenviado! Verifique seu email.')
+        setNeedsConfirmation(false)
+        setError(null)
+      }
+    } catch (e) {
+      toast.error('Erro inesperado ao reenviar.')
     } finally {
       setIsLoading(false)
     }
@@ -118,7 +158,11 @@ export default function Login() {
         <CardContent>
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as any)}
+            onValueChange={(v) => {
+              setActiveTab(v as any)
+              setError(null)
+              setNeedsConfirmation(false)
+            }}
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-2 mb-4">
@@ -127,9 +171,36 @@ export default function Login() {
             </TabsList>
 
             {error && (
-              <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 flex items-center gap-2 text-sm text-red-600 animate-fade-in">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
+              <div
+                className={cn(
+                  'mb-4 p-3 rounded-md border flex flex-col gap-2 text-sm animate-fade-in',
+                  needsConfirmation
+                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                    : 'bg-red-50 border-red-200 text-red-600',
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+
+                {needsConfirmation && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="self-end mt-1 border-amber-300 hover:bg-amber-100 text-amber-800"
+                    onClick={handleResend}
+                    disabled={isLoading}
+                  >
+                    <RefreshCw
+                      className={cn(
+                        'w-3 h-3 mr-2',
+                        isLoading && 'animate-spin',
+                      )}
+                    />
+                    Reenviar Confirmação
+                  </Button>
+                )}
               </div>
             )}
 
