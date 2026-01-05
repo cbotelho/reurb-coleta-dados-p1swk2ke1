@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         handleUserSession(session.user)
       } else {
-        setLoading(false)
+        setIsLoading(false)
       }
     })
 
@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null)
         setGroups([])
         setIsAuthenticated(false)
-        setLoading(false)
+        setIsLoading(false)
       }
     })
 
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error('Auth handling error:', e)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
