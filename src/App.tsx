@@ -22,22 +22,36 @@ import ReportConfig from './pages/ReportConfig'
 import SavedCoordinates from './pages/SavedCoordinates'
 import GeoAnalysis from './pages/GeoAnalysis'
 
+const LoadingSpinner = () => (
+  <div className="h-screen flex items-center justify-center bg-slate-50">
+    <div className="flex flex-col items-center gap-4">
+      <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <p className="text-gray-500 font-medium">Carregando...</p>
+    </div>
+  </div>
+)
+
 // Private Route Wrapper
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
   const { isAuthenticated, isLoading } = useAuth()
 
-  if (isLoading)
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-500 font-medium">Carregando...</p>
-        </div>
-      </div>
-    )
+  if (isLoading) return <LoadingSpinner />
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
+  }
+
+  return children
+}
+
+// Public Route Wrapper (redirects to home if already logged in)
+const PublicRoute = ({ children }: { children: JSX.Element }) => {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) return <LoadingSpinner />
+
+  if (isAuthenticated) {
+    return <Navigate to="/" replace />
   }
 
   return children
@@ -53,7 +67,14 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
-            <Route path="/login" element={<Login />} />
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              }
+            />
 
             <Route
               element={

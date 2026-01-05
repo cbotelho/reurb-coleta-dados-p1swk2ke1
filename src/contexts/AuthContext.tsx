@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        // We call handleUserSession but avoid awaiting it to keep callback sync
+        // React state updates inside handleUserSession will trigger re-renders naturally
         handleUserSession(session.user)
       } else {
         setUser(null)
@@ -112,8 +114,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, pass: string) => {
+    // Trimming email prevents 400 Bad Request due to whitespace
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password: pass,
     })
     return { error }
@@ -121,8 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, pass: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`
+    // Trimming email prevents 400 Bad Request due to whitespace
     const { error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password: pass,
       options: {
         data: {

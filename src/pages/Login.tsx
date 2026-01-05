@@ -41,13 +41,24 @@ export default function Login() {
     try {
       const { error } = await signIn(email, password)
       if (error) {
-        setError(error.message || 'Credenciais inválidas.')
+        console.error('Login error:', error)
+        // More descriptive error messages
+        if (error.status === 400) {
+          setError(
+            'Solicitação inválida. Verifique o formato do email e senha.',
+          )
+        } else if (error.message === 'Invalid login credentials') {
+          setError('Email ou senha incorretos.')
+        } else {
+          setError(error.message || 'Erro ao tentar conectar.')
+        }
       } else {
         // Redirect handled by AuthContext/Router usually, but we can force it
         navigate('/')
       }
     } catch (err) {
-      setError('Erro ao tentar conectar. Tente novamente.')
+      console.error('Unexpected login error:', err)
+      setError('Erro inesperado ao tentar conectar. Verifique sua conexão.')
     } finally {
       setIsLoading(false)
     }
@@ -131,6 +142,7 @@ export default function Login() {
                     <Input
                       id="email"
                       type="email"
+                      autoComplete="email"
                       placeholder="seu@email.com"
                       className="pl-10"
                       value={email}
@@ -146,6 +158,7 @@ export default function Login() {
                     <Input
                       id="password"
                       type="password"
+                      autoComplete="current-password"
                       placeholder="••••••••"
                       className="pl-10"
                       value={password}
@@ -173,6 +186,7 @@ export default function Login() {
                     <Input
                       id="reg-name"
                       placeholder="Seu Nome"
+                      autoComplete="name"
                       className="pl-10"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
@@ -187,6 +201,7 @@ export default function Login() {
                     <Input
                       id="reg-email"
                       type="email"
+                      autoComplete="email"
                       placeholder="seu@email.com"
                       className="pl-10"
                       value={email}
@@ -202,6 +217,7 @@ export default function Login() {
                     <Input
                       id="reg-pass"
                       type="password"
+                      autoComplete="new-password"
                       placeholder="Mínimo 6 caracteres"
                       className="pl-10"
                       value={password}
