@@ -1,5 +1,6 @@
 -- Seed Data
 -- Note: UUIDs are hardcoded for relationships
+-- Fixed UUIDs from previous failed migration
 
 INSERT INTO reurb_projects (id, name, description, status, latitude, longitude, image_url)
 VALUES 
@@ -15,10 +16,10 @@ VALUES
 INSERT INTO reurb_properties (id, quadra_id, name, area, description, latitude, longitude, status)
 VALUES
     ('f5eebc99-9c0b-4ef8-bb6d-6bb9bd380f66', 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380c33', 'Lote 01', '250m²', 'Terreno plano.', 0.036261, -51.130995, 'synchronized'),
-    ('g6eebc99-9c0b-4ef8-bb6d-6bb9bd380g77', 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380c33', 'Lote 02', '250m²', 'Casa construída.', 0.036361, -51.131095, 'synchronized'),
-    ('h7eebc99-9c0b-4ef8-bb6d-6bb9bd380h88', 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380d44', 'Lote 15', '300m²', 'Comercial.', 0.036461, -51.131195, 'pending');
+    ('a6eebc99-9c0b-4ef8-bb6d-6bb9bd380a77', 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380c33', 'Lote 02', '250m²', 'Casa construída.', 0.036361, -51.131095, 'synchronized'),
+    ('b7eebc99-9c0b-4ef8-bb6d-6bb9bd380b88', 'd3eebc99-9c0b-4ef8-bb6d-6bb9bd380d44', 'Lote 15', '300m²', 'Comercial.', 0.036461, -51.131195, 'pending');
 
 INSERT INTO reurb_owners (property_id, full_name, document)
 VALUES
     ('f5eebc99-9c0b-4ef8-bb6d-6bb9bd380f66', 'João da Silva', '123.456.789-00'),
-    ('g6eebc99-9c0b-4ef8-bb6d-6bb9bd380g77', 'Maria Oliveira', '987.654.321-11');
+    ('a6eebc99-9c0b-4ef8-bb6d-6bb9bd380a77', 'Maria Oliveira', '987.654.321-11');

@@ -15,7 +15,7 @@ interface SyncContextType {
   isOnline: boolean
   isSyncing: boolean
   stats: DashboardStats
-  triggerSync: () => Promise<void>
+  triggerSync: (force?: boolean) => Promise<void>
   refreshStats: () => void
 }
 
@@ -31,6 +31,80 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setStats(db.getDashboardStats())
   }, [])
 
+  const triggerSync = useCallback(
+    async (force = false) => {
+      // Check connection (allow force for manual triggers or event callbacks)
+      if (!isOnline && !force) {
+        toast({
+          title: 'Sem conexão',
+          description: 'Você está offline. Conecte-se para sincronizar.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (isSyncing) return
+
+      setIsSyncing(true)
+      db.logActivity(
+        'Sistema',
+        'Iniciado',
+        'Iniciando sincronização com nuvem...',
+      )
+      toast({
+        title: 'Sincronização iniciada',
+        description: 'Trocando dados com o servidor...',
+      })
+
+      try {
+        // 1. Pull Remote Data
+        const pCount = await syncService.pullProjects()
+        const qCount = await syncService.pullQuadras()
+        const lCount = await syncService.pullLotes()
+
+        db.logActivity(
+          'Sistema',
+          'Sucesso',
+          `Recebidos: ${pCount} projetos, ${qCount} quadras, ${lCount} lotes.`,
+        )
+
+        // 2. Push Local Data
+        const { successCount, failCount } = await syncService.pushPendingItems()
+
+        refreshStats()
+
+        if (failCount > 0) {
+          notificationService.send(
+            'Falha na Sincronização',
+            `${failCount} itens falharam ao enviar.`,
+            'error',
+          )
+        } else if (successCount > 0) {
+          notificationService.send(
+            'Sincronização Concluída',
+            `${successCount} itens enviados. Dados atualizados.`,
+            'success',
+          )
+        } else {
+          toast({
+            title: 'Tudo atualizado',
+            description: 'Dados sincronizados com sucesso.',
+          })
+        }
+      } catch (error) {
+        console.error(error)
+        notificationService.send(
+          'Erro na Sincronização',
+          'Falha ao comunicar com o servidor Supabase.',
+          'error',
+        )
+      } finally {
+        setIsSyncing(false)
+        refreshStats()
+      }
+    },
+    [isOnline, isSyncing, refreshStats, toast],
+  )
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
@@ -40,7 +114,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         'success',
       )
       // Auto pull when back online
-      triggerSync()
+      // We force sync because isOnline state might be stale in this closure
+      triggerSync(true)
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -56,77 +131,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [])
-
-  const triggerSync = useCallback(async () => {
-    if (!isOnline) {
-      toast({
-        title: 'Sem conexão',
-        description: 'Você está offline. Conecte-se para sincronizar.',
-        variant: 'destructive',
-      })
-      return
-    }
-    if (isSyncing) return
-
-    setIsSyncing(true)
-    db.logActivity(
-      'Sistema',
-      'Iniciado',
-      'Iniciando sincronização com nuvem...',
-    )
-    toast({
-      title: 'Sincronização iniciada',
-      description: 'Trocando dados com o servidor...',
-    })
-
-    try {
-      // 1. Pull Remote Data
-      const pCount = await syncService.pullProjects()
-      const qCount = await syncService.pullQuadras()
-      const lCount = await syncService.pullLotes()
-
-      db.logActivity(
-        'Sistema',
-        'Sucesso',
-        `Recebidos: ${pCount} projetos, ${qCount} quadras, ${lCount} lotes.`,
-      )
-
-      // 2. Push Local Data
-      const { successCount, failCount } = await syncService.pushPendingItems()
-
-      refreshStats()
-
-      if (failCount > 0) {
-        notificationService.send(
-          'Falha na Sincronização',
-          `${failCount} itens falharam ao enviar.`,
-          'error',
-        )
-      } else if (successCount > 0) {
-        notificationService.send(
-          'Sincronização Concluída',
-          `${successCount} itens enviados. Dados atualizados.`,
-          'success',
-        )
-      } else {
-        toast({
-          title: 'Tudo atualizado',
-          description: 'Dados sincronizados com sucesso.',
-        })
-      }
-    } catch (error) {
-      console.error(error)
-      notificationService.send(
-        'Erro na Sincronização',
-        'Falha ao comunicar com o servidor Supabase.',
-        'error',
-      )
-    } finally {
-      setIsSyncing(false)
-      refreshStats()
-    }
-  }, [isOnline, isSyncing, refreshStats, toast])
+  }, [triggerSync])
 
   // Auto-sync interval if online
   useEffect(() => {
