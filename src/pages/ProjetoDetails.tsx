@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   ArrowLeft,
   MapPin,
@@ -52,7 +53,8 @@ export default function ProjetoDetails() {
   const [effectiveKey, setEffectiveKey] = useState<MapKey | undefined>(
     db.getEffectiveMapKey(),
   )
-  const [loading, setLoading] = useState(true)
+  const [loadingProject, setLoadingProject] = useState(true)
+  const [loadingQuadras, setLoadingQuadras] = useState(true)
 
   useEffect(() => {
     setSettings(db.getSettings())
@@ -66,19 +68,34 @@ export default function ProjetoDetails() {
   }, [projectId])
 
   const loadData = async (id: string) => {
+    setLoadingProject(true)
+    setLoadingQuadras(true)
     try {
-      setLoading(true)
       const p = await api.getProject(id)
       if (p) {
         setProject(p)
-        const q = await api.getQuadras(id)
-        setQuadras(q)
+        setLoadingProject(false) // Project details loaded
+
+        // Fetch Quadras
+        try {
+          const q = await api.getQuadras(id)
+          setQuadras(q)
+        } catch (quadraError) {
+          console.error('Failed to load quadras:', quadraError)
+          toast.error('Não foi possível carregar as quadras do projeto.')
+        } finally {
+          setLoadingQuadras(false)
+        }
+      } else {
+        // Project not found
+        setLoadingProject(false)
+        setLoadingQuadras(false)
       }
     } catch (e) {
       console.error(e)
       toast.error('Erro ao carregar detalhes do projeto.')
-    } finally {
-      setLoading(false)
+      setLoadingProject(false)
+      setLoadingQuadras(false)
     }
   }
 
@@ -102,8 +119,6 @@ export default function ProjetoDetails() {
     toast.loading('Preparando exportação...', { id: 'export' })
 
     try {
-      // Fetch all lotes for this project (via quadras)
-      // This might be heavy, but it's for export
       const allLotes = []
       for (const quadra of quadras) {
         const quadraLotes = await api.getLotes(quadra.local_id)
@@ -149,7 +164,7 @@ export default function ProjetoDetails() {
     }
   }
 
-  if (loading) {
+  if (loadingProject) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -349,40 +364,71 @@ export default function ProjetoDetails() {
           {/* Quadras List */}
           <div>
             <h3 className="text-xl font-semibold mb-4">Quadras Vinculadas</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              {quadras.map((quadra) => (
-                <Card
-                  key={quadra.local_id}
-                  className="hover:border-primary/50 transition-colors"
-                >
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex justify-between">
-                      {quadra.name}
-                      <Badge variant="outline">Sync</Badge>
-                    </CardTitle>
-                    <CardDescription>{quadra.area}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="w-full"
-                      asChild
-                    >
-                      <Link to={`/quadras/${quadra.local_id}`}>
-                        <MapPin className="w-3 h-3 mr-2" />
-                        Ver Quadra
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-              {quadras.length === 0 && (
-                <div className="col-span-full p-8 border border-dashed rounded-lg text-center text-muted-foreground">
-                  Nenhuma quadra vinculada a este projeto.
-                </div>
-              )}
-            </div>
+            {loadingQuadras ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="border rounded-lg p-6 space-y-3">
+                    <div className="flex justify-between">
+                      <Skeleton className="h-6 w-1/3" />
+                      <Skeleton className="h-6 w-16" />
+                    </div>
+                    <Skeleton className="h-4 w-1/4" />
+                    <Skeleton className="h-9 w-full mt-4" />
+                  </div>
+                ))}
+              </div>
+            ) : quadras.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {quadras.map((quadra) => (
+                  <Card
+                    key={quadra.local_id}
+                    className="hover:border-primary/50 transition-colors"
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg flex justify-between items-center">
+                        {quadra.name}
+                        <Badge
+                          variant={
+                            quadra.sync_status === 'synchronized'
+                              ? 'default'
+                              : quadra.sync_status === 'failed'
+                                ? 'destructive'
+                                : 'secondary'
+                          }
+                        >
+                          {quadra.sync_status === 'synchronized'
+                            ? 'Sincronizado'
+                            : quadra.sync_status === 'failed'
+                              ? 'Erro'
+                              : 'Pendente'}
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        Área: {quadra.area || 'Não informada'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        asChild
+                      >
+                        <Link to={`/quadras/${quadra.local_id}`}>
+                          <MapPin className="w-3 h-3 mr-2" />
+                          Ver Quadra
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="col-span-full p-12 border border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                <MapPin className="w-8 h-8 opacity-50" />
+                <p>Nenhuma quadra encontrada para este projeto.</p>
+              </div>
+            )}
           </div>
         </div>
 

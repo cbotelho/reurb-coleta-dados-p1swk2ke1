@@ -23,7 +23,9 @@ const mapProject = (row: any): Project => ({
 const mapQuadra = (row: any): Quadra => ({
   id: 0,
   local_id: row.id,
-  sync_status: 'synchronized',
+  sync_status: (['pending', 'synchronized', 'failed'].includes(row.status)
+    ? row.status
+    : 'synchronized') as 'pending' | 'synchronized' | 'failed',
   date_added: new Date(row.created_at).getTime(),
   date_updated: new Date(row.updated_at).getTime(),
   name: row.name,
@@ -258,8 +260,6 @@ export const api = {
   async saveUser(user: Partial<User>): Promise<void> {
     if (!user.id) throw new Error('Cannot create user without Auth ID')
 
-    // Normally updating role needs admin privilege or specific RLS
-    // For this demo, we assume the user might be updating own profile or has permission
     const { error } = await supabase
       .from('reurb_profiles')
       .update({
@@ -272,8 +272,6 @@ export const api = {
   },
 
   async deleteUser(id: string): Promise<void> {
-    // Note: Deleting from auth.users via client is not possible usually.
-    // This probably deletes the profile data.
     const { error } = await supabase
       .from('reurb_profiles')
       .delete()
