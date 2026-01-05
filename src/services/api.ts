@@ -3,7 +3,7 @@ import { Project, Quadra, Lote, DashboardStats, User } from '@/types'
 
 // Helper to map DB rows to App types
 const mapProject = (row: any): Project => ({
-  id: 0,
+  id: 0, // Legacy number compatibility
   local_id: row.id,
   sync_status: 'synchronized',
   date_added: new Date(row.created_at).getTime(),
@@ -52,7 +52,7 @@ const mapProfile = (row: any): User => ({
   id: row.id,
   username: row.username || '',
   name: row.full_name || '',
-  groupIds: [row.role || 'viewer'], // Mapping role to group for now
+  groupIds: [row.role || 'viewer'],
   active: true,
 })
 
@@ -228,9 +228,12 @@ export const api = {
 
   // Stats
   async getDashboardStats(): Promise<DashboardStats> {
+    // Count Projects
     const { count: totalProjects } = await supabase
       .from('reurb_projects')
       .select('*', { count: 'exact', head: true })
+
+    // Count Lotes
     const { count: totalLotes } = await supabase
       .from('reurb_properties')
       .select('*', { count: 'exact', head: true })
@@ -255,14 +258,13 @@ export const api = {
   async saveUser(user: Partial<User>): Promise<void> {
     if (!user.id) throw new Error('Cannot create user without Auth ID')
 
-    const role = user.groupIds?.[0] || 'viewer'
-
+    // Normally updating role needs admin privilege or specific RLS
+    // For this demo, we assume the user might be updating own profile or has permission
     const { error } = await supabase
       .from('reurb_profiles')
       .update({
         full_name: user.name,
-        username: user.username,
-        role: role,
+        role: user.groupIds?.[0] || 'viewer',
       })
       .eq('id', user.id)
 
@@ -270,6 +272,8 @@ export const api = {
   },
 
   async deleteUser(id: string): Promise<void> {
+    // Note: Deleting from auth.users via client is not possible usually.
+    // This probably deletes the profile data.
     const { error } = await supabase
       .from('reurb_profiles')
       .delete()

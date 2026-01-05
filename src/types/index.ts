@@ -1,11 +1,105 @@
-export type SyncStatus = 'pending' | 'synchronized' | 'failed'
-
-export interface BaseEntity {
-  id: number // Deprecated in favor of UUIDs for remote, but kept for compatibility
-  local_id: string // UUID
-  sync_status: SyncStatus
+export interface Project {
+  id: number // Legacy numeric ID (kept for compatibility, though DB uses UUID)
+  local_id: string // UUID from Supabase or generated locally
+  sync_status: 'pending' | 'synchronized' | 'failed'
   date_added: number
   date_updated: number
+  name: string
+  description: string
+  image_url: string
+  latitude: string | null
+  longitude: string | null
+  auto_update_map: boolean
+  last_map_update: number
+  created_by?: string
+  parent_id?: number
+  parent_item_id?: number
+  linked_id?: number
+  sort_order?: number
+  field_348?: string // Legacy field mapping
+  field_350?: string // Legacy field mapping
+  field_351?: string // Legacy field mapping
+}
+
+export interface Quadra {
+  id: number
+  local_id: string
+  sync_status: 'pending' | 'synchronized' | 'failed'
+  date_added: number
+  date_updated: number
+  name: string
+  area: string
+  parent_item_id: string // UUID of Project
+  document_url?: string
+  image_url?: string
+  field_329?: string // Legacy
+  field_330?: string // Legacy
+  field_349?: string // Legacy
+  field_331?: string // Legacy
+  field_332?: string // Legacy
+}
+
+export interface Lote {
+  id: number
+  local_id: string
+  sync_status: 'pending' | 'synchronized' | 'failed'
+  date_added: number
+  date_updated: number
+  name: string
+  area: string
+  description: string
+  images: string[]
+  latitude: string | null
+  longitude: string | null
+  parent_item_id: string // UUID of Quadra
+  coordinates?: { x: number; y: number } // Legacy for mock map
+  field_338?: string // Legacy
+  field_339?: string // Legacy
+  field_340?: string // Legacy
+  field_352?: any[] // Legacy
+  created_by?: number
+  deleted?: number
+  status?: string
+}
+
+export interface User {
+  id: string // UUID
+  username: string
+  name: string
+  groupIds: string[] // Mapped from Role
+  active: boolean
+}
+
+export interface UserGroup {
+  id: string
+  name: string
+  role: 'admin' | 'manager' | 'viewer'
+  permissions: string[]
+}
+
+export interface AppSettings {
+  apiEndpoint: string
+  cacheEnabled: boolean
+  syncFrequency: 'manual' | 'auto-5m' | 'auto-15m' | 'auto-1h'
+  pushNotifications: boolean
+  googleMapsApiKey: string
+}
+
+export interface DashboardStats {
+  collected: number
+  synced: number
+  pending: number
+  pendingImages: number
+  totalProjects: number
+  lastSync?: number
+}
+
+export interface SyncLogEntry {
+  id: string
+  timestamp: number
+  type: 'Lote' | 'Quadra' | 'Projeto'
+  status: 'Pendente' | 'Sincronizando' | 'Sucesso' | 'Erro'
+  message: string
 }
 
 export interface SavedCoordinate {
@@ -28,27 +122,18 @@ export interface MarkerConfig {
   id: string
   label: string
   color: string
-  icon: 'circle' | 'square' | 'triangle'
+  icon: 'circle' | 'pin' | 'home' | 'star' | 'alert' | 'flag'
 }
+
+export type MarkerIconType = MarkerConfig['icon']
 
 export interface CustomLayer {
   id: string
   name: string
-  data: any
+  data: any // GeoJSON
   visible: boolean
   zIndex: number
-  opacity?: number
 }
-
-export type DrawingType = 'marker' | 'polyline' | 'polygon'
-
-export type MarkerIconType =
-  | 'circle'
-  | 'pin'
-  | 'home'
-  | 'star'
-  | 'alert'
-  | 'flag'
 
 export interface DrawingStyle {
   strokeColor: string
@@ -59,21 +144,21 @@ export interface DrawingStyle {
   markerSize?: number
 }
 
+export interface MapDrawing {
+  id: string
+  type: 'marker' | 'polygon' | 'polyline' | 'rectangle'
+  coordinates: any // {lat,lng} or [{lat,lng}]
+  style?: DrawingStyle
+  createdAt: number
+  updatedAt?: number
+  notes?: string
+  layerId?: string
+}
+
 export interface DrawingLayer {
   id: string
   name: string
   visible: boolean
-}
-
-export interface MapDrawing {
-  id: string
-  type: DrawingType
-  coordinates: any
-  style: DrawingStyle
-  createdAt: number
-  notes?: string
-  layerId?: string
-  updatedAt?: number
 }
 
 export interface DrawingHistory {
@@ -86,98 +171,19 @@ export interface DrawingHistory {
   userName: string
 }
 
-export interface GeoAlert {
-  id: string
-  name: string
-  enabled: boolean
-  condition: 'enter' | 'exit'
-  geometryId: string
-  targetProjectId?: string
-  lastTriggered?: number
-}
-
-export interface Project extends BaseEntity {
-  name: string
-  description: string
-  image_url?: string
-  latitude?: string
-  longitude?: string
-  auto_update_map?: boolean
-  last_map_update?: number
-  parent_id?: number
-  parent_item_id?: number
-  linked_id?: number
-  created_by?: string // UUID from Supabase
-  sort_order?: number
-}
-
-export interface Quadra extends BaseEntity {
-  name: string
-  area: string
-  parent_item_id: string // Project UUID
-  project_name?: string
-  document_url?: string
-  image_url?: string
-}
-
-export interface Lote extends BaseEntity {
-  name: string
-  area: string
-  description: string
-  images: string[]
-  latitude?: string
-  longitude?: string
-  parent_item_id: string // Quadra UUID
-  created_by?: string
-  deleted?: number
-  status?: string
-  coordinates?: { x: number; y: number }
-}
-
-export interface SyncLogEntry {
-  id: string
-  timestamp: number
-  type: 'Lote' | 'Imagem' | 'Quadra' | 'Projeto' | 'Sistema' | 'Usuario'
-  status: 'Sucesso' | 'Falha' | 'Pendente' | 'Iniciado' | 'Alerta'
-  message: string
-}
-
-export interface DashboardStats {
-  collected: number
-  synced: number
-  pending: number
-  pendingImages: number
-  totalProjects: number
-  lastSync?: number
-}
-
-export interface UserGroup {
-  id: string
-  name: string
-  role: 'admin' | 'manager' | 'viewer'
-  permissions: string[]
-}
-
-export interface User {
-  id: string
-  username: string
-  name: string
-  groupIds: string[]
-  active: boolean
-}
-
-export interface AppSettings {
-  apiEndpoint: string
-  cacheEnabled: boolean
-  syncFrequency: 'manual' | 'auto-5m' | 'auto-15m' | 'auto-1h'
-  pushNotifications: boolean
-  googleMapsApiKey?: string
-}
-
 export interface ActiveSession {
   id: string
   userId: string
   userName: string
   lastActive: number
   color: string
+}
+
+export interface GeoAlert {
+  id: string
+  name: string
+  enabled: boolean
+  condition: 'enter' | 'exit'
+  geometryId: string
+  lastTriggered?: number
 }

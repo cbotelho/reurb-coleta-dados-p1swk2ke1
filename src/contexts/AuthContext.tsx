@@ -1,17 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { db } from '@/services/db' // Still used for Group Definitions mockup
 import { User, UserGroup } from '@/types'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
-import { Session } from '@supabase/supabase-js'
+import { Session, User as SupabaseUser } from '@supabase/supabase-js'
 
 interface AuthContextType {
   user: User | null
   groups: UserGroup[]
   isAuthenticated: boolean
   isLoading: boolean
-  login: (username: string, pass: string) => Promise<boolean>
-  logout: () => void
+  signIn: (email: string, pass: string) => Promise<{ error: any }>
+  signUp: (
+    email: string,
+    pass: string,
+    fullName: string,
+  ) => Promise<{ error: any }>
+  signOut: () => Promise<void>
   hasPermission: (permission: string) => boolean
 }
 
@@ -19,89 +23,119 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
   const [groups, setGroups] = useState<UserGroup[]>([])
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check active session
+    // Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
       if (session?.user) {
-        mapSupabaseUser(session.user)
+        handleUserSession(session.user)
       } else {
-        setIsLoading(false)
+        setLoading(false)
       }
     })
 
+    // Auth State Listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
       if (session?.user) {
-        mapSupabaseUser(session.user)
+        handleUserSession(session.user)
       } else {
         setUser(null)
+        setGroups([])
         setIsAuthenticated(false)
-        setIsLoading(false)
+        setLoading(false)
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  const mapSupabaseUser = (sbUser: any) => {
-    // Map Supabase user to local User type
-    // In a real app, we would fetch user profile from 'profiles' table
-    // Here we will just use the metadata
-    const mappedUser: User = {
-      id: sbUser.id,
-      username: sbUser.email || '',
-      name: sbUser.user_metadata?.full_name || sbUser.email || 'Usuário',
-      groupIds: ['g1'], // Defaulting to Master for demo purposes
-      active: true,
+  const handleUserSession = async (sbUser: SupabaseUser) => {
+    try {
+      // Fetch profile data from 'reurb_profiles' table
+      const { data: profile, error } = await supabase
+        .from('reurb_profiles')
+        .select('*')
+        .eq('id', sbUser.id)
+        .single()
+
+      if (error) {
+        console.error('Error fetching profile:', error)
+      }
+
+      // Default role if profile is missing (fallback)
+      const role = profile?.role || 'viewer'
+      const fullName =
+        profile?.full_name || sbUser.user_metadata?.full_name || 'Usuário'
+
+      const mappedUser: User = {
+        id: sbUser.id,
+        username: sbUser.email || '',
+        name: fullName,
+        groupIds: [role], // Use role as group ID for simplicity in this implementation
+        active: true,
+      }
+
+      setUser(mappedUser)
+      // Map roles to permissions (Simplified Mock Logic)
+      const permissions = getPermissionsForRole(role)
+      setGroups([
+        {
+          id: role,
+          name: role.charAt(0).toUpperCase() + role.slice(1),
+          role: role as any,
+          permissions,
+        },
+      ])
+
+      setIsAuthenticated(true)
+    } catch (e) {
+      console.error('Auth handling error:', e)
+    } finally {
+      setLoading(false)
     }
-    setUser(mappedUser)
-
-    // Load groups (mocked locally for now as role management is advanced)
-    const allGroups = db.getGroups()
-    const userGroups = allGroups.filter((g) =>
-      mappedUser.groupIds.includes(g.id),
-    )
-    setGroups(userGroups)
-
-    setIsAuthenticated(true)
-    setIsLoading(false)
   }
 
-  const login = async (username: string, pass: string) => {
-    setIsLoading(true)
+  const getPermissionsForRole = (role: string): string[] => {
+    switch (role) {
+      case 'admin':
+        return ['all']
+      case 'manager':
+        return ['edit_projects', 'view_reports']
+      default:
+        return ['view_only']
+    }
+  }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: username,
+  const signIn = async (email: string, pass: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
       password: pass,
     })
-
-    if (error) {
-      toast.error(error.message || 'Credenciais inválidas.')
-      setIsLoading(false)
-      return false
-    }
-
-    if (data.user) {
-      toast.success('Login realizado com sucesso!')
-      return true
-    }
-
-    return false
+    return { error }
   }
 
-  const logout = async () => {
+  const signUp = async (email: string, pass: string, fullName: string) => {
+    const redirectUrl = `${window.location.origin}/`
+    const { error } = await supabase.auth.signUp({
+      email,
+      password: pass,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+        emailRedirectTo: redirectUrl,
+      },
+    })
+    return { error }
+  }
+
+  const signOut = async () => {
     await supabase.auth.signOut()
-    setUser(null)
-    setGroups([])
-    setIsAuthenticated(false)
     toast.info('Sessão encerrada.')
   }
 
@@ -120,8 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         groups,
         isAuthenticated,
         isLoading,
-        login,
-        logout,
+        signIn,
+        signUp,
+        signOut,
         hasPermission,
       }}
     >
