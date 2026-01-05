@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from 'react'
 import { db } from '@/services/db'
+import { syncService } from '@/services/syncService'
 import { DashboardStats } from '@/types'
 import { useToast } from '@/hooks/use-toast'
 import { notificationService } from '@/services/notification'
@@ -38,6 +39,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         'Conexão com internet restabelecida.',
         'success',
       )
+      // Auto pull when back online
+      triggerSync()
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -67,69 +70,56 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (isSyncing) return
 
     setIsSyncing(true)
-    db.logActivity('Sistema', 'Iniciado', 'Iniciando sincronização...')
+    db.logActivity(
+      'Sistema',
+      'Iniciado',
+      'Iniciando sincronização com nuvem...',
+    )
     toast({
       title: 'Sincronização iniciada',
-      description: 'Enviando dados para o servidor...',
+      description: 'Trocando dados com o servidor...',
     })
 
     try {
-      const pending = db.getPendingItems()
-      let successCount = 0
-      let failCount = 0
+      // 1. Pull Remote Data
+      const pCount = await syncService.pullProjects()
+      const qCount = await syncService.pullQuadras()
+      const lCount = await syncService.pullLotes()
 
-      // Simulate network delay and processing for lots
-      for (const lote of pending.lotes) {
-        await new Promise((resolve) => setTimeout(resolve, 800)) // Mock delay per item
+      db.logActivity(
+        'Sistema',
+        'Sucesso',
+        `Recebidos: ${pCount} projetos, ${qCount} quadras, ${lCount} lotes.`,
+      )
 
-        // Mock 90% success rate
-        const success = Math.random() > 0.1
-
-        if (success) {
-          const remoteId = Math.floor(Math.random() * 10000) + 1000
-          db.updateLoteStatus(lote.local_id, 'synchronized', remoteId)
-          db.logActivity(
-            'Lote',
-            'Sucesso',
-            `Lote ${lote.field_338} sincronizado com sucesso (ID Remoto: ${remoteId}).`,
-          )
-          successCount++
-        } else {
-          db.updateLoteStatus(lote.local_id, 'failed')
-          db.logActivity(
-            'Lote',
-            'Falha',
-            `Falha ao sincronizar lote ${lote.field_338}.`,
-          )
-          failCount++
-        }
-      }
+      // 2. Push Local Data
+      const { successCount, failCount } = await syncService.pushPendingItems()
 
       refreshStats()
 
       if (failCount > 0) {
         notificationService.send(
           'Falha na Sincronização',
-          `${failCount} itens falharam ao enviar. Verifique sua conexão.`,
+          `${failCount} itens falharam ao enviar.`,
           'error',
         )
       } else if (successCount > 0) {
         notificationService.send(
           'Sincronização Concluída',
-          `${successCount} itens enviados com sucesso.`,
+          `${successCount} itens enviados. Dados atualizados.`,
           'success',
         )
-      } else if (successCount === 0 && pending.lotes.length === 0) {
+      } else {
         toast({
           title: 'Tudo atualizado',
-          description: 'Não há itens pendentes para sincronizar.',
+          description: 'Dados sincronizados com sucesso.',
         })
       }
     } catch (error) {
       console.error(error)
       notificationService.send(
-        'Erro Crítico',
-        'Falha inesperada na sincronização.',
+        'Erro na Sincronização',
+        'Falha ao comunicar com o servidor Supabase.',
         'error',
       )
     } finally {
@@ -142,13 +132,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isOnline) return
     const interval = setInterval(() => {
-      const pending = db.getPendingItems()
-      if (pending.lotes.length > 0 && !isSyncing) {
-        triggerSync()
-      }
+      triggerSync()
     }, 60000 * 5) // Every 5 minutes
     return () => clearInterval(interval)
-  }, [isOnline, isSyncing, triggerSync])
+  }, [isOnline, triggerSync])
 
   return (
     <SyncContext.Provider
