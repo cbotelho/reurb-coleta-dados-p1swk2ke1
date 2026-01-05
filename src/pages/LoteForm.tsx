@@ -81,46 +81,46 @@ export default function LoteForm() {
   })
 
   useEffect(() => {
+    const loadLote = async (id: string) => {
+      setFetching(true)
+      try {
+        const lote = await api.getLote(id)
+        if (lote) {
+          setIsEditMode(true)
+          setParentQuadraId(lote.parent_item_id)
+          setCurrentLote(lote)
+          form.reset({
+            name: lote.name,
+            area: lote.area,
+            description: lote.description,
+            latitude: lote.latitude || '',
+            longitude: lote.longitude || '',
+            images: lote.images || [],
+          })
+        } else {
+          toast({
+            title: 'Erro',
+            description: 'Lote não encontrado',
+            variant: 'destructive',
+          })
+          navigate(-1)
+        }
+      } catch (e) {
+        console.error(e)
+        toast({
+          title: 'Erro',
+          description: 'Erro ao carregar lote',
+          variant: 'destructive',
+        })
+      } finally {
+        setFetching(false)
+      }
+    }
+
     if (loteId) {
       loadLote(loteId)
     }
-  }, [loteId])
-
-  const loadLote = async (id: string) => {
-    setFetching(true)
-    try {
-      const lote = await api.getLote(id)
-      if (lote) {
-        setIsEditMode(true)
-        setParentQuadraId(lote.parent_item_id)
-        setCurrentLote(lote)
-        form.reset({
-          name: lote.name,
-          area: lote.area,
-          description: lote.description,
-          latitude: lote.latitude || '',
-          longitude: lote.longitude || '',
-          images: lote.images || [],
-        })
-      } else {
-        toast({
-          title: 'Erro',
-          description: 'Lote não encontrado',
-          variant: 'destructive',
-        })
-        navigate(-1)
-      }
-    } catch (e) {
-      console.error(e)
-      toast({
-        title: 'Erro',
-        description: 'Erro ao carregar lote',
-        variant: 'destructive',
-      })
-    } finally {
-      setFetching(false)
-    }
-  }
+  }, [loteId, form, navigate, toast])
 
   const onSubmit = async (values: FormValues) => {
     if (!canEdit) {
