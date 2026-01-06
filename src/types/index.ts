@@ -65,6 +65,8 @@ export interface Lote {
 
 export interface Survey {
   id: string
+  local_id?: string
+  sync_status?: 'pending' | 'synchronized' | 'failed'
   property_id: string
   form_number: string
   survey_date: string
@@ -97,6 +99,7 @@ export interface Survey {
   floor_type: string
   rooms_count: number
   conservation_state: string
+  fencing?: string
 
   // Infrastructure
   water_supply: string
@@ -142,12 +145,13 @@ export interface DashboardStats {
   pendingImages: number
   totalProjects: number
   lastSync?: number
+  pendingSurveys?: number
 }
 
 export interface SyncLogEntry {
   id: string
   timestamp: number
-  type: 'Lote' | 'Quadra' | 'Projeto'
+  type: 'Lote' | 'Quadra' | 'Projeto' | 'Vistoria'
   status: 'Pendente' | 'Sincronizando' | 'Sucesso' | 'Erro'
   message: string
 }

@@ -16,6 +16,7 @@ import {
   DrawingLayer,
   DrawingHistory,
   ActiveSession,
+  Survey,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 
@@ -47,6 +48,7 @@ const STORAGE_KEYS = {
   DRAWING_LAYERS: 'reurb_drawing_layers',
   GEO_ALERTS: 'reurb_geo_alerts',
   SESSIONS: 'reurb_sessions',
+  SURVEYS: 'reurb_surveys',
 }
 
 const SEED_GROUPS: UserGroup[] = [
@@ -159,6 +161,7 @@ class DBService {
     this.saveItems(STORAGE_KEYS.DRAWING_LAYERS, DEFAULT_DRAWING_LAYERS)
     this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
     this.saveItems(STORAGE_KEYS.SESSIONS, [])
+    this.saveItems(STORAGE_KEYS.SURVEYS, [])
   }
 
   private ensureAuthData() {
@@ -210,6 +213,9 @@ class DBService {
     }
     if (!localStorage.getItem(STORAGE_KEYS.GEO_ALERTS)) {
       this.saveItems(STORAGE_KEYS.GEO_ALERTS, [])
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.SURVEYS)) {
+      this.saveItems(STORAGE_KEYS.SURVEYS, [])
     }
   }
 
@@ -288,12 +294,12 @@ class DBService {
     if (lotesUpdated) this.saveItems(STORAGE_KEYS.LOTES, lotes)
   }
 
-  private getItems<T>(key: string): T[] {
+  getItems<T>(key: string): T[] {
     const items = localStorage.getItem(key)
     return items ? JSON.parse(items) : []
   }
 
-  private saveItems<T>(key: string, items: T[]) {
+  saveItems<T>(key: string, items: T[]) {
     localStorage.setItem(key, JSON.stringify(items))
   }
 
@@ -502,7 +508,7 @@ class DBService {
         savedLote = {
           ...lotes[index],
           ...loteData,
-          sync_status: 'pending',
+          sync_status: loteData.sync_status || 'pending',
           date_updated: now,
           parent_item_id: quadraId,
         } as Lote
@@ -541,11 +547,91 @@ class DBService {
     this.logActivity('Lote', 'Iniciado', `Lote removido localmente.`)
   }
 
+  // Survey Methods
+  getSurveys(): Survey[] {
+    return this.getItems<Survey>(STORAGE_KEYS.SURVEYS)
+  }
+
+  getSurveyByPropertyId(propertyId: string): Survey | undefined {
+    // Sort by updated_at or created_at desc to get latest
+    return this.getSurveys()
+      .filter((s) => s.property_id === propertyId)
+      .sort((a, b) => {
+        const timeA = new Date(a.updated_at || a.created_at || 0).getTime()
+        const timeB = new Date(b.updated_at || b.created_at || 0).getTime()
+        return timeB - timeA
+      })[0]
+  }
+
+  saveSurvey(surveyData: Partial<Survey>): Survey {
+    const surveys = this.getSurveys()
+    const now = new Date().toISOString()
+    let savedSurvey: Survey
+
+    // Check if updating existing by ID or property ID
+    // If we have an ID, update specific survey. If not, and we have property ID, we might be creating new or updating latest?
+    // User story says: "Offline Survey Management". Usually one active survey per property per session or overwrites.
+    // Let's assume we update if ID exists, else create new.
+
+    if (surveyData.id) {
+      const index = surveys.findIndex((s) => s.id === surveyData.id)
+      if (index !== -1) {
+        savedSurvey = {
+          ...surveys[index],
+          ...surveyData,
+          updated_at: now,
+          sync_status: surveyData.sync_status || 'pending',
+        } as Survey
+        surveys[index] = savedSurvey
+      } else {
+        // If ID passed but not found locally, create it (maybe synced from remote)
+        savedSurvey = {
+          ...surveyData,
+          updated_at: now,
+          sync_status: surveyData.sync_status || 'pending',
+        } as Survey
+        surveys.push(savedSurvey)
+      }
+    } else {
+      savedSurvey = {
+        ...surveyData,
+        id: generateUUID(),
+        created_at: now,
+        updated_at: now,
+        sync_status: 'pending',
+      } as Survey
+      surveys.push(savedSurvey)
+    }
+
+    this.saveItems(STORAGE_KEYS.SURVEYS, surveys)
+    this.logActivity(
+      'Vistoria',
+      'Pendente',
+      `Vistoria salva localmente para imóvel ${savedSurvey.property_id}.`,
+    )
+    return savedSurvey
+  }
+
+  updateSurveyStatus(
+    localId: string,
+    status: 'synchronized' | 'failed',
+    remoteId?: string,
+  ) {
+    const surveys = this.getSurveys()
+    const index = surveys.findIndex((s) => s.id === localId)
+    if (index !== -1) {
+      surveys[index].sync_status = status
+      if (remoteId) surveys[index].id = remoteId // Be careful replacing UUIDs if used as keys elsewhere
+      this.saveItems(STORAGE_KEYS.SURVEYS, surveys)
+    }
+  }
+
   getDashboardStats(): DashboardStats {
     const lotes = this.getItems<Lote>(STORAGE_KEYS.LOTES)
     const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
     const logs = this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
     const lastSyncLog = logs.find((l) => l.status === 'Sucesso')
+    const surveys = this.getSurveys()
 
     return {
       collected: lotes.length,
@@ -558,6 +644,9 @@ class DBService {
         .reduce((acc, l) => acc + (l.field_352?.length || 0), 0),
       totalProjects: projects.length,
       lastSync: lastSyncLog ? lastSyncLog.timestamp : undefined,
+      pendingSurveys: surveys.filter(
+        (s) => s.sync_status === 'pending' || s.sync_status === 'failed',
+      ).length,
     }
   }
 
@@ -571,6 +660,9 @@ class DBService {
       ),
       quadras: this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).filter(
         (q) => q.sync_status === 'pending',
+      ),
+      surveys: this.getItems<Survey>(STORAGE_KEYS.SURVEYS).filter(
+        (s) => s.sync_status === 'pending' || s.sync_status === 'failed',
       ),
     }
   }

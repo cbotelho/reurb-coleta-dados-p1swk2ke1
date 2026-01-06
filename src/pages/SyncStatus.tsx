@@ -2,7 +2,14 @@ import { useEffect } from 'react'
 import { useSync } from '@/contexts/SyncContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CheckCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react'
+import {
+  CheckCircle,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Upload,
+  FileText,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function SyncStatus() {
@@ -19,7 +26,7 @@ export default function SyncStatus() {
           className={cn(
             isOnline
               ? 'border-green-200 bg-green-50/50'
-              : 'border-red-200 bg-red-50/50',
+              : 'border-orange-200 bg-orange-50/50',
           )}
         >
           <CardHeader className="pb-2">
@@ -31,14 +38,16 @@ export default function SyncStatus() {
             {isOnline ? (
               <Wifi className="h-8 w-8 text-green-600" />
             ) : (
-              <WifiOff className="h-8 w-8 text-red-600" />
+              <WifiOff className="h-8 w-8 text-orange-600" />
             )}
             <div>
               <div className="text-lg font-bold">
-                {isOnline ? 'Conectado ao Servidor' : 'Offline'}
+                {isOnline ? 'Conectado ao Servidor' : 'Modo Offline'}
               </div>
               <p className="text-xs text-muted-foreground">
-                {isOnline ? 'Operando em modo online' : 'Sem conexão'}
+                {isOnline
+                  ? 'Sincronização disponível'
+                  : 'Dados serão salvos no dispositivo'}
               </p>
             </div>
           </CardContent>
@@ -47,27 +56,39 @@ export default function SyncStatus() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Status dos Dados
+              Sincronização Pendente
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex justify-between items-center">
-              <div>
-                <div className="text-2xl font-bold">{stats.synced}</div>
-                <p className="text-xs text-muted-foreground">
-                  Lotes sincronizados
-                </p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold">
+                    {stats.pending + (stats.pendingSurveys || 0)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">itens</span>
+                </div>
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Upload className="w-3 h-3" /> {stats.pending} Lotes
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> {stats.pendingSurveys || 0}{' '}
+                    Vistorias
+                  </span>
+                </div>
               </div>
               <Button
-                onClick={() => triggerSync()}
+                onClick={() => triggerSync(true)}
                 disabled={isSyncing || !isOnline}
                 className="bg-blue-600"
               >
                 {isSyncing ? (
-                  <RefreshCw className="animate-spin h-4 w-4" />
+                  <RefreshCw className="animate-spin h-4 w-4 mr-2" />
                 ) : (
-                  'Atualizar Dados'
+                  <RefreshCw className="h-4 w-4 mr-2" />
                 )}
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
               </Button>
             </div>
           </CardContent>
@@ -76,15 +97,32 @@ export default function SyncStatus() {
 
       <Card className="flex-1">
         <CardHeader>
-          <CardTitle>Log de Atividades</CardTitle>
+          <CardTitle>Status dos Dados</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col items-center justify-center p-8 text-muted-foreground border border-dashed rounded-lg">
-            <CheckCircle className="h-8 w-8 text-green-500 mb-2" />
-            <p>Todos os sistemas operacionais.</p>
-            <p className="text-xs">
-              O log local foi descontinuado em favor do log do servidor.
-            </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 border rounded-lg bg-slate-50">
+              <div className="text-sm text-muted-foreground">Lotes Totais</div>
+              <div className="text-2xl font-bold">{stats.collected}</div>
+            </div>
+            <div className="p-4 border rounded-lg bg-green-50 border-green-100">
+              <div className="text-sm text-green-700">Sincronizados</div>
+              <div className="text-2xl font-bold text-green-800">
+                {stats.synced}
+              </div>
+            </div>
+            <div className="p-4 border rounded-lg bg-orange-50 border-orange-100">
+              <div className="text-sm text-orange-700">Pendentes</div>
+              <div className="text-2xl font-bold text-orange-800">
+                {stats.pending}
+              </div>
+            </div>
+            <div className="p-4 border rounded-lg bg-slate-50">
+              <div className="text-sm text-muted-foreground">
+                Imagens Pendentes
+              </div>
+              <div className="text-2xl font-bold">{stats.pendingImages}</div>
+            </div>
           </div>
         </CardContent>
       </Card>

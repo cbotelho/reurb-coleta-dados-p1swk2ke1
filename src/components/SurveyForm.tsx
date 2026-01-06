@@ -24,8 +24,8 @@ import {
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
-import { Save, Loader2 } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import { Save, Loader2, CloudOff } from 'lucide-react'
+import { useSync } from '@/contexts/SyncContext'
 
 const surveySchema = z.object({
   form_number: z.string().optional(),
@@ -75,6 +75,7 @@ interface SurveyFormProps {
 
 export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const { toast } = useToast()
+  const { isOnline, refreshStats } = useSync()
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [surveyId, setSurveyId] = useState<string | undefined>()
@@ -121,10 +122,23 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         ...values,
       })
       setSurveyId(saved.id)
-      toast({
-        title: 'Sucesso',
-        description: 'Vistoria salva com sucesso!',
-      })
+
+      refreshStats() // Update pending counts if offline
+
+      if (saved.sync_status === 'pending') {
+        toast({
+          title: 'Salvo Localmente',
+          description:
+            'Vistoria salva no dispositivo. Sincronize quando estiver online.',
+          variant: 'default',
+          className: 'bg-orange-50 border-orange-200 text-orange-800',
+        })
+      } else {
+        toast({
+          title: 'Sucesso',
+          description: 'Vistoria sincronizada com o servidor!',
+        })
+      }
     } catch (error) {
       console.error(error)
       toast({
@@ -147,6 +161,15 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
   return (
     <Form {...form}>
+      {!isOnline && (
+        <div className="mb-6 p-3 bg-orange-50 border border-orange-200 rounded-md flex items-center gap-2 text-sm text-orange-800">
+          <CloudOff className="h-4 w-4" />
+          <span>
+            Modo Offline: As alterações serão salvas localmente e enviadas
+            depois.
+          </span>
+        </div>
+      )}
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Identificação */}
         <div className="space-y-4">
@@ -718,7 +741,8 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" /> Salvar Vistoria
+                  <Save className="mr-2 h-4 w-4" />
+                  {isOnline ? 'Salvar Vistoria' : 'Salvar Localmente (Offline)'}
                 </>
               )}
             </Button>

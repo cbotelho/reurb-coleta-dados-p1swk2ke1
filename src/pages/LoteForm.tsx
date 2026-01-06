@@ -26,6 +26,7 @@ import {
   Printer,
   MapPin,
   Loader2,
+  CloudOff,
 } from 'lucide-react'
 import {
   AlertDialog,
@@ -41,6 +42,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SurveyForm } from '@/components/SurveyForm'
+import { useSync } from '@/contexts/SyncContext'
 
 const formSchema = z.object({
   name: z.string().min(1, 'Nome do lote é obrigatório'),
@@ -61,6 +63,7 @@ export default function LoteForm() {
   }>()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { isOnline, refreshStats } = useSync()
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(false)
   const [parentQuadraId, setParentQuadraId] = useState<string | undefined>(
@@ -103,11 +106,20 @@ export default function LoteForm() {
             images: lote.images || [],
           })
         } else {
-          toast({
-            title: 'Erro',
-            description: 'Lote não encontrado',
-            variant: 'destructive',
-          })
+          // If offline and not in cache, we show error
+          if (!isOnline) {
+            toast({
+              title: 'Offline',
+              description: 'Lote não encontrado no cache local.',
+              variant: 'destructive',
+            })
+          } else {
+            toast({
+              title: 'Erro',
+              description: 'Lote não encontrado',
+              variant: 'destructive',
+            })
+          }
           navigate(-1)
         }
       } catch (e) {
@@ -125,7 +137,7 @@ export default function LoteForm() {
     if (loteId) {
       loadLote(loteId)
     }
-  }, [loteId, form, navigate, toast])
+  }, [loteId, form, navigate, toast, isOnline])
 
   const onSubmit = async (values: FormValues) => {
     if (!canEdit) {
@@ -148,7 +160,7 @@ export default function LoteForm() {
 
     setLoading(true)
     try {
-      await api.saveLote({
+      const saved = await api.saveLote({
         local_id: isEditMode ? loteId : undefined,
         quadra_id: parentQuadraId,
         name: values.name,
@@ -160,7 +172,18 @@ export default function LoteForm() {
         images: values.images || [],
       })
 
-      toast({ title: 'Sucesso', description: 'Lote salvo com sucesso!' })
+      refreshStats() // Update pending counts if offline
+
+      if (saved.sync_status === 'pending') {
+        toast({
+          title: 'Salvo Localmente',
+          description: 'Lote salvo no dispositivo. Sincronize quando online.',
+          className: 'bg-orange-50 border-orange-200 text-orange-800',
+        })
+      } else {
+        toast({ title: 'Sucesso', description: 'Lote salvo e sincronizado!' })
+      }
+
       // Don't navigate away immediately if editing, to allow Survey editing
       if (!isEditMode) navigate(-1)
     } catch (error) {
@@ -303,6 +326,15 @@ export default function LoteForm() {
 
         <TabsContent value="lote">
           <Form {...form}>
+            {!isOnline && (
+              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md flex items-center gap-2 text-sm text-orange-800">
+                <CloudOff className="h-4 w-4" />
+                <span>
+                  Modo Offline: As alterações serão salvas localmente e enviadas
+                  depois.
+                </span>
+              </div>
+            )}
             <form
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6 bg-white p-6 rounded-lg border shadow-sm mt-4"
@@ -494,7 +526,8 @@ export default function LoteForm() {
                       <>Salvando...</>
                     ) : (
                       <>
-                        <Save className="mr-2 h-4 w-4" /> Salvar
+                        <Save className="mr-2 h-4 w-4" />
+                        {isOnline ? 'Salvar' : 'Salvar Localmente (Offline)'}
                       </>
                     )}
                   </Button>
