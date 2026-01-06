@@ -25,7 +25,9 @@ export const syncService = {
       try {
         await api.getQuadras(p.local_id) // Caches automatically if impl in api.ts
         count++
-      } catch (e) {}
+      } catch (e) {
+        console.error(`Error pulling quadras for project ${p.local_id}:`, e)
+      }
     }
     return count
   },
@@ -59,9 +61,8 @@ export const syncService = {
         }
       })
 
-      // Hacky: access localStorage directly or via db helper if exposed.
-      // db.saveItems requires key.
-      localStorage.setItem('reurb_lotes', JSON.stringify(merged))
+      // Use db.saveItems to persist. Key 'reurb_lotes' matches DBService storage key.
+      db.saveItems('reurb_lotes', merged)
       return lotes.length
     } catch (e) {
       console.error(e)
