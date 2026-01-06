@@ -40,7 +40,7 @@ export default function QuadraDetails() {
         setQuadra(q)
         const l = await api.getLotes(id)
 
-        // Natural sort for lots (e.g. Lote 2 comes before Lote 10)
+        // Natural sort for lots (e.g. Lote 2 comes before Lote 10, Lote 20 before Lote 125)
         const sortedLotes = l.sort((a, b) => {
           return a.name.localeCompare(b.name, undefined, {
             numeric: true,
