@@ -38,7 +38,9 @@ const mapQuadra = (row: any): Quadra => ({
 const mapLote = (row: any): Lote => ({
   id: 0,
   local_id: row.id,
-  sync_status: 'synchronized',
+  sync_status: (['pending', 'synchronized', 'failed'].includes(row.status)
+    ? row.status
+    : 'synchronized') as 'pending' | 'synchronized' | 'failed',
   date_added: new Date(row.created_at).getTime(),
   date_updated: new Date(row.updated_at).getTime(),
   name: row.name,
