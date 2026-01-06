@@ -39,9 +39,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/contexts/AuthContext'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SurveyForm } from '@/components/SurveyForm'
 
 const formSchema = z.object({
   name: z.string().min(1, 'Nome do lote é obrigatório'),
+  address: z.string().optional(),
   area: z.string().min(1, 'Área é obrigatória'),
   description: z.string().optional(),
   latitude: z.string().optional(),
@@ -72,6 +75,7 @@ export default function LoteForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      address: '',
       area: '',
       description: '',
       latitude: '',
@@ -91,6 +95,7 @@ export default function LoteForm() {
           setCurrentLote(lote)
           form.reset({
             name: lote.name,
+            address: lote.address || '',
             area: lote.area,
             description: lote.description,
             latitude: lote.latitude || '',
@@ -147,6 +152,7 @@ export default function LoteForm() {
         local_id: isEditMode ? loteId : undefined,
         quadra_id: parentQuadraId,
         name: values.name,
+        address: values.address,
         area: values.area,
         description: values.description || '',
         latitude: values.latitude,
@@ -155,7 +161,8 @@ export default function LoteForm() {
       })
 
       toast({ title: 'Sucesso', description: 'Lote salvo com sucesso!' })
-      navigate(-1)
+      // Don't navigate away immediately if editing, to allow Survey editing
+      if (!isEditMode) navigate(-1)
     } catch (error) {
       console.error(error)
       toast({
@@ -237,7 +244,7 @@ export default function LoteForm() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto pb-20">
+    <div className="space-y-6 max-w-3xl mx-auto pb-20">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">
           {isEditMode ? 'Detalhes do Lote' : 'Novo Lote'}
@@ -286,188 +293,225 @@ export default function LoteForm() {
         </div>
       </div>
 
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-6 bg-white p-6 rounded-lg border shadow-sm"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Identificação do Lote *</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ex: Lote 12"
-                      {...field}
-                      disabled={!canEdit}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+      <Tabs defaultValue="lote" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="lote">Dados do Lote</TabsTrigger>
+          <TabsTrigger value="survey" disabled={!isEditMode}>
+            Ficha de Vistoria
+          </TabsTrigger>
+        </TabsList>
 
-            <FormField
-              control={form.control}
-              name="area"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Área (m²) *</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ex: 250.00"
-                      type="text"
-                      inputMode="decimal"
-                      {...field}
-                      disabled={!canEdit}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold text-gray-700">
-                Geolocalização
-              </h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={getCurrentLocation}
-                disabled={!canEdit}
-              >
-                <MapPin className="w-3 h-3 mr-2" /> Obter Atual
-              </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="latitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Latitude</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="0.000000"
-                        {...field}
-                        disabled={!canEdit}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="longitude"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Longitude</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="-00.000000"
-                        {...field}
-                        disabled={!canEdit}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          </div>
-
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Memorial Descritivo</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Descreva as características do lote..."
-                    className="min-h-[100px]"
-                    {...field}
-                    disabled={!canEdit}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="images"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Documentos / Fotos</FormLabel>
-                <FormControl>
-                  {canEdit ? (
-                    <PhotoCapture
-                      initialPhotos={field.value || []}
-                      onPhotosChange={(photos) => field.onChange(photos)}
-                    />
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {field.value?.map((photo, i) => (
-                        <div
-                          key={i}
-                          className="aspect-square bg-gray-100 rounded-lg overflow-hidden border"
-                        >
-                          <img
-                            src={photo}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
-                      {(!field.value || field.value.length === 0) && (
-                        <p className="text-sm text-muted-foreground">
-                          Sem fotos.
-                        </p>
-                      )}
-                    </div>
+        <TabsContent value="lote">
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-6 bg-white p-6 rounded-lg border shadow-sm mt-4"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Identificação do Lote *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Ex: Lote 12"
+                          {...field}
+                          disabled={!canEdit}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                />
 
-          {canEdit && (
-            <div className="flex gap-4 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="flex-1"
-                onClick={() => navigate(-1)}
-              >
-                <XIcon className="mr-2 h-4 w-4" /> Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>Salvando...</>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" /> Salvar
-                  </>
+                <FormField
+                  control={form.control}
+                  name="area"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Área (m²) *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Ex: 250.00"
+                          type="text"
+                          inputMode="decimal"
+                          {...field}
+                          disabled={!canEdit}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Endereço / Localização</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Rua, Número, Bairro"
+                        {...field}
+                        disabled={!canEdit}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </Button>
+              />
+
+              <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-semibold text-gray-700">
+                    Geolocalização
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={getCurrentLocation}
+                    disabled={!canEdit}
+                  >
+                    <MapPin className="w-3 h-3 mr-2" /> Obter Atual
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="latitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="0.000000"
+                            {...field}
+                            disabled={!canEdit}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="longitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="-00.000000"
+                            {...field}
+                            disabled={!canEdit}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Memorial Descritivo / Notas</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Descreva as características do lote..."
+                        className="min-h-[100px]"
+                        {...field}
+                        disabled={!canEdit}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="images"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Documentos / Fotos</FormLabel>
+                    <FormControl>
+                      {canEdit ? (
+                        <PhotoCapture
+                          initialPhotos={field.value || []}
+                          onPhotosChange={(photos) => field.onChange(photos)}
+                        />
+                      ) : (
+                        <div className="grid grid-cols-3 gap-2">
+                          {field.value?.map((photo, i) => (
+                            <div
+                              key={i}
+                              className="aspect-square bg-gray-100 rounded-lg overflow-hidden border"
+                            >
+                              <img
+                                src={photo}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ))}
+                          {(!field.value || field.value.length === 0) && (
+                            <p className="text-sm text-muted-foreground">
+                              Sem fotos.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {canEdit && (
+                <div className="flex gap-4 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => navigate(-1)}
+                  >
+                    <XIcon className="mr-2 h-4 w-4" /> Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>Salvando...</>
+                    ) : (
+                      <>
+                        <Save className="mr-2 h-4 w-4" /> Salvar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </form>
+          </Form>
+        </TabsContent>
+
+        <TabsContent value="survey">
+          {loteId && (
+            <div className="bg-white p-6 rounded-lg border shadow-sm mt-4">
+              <SurveyForm propertyId={loteId} canEdit={canEdit} />
             </div>
           )}
-        </form>
-      </Form>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

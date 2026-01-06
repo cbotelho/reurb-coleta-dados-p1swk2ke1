@@ -46,6 +46,7 @@ export interface Lote {
   date_added: number
   date_updated: number
   name: string
+  address?: string
   area: string
   description: string
   images: string[]
@@ -60,6 +61,55 @@ export interface Lote {
   created_by?: number
   deleted?: number
   status?: string
+}
+
+export interface Survey {
+  id: string
+  property_id: string
+  form_number: string
+  survey_date: string
+  city: string
+  state: string
+
+  // Applicant
+  applicant_name: string
+  applicant_cpf: string
+  applicant_rg: string
+  applicant_civil_status: string
+  applicant_profession: string
+  applicant_income: string
+  applicant_nis: string
+  spouse_name: string
+  spouse_cpf: string
+
+  // Household
+  residents_count: number
+  has_children: boolean
+
+  // Occupation
+  occupation_time: string
+  acquisition_mode: string
+  property_use: string
+
+  // Characteristics
+  construction_type: string
+  roof_type: string
+  floor_type: string
+  rooms_count: number
+  conservation_state: string
+
+  // Infrastructure
+  water_supply: string
+  energy_supply: string
+  sanitation: string
+  street_paving: string
+
+  // Meta
+  observations: string
+  surveyor_name: string
+
+  created_at?: string
+  updated_at?: string
 }
 
 export interface User {

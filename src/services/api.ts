@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
-import { Project, Quadra, Lote, DashboardStats, User } from '@/types'
+import { Project, Quadra, Lote, DashboardStats, User, Survey } from '@/types'
 
 // Helper to map DB rows to App types
 const mapProject = (row: any): Project => ({
@@ -44,6 +44,7 @@ const mapLote = (row: any): Lote => ({
   date_added: new Date(row.created_at).getTime(),
   date_updated: new Date(row.updated_at).getTime(),
   name: row.name,
+  address: row.address || '',
   area: row.area || '',
   description: row.description || '',
   images: row.images || [],
@@ -58,6 +59,13 @@ const mapProfile = (row: any): User => ({
   name: row.full_name || '',
   groupIds: [row.role || 'viewer'],
   active: true,
+})
+
+const mapSurvey = (row: any): Survey => ({
+  ...row,
+  residents_count: row.residents_count || 0,
+  rooms_count: row.rooms_count || 0,
+  has_children: row.has_children ?? false,
 })
 
 export const api = {
@@ -190,6 +198,7 @@ export const api = {
   async saveLote(lote: Partial<Lote> & { quadra_id?: string }): Promise<Lote> {
     const payload: any = {
       name: lote.name,
+      address: lote.address,
       area: lote.area,
       description: lote.description,
       images: lote.images,
@@ -228,6 +237,54 @@ export const api = {
       .delete()
       .eq('id', id)
     if (error) throw error
+  },
+
+  // Surveys (Vistoria)
+  async getSurveyByPropertyId(propertyId: string): Promise<Survey | null> {
+    const { data, error } = await supabase
+      .from('reurb_surveys')
+      .select('*')
+      .eq('property_id', propertyId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') return null // Not found
+      throw error
+    }
+    return mapSurvey(data)
+  },
+
+  async saveSurvey(survey: Partial<Survey>): Promise<Survey> {
+    if (!survey.property_id) throw new Error('Property ID is required')
+
+    const payload = {
+      ...survey,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Remove undefined fields
+    Object.keys(payload).forEach(
+      (key) =>
+        (payload as any)[key] === undefined && delete (payload as any)[key],
+    )
+
+    let query
+    if (survey.id) {
+      query = supabase
+        .from('reurb_surveys')
+        .update(payload)
+        .eq('id', survey.id)
+        .select()
+        .single()
+    } else {
+      query = supabase.from('reurb_surveys').insert(payload).select().single()
+    }
+
+    const { data, error } = await query
+    if (error) throw error
+    return mapSurvey(data)
   },
 
   // Stats
