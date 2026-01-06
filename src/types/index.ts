@@ -1,6 +1,6 @@
 export interface Project {
-  id: number // Legacy numeric ID (kept for compatibility, though DB uses UUID)
-  local_id: string // UUID from Supabase or generated locally
+  id: number // Legacy numeric ID
+  local_id: string // UUID
   sync_status: 'pending' | 'synchronized' | 'failed'
   date_added: number
   date_updated: number
@@ -16,9 +16,6 @@ export interface Project {
   parent_item_id?: number
   linked_id?: number
   sort_order?: number
-  field_348?: string // Legacy field mapping
-  field_350?: string // Legacy field mapping
-  field_351?: string // Legacy field mapping
 }
 
 export interface Quadra {
@@ -32,11 +29,6 @@ export interface Quadra {
   parent_item_id: string // UUID of Project
   document_url?: string
   image_url?: string
-  field_329?: string // Legacy
-  field_330?: string // Legacy
-  field_349?: string // Legacy
-  field_331?: string // Legacy
-  field_332?: string // Legacy
 }
 
 export interface Lote {
@@ -53,11 +45,7 @@ export interface Lote {
   latitude: string | null
   longitude: string | null
   parent_item_id: string // UUID of Quadra
-  coordinates?: { x: number; y: number } // Legacy for mock map
-  field_338?: string // Legacy
-  field_339?: string // Legacy
-  field_340?: string // Legacy
-  field_352?: any[] // Legacy
+  coordinates?: { x: number; y: number }
   created_by?: number
   deleted?: number
   status?: string
@@ -116,10 +104,10 @@ export interface Survey {
 }
 
 export interface User {
-  id: string // UUID
+  id: string
   username: string
   name: string
-  groupIds: string[] // Mapped from Role
+  groupIds: string[]
   active: boolean
 }
 
@@ -201,7 +189,7 @@ export interface DrawingStyle {
 export interface MapDrawing {
   id: string
   type: 'marker' | 'polygon' | 'polyline' | 'rectangle'
-  coordinates: any // {lat,lng} or [{lat,lng}]
+  coordinates: any
   style?: DrawingStyle
   createdAt: number
   updatedAt?: number

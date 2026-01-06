@@ -14,7 +14,7 @@ interface SyncContextType {
   isOnline: boolean
   isSyncing: boolean
   stats: DashboardStats
-  triggerSync: (force?: boolean) => Promise<void>
+  triggerSync: (fullDownload?: boolean) => Promise<void>
   refreshStats: () => void
 }
 
@@ -42,23 +42,31 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const triggerSync = useCallback(
-    async (force = false) => {
-      if (!isOnline) {
+    async (fullDownload = false) => {
+      if (!navigator.onLine) {
         toast.warning('Sem conexão com a internet.')
         return
       }
 
       setIsSyncing(true)
       try {
-        // Push local changes
+        // 1. Push pending changes
         const { successCount, failCount } = await syncService.pushPendingItems()
         if (successCount > 0)
-          toast.success(`${successCount} itens sincronizados.`)
-        if (failCount > 0) toast.error(`${failCount} falhas na sincronização.`)
+          toast.success(`${successCount} itens enviados com sucesso.`)
+        if (failCount > 0) toast.error(`${failCount} falhas no envio.`)
 
-        // Pull remote changes
-        await syncService.pullProjects()
-        // We could pull everything but it might be heavy. For now just projects/stats.
+        // 2. Pull remote data (Full download if requested)
+        if (fullDownload) {
+          toast.info('Baixando dados do servidor...')
+          const counts = await syncService.pullBaseData()
+          toast.success(
+            `Dados atualizados: ${counts.projects} Projetos, ${counts.quadras} Quadras, ${counts.lotes} Lotes.`,
+          )
+        } else {
+          // Minimal pull
+          await api.getProjects()
+        }
 
         await refreshStats()
       } catch (e) {
@@ -68,14 +76,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setIsSyncing(false)
       }
     },
-    [isOnline, refreshStats],
+    [refreshStats],
   )
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true)
-      toast.info('Conexão restaurada. Tentando sincronizar...')
-      triggerSync()
+      toast.info('Conexão restaurada. Sincronizando...')
+      triggerSync(false)
     }
     const handleOffline = () => {
       setIsOnline(false)
@@ -84,14 +92,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-
-    // Initial fetch
     refreshStats()
-    // Initial sync check
-    if (navigator.onLine) {
-      // Optional: auto-pull on start?
-      // syncService.pullProjects()
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline)

@@ -2,9 +2,8 @@ import { supabase } from '@/lib/supabase/client'
 import { Project, Quadra, Lote, DashboardStats, User, Survey } from '@/types'
 import { db } from './db'
 
-// Helper to map DB rows to App types
 const mapProject = (row: any): Project => ({
-  id: 0, // Legacy number compatibility
+  id: 0,
   local_id: row.id,
   sync_status: 'synchronized',
   date_added: new Date(row.created_at).getTime(),
@@ -24,9 +23,7 @@ const mapProject = (row: any): Project => ({
 const mapQuadra = (row: any): Quadra => ({
   id: 0,
   local_id: row.id,
-  sync_status: (['pending', 'synchronized', 'failed'].includes(row.status)
-    ? row.status
-    : 'synchronized') as 'pending' | 'synchronized' | 'failed',
+  sync_status: 'synchronized',
   date_added: new Date(row.created_at).getTime(),
   date_updated: new Date(row.updated_at).getTime(),
   name: row.name,
@@ -39,9 +36,7 @@ const mapQuadra = (row: any): Quadra => ({
 const mapLote = (row: any): Lote => ({
   id: 0,
   local_id: row.id,
-  sync_status: (['pending', 'synchronized', 'failed'].includes(row.status)
-    ? row.status
-    : 'synchronized') as 'pending' | 'synchronized' | 'failed',
+  sync_status: 'synchronized',
   date_added: new Date(row.created_at).getTime(),
   date_updated: new Date(row.updated_at).getTime(),
   name: row.name,
@@ -85,11 +80,10 @@ export const api = {
 
       if (error) throw error
       const projects = (data || []).map(mapProject)
-      // Update cache
       projects.forEach((p) => db.updateProject(p))
       return projects
     } catch (e) {
-      console.warn('API getProjects failed, falling back to local DB', e)
+      console.warn('API getProjects failed, using cache', e)
       return db.getProjects()
     }
   },
@@ -104,19 +98,17 @@ export const api = {
         .eq('id', id)
         .single()
 
-      if (error) return db.getProject(id) || null // Fallback if not found on server or error
+      if (error) throw error
       const project = mapProject(data)
       db.updateProject(project)
       return project
-    } catch (e) {
+    } catch {
       return db.getProject(id) || null
     }
   },
 
   async createProject(project: Partial<Project>): Promise<Project> {
-    if (!isOnline()) {
-      throw new Error('Criação de projetos requer conexão com a internet.')
-    }
+    if (!isOnline()) throw new Error('Requires internet')
 
     const { data, error } = await supabase
       .from('reurb_projects')
@@ -138,13 +130,7 @@ export const api = {
   },
 
   async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
-    if (!isOnline()) {
-      // Local update for now (though normally project structure updates need sync)
-      // For this simplified version, we might allow local but warn?
-      // User Story focuses on "Surveys", not Project management.
-      // Let's stick to simple handling:
-      throw new Error('Atualização de projetos requer internet.')
-    }
+    if (!isOnline()) throw new Error('Requires internet')
 
     const payload: any = {}
     if (updates.name !== undefined) payload.name = updates.name
@@ -161,7 +147,6 @@ export const api = {
       payload.auto_update_map = updates.auto_update_map
     if (updates.last_map_update !== undefined)
       payload.last_map_update = new Date(updates.last_map_update).toISOString()
-
     payload.updated_at = new Date().toISOString()
 
     const { data, error } = await supabase
@@ -190,9 +175,7 @@ export const api = {
 
       if (error) throw error
       const quadras = (data || []).map(mapQuadra)
-      // Cache logic could be added here if we had saveQuadra, but standard sync handles bulk pull.
-      // For simplicity, we assume bulk sync handles most, but we could update individually?
-      // db.saveQuadras(...) - missing method, rely on syncService for bulk.
+      quadras.forEach((q) => db.saveQuadra(q))
       return quadras
     } catch (e) {
       return db.getQuadrasByProject(projectId)
@@ -209,8 +192,10 @@ export const api = {
         .eq('id', id)
         .single()
 
-      if (error) return db.getQuadra(id) || null
-      return mapQuadra(data)
+      if (error) throw error
+      const q = mapQuadra(data)
+      db.saveQuadra(q)
+      return q
     } catch {
       return db.getQuadra(id) || null
     }
@@ -229,7 +214,7 @@ export const api = {
 
       if (error) throw error
       const lotes = (data || []).map(mapLote)
-      lotes.forEach((l) => db.saveLote(l, quadraId)) // Cache
+      lotes.forEach((l) => db.saveLote(l, quadraId))
       return lotes
     } catch (e) {
       return db.getLotesByQuadra(quadraId)
@@ -240,13 +225,15 @@ export const api = {
     if (!isOnline()) return db.getAllLotes()
 
     try {
+      // Limit to 2000 to prevent massive payloads in demo
       const { data, error } = await supabase
         .from('reurb_properties')
         .select('*')
-        .limit(1000)
+        .limit(2000)
 
       if (error) throw error
       const lotes = (data || []).map(mapLote)
+      lotes.forEach((l) => l.parent_item_id && db.saveLote(l, l.parent_item_id))
       return lotes
     } catch (e) {
       return db.getAllLotes()
@@ -263,7 +250,7 @@ export const api = {
         .eq('id', id)
         .single()
 
-      if (error) return db.getLote(id) || null
+      if (error) throw error
       const lote = mapLote(data)
       if (lote.parent_item_id) db.saveLote(lote, lote.parent_item_id)
       return lote
@@ -296,7 +283,13 @@ export const api = {
 
     try {
       let query
-      if (lote.local_id && lote.local_id.length > 10) {
+      if (
+        lote.local_id &&
+        lote.local_id.length > 10 &&
+        lote.local_id.includes('-')
+      ) {
+        // Heuristic: UUIDs usually have hyphens. If local ID is UUID-like, update.
+        // Or if it matches a known format.
         query = supabase
           .from('reurb_properties')
           .update(payload)
@@ -315,7 +308,6 @@ export const api = {
       const { data, error } = await query
       if (error) throw error
       const saved = mapLote(data)
-      // Save as synced
       db.saveLote(
         { ...saved, sync_status: 'synchronized' },
         saved.parent_item_id,
@@ -332,24 +324,14 @@ export const api = {
 
   async deleteLote(id: string): Promise<void> {
     if (!isOnline()) {
-      db.deleteLote(id)
+      db.deleteLote(id) // Ideally mark as deleted
       return
     }
-
-    try {
-      const { error } = await supabase
-        .from('reurb_properties')
-        .delete()
-        .eq('id', id)
-      if (error) throw error
-      db.deleteLote(id)
-    } catch (e) {
-      db.deleteLote(id) // Delete locally anyway? Or mark as deleted?
-      // Ideally should mark as deleted for sync, but simplify for now.
-    }
+    await supabase.from('reurb_properties').delete().eq('id', id)
+    db.deleteLote(id)
   },
 
-  // Surveys (Vistoria)
+  // Surveys
   async getSurveyByPropertyId(propertyId: string): Promise<Survey | null> {
     if (!isOnline()) return db.getSurveyByPropertyId(propertyId) || null
 
@@ -362,11 +344,7 @@ export const api = {
         .limit(1)
         .single()
 
-      if (error) {
-        if (error.code === 'PGRST116') return null // Not found
-        // Fallback to local if error might be network related despite check
-        return db.getSurveyByPropertyId(propertyId) || null
-      }
+      if (error) return db.getSurveyByPropertyId(propertyId) || null
       const survey = mapSurvey(data)
       db.saveSurvey({ ...survey, sync_status: 'synchronized' })
       return survey
@@ -382,15 +360,11 @@ export const api = {
       return db.saveSurvey({ ...survey, sync_status: 'pending' })
     }
 
-    const payload = {
-      ...survey,
-      updated_at: new Date().toISOString(),
-    }
-
-    // Remove undefined fields and local-only fields
+    const payload = { ...survey, updated_at: new Date().toISOString() }
     delete (payload as any).sync_status
     delete (payload as any).local_id
 
+    // Cleanup undefined
     Object.keys(payload).forEach(
       (key) =>
         (payload as any)[key] === undefined && delete (payload as any)[key],
@@ -398,8 +372,7 @@ export const api = {
 
     try {
       let query
-      if (survey.id && survey.id.length === 36) {
-        // Check if valid UUID
+      if (survey.id && survey.id.length > 10) {
         query = supabase
           .from('reurb_surveys')
           .update(payload)
@@ -407,7 +380,7 @@ export const api = {
           .select()
           .single()
       } else {
-        delete (payload as any).id // Let DB generate ID if not UUID
+        delete (payload as any).id
         query = supabase.from('reurb_surveys').insert(payload).select().single()
       }
 
@@ -422,23 +395,17 @@ export const api = {
     }
   },
 
-  // Stats
+  // Stats & Users
   async getDashboardStats(): Promise<DashboardStats> {
     if (!isOnline()) return db.getDashboardStats()
-
     try {
-      // Count Projects
       const { count: totalProjects } = await supabase
         .from('reurb_projects')
         .select('*', { count: 'exact', head: true })
-
-      // Count Lotes
       const { count: totalLotes } = await supabase
         .from('reurb_properties')
         .select('*', { count: 'exact', head: true })
-
       const localStats = db.getDashboardStats()
-
       return {
         collected: totalLotes || 0,
         synced: totalLotes || 0,
@@ -453,12 +420,10 @@ export const api = {
     }
   },
 
-  // Users / Profiles
   async getUsers(): Promise<User[]> {
     if (!isOnline()) return db.getUsers()
     try {
-      const { data, error } = await supabase.from('reurb_profiles').select('*')
-      if (error) throw error
+      const { data } = await supabase.from('reurb_profiles').select('*')
       return (data || []).map(mapProfile)
     } catch {
       return db.getUsers()
@@ -466,26 +431,15 @@ export const api = {
   },
 
   async saveUser(user: Partial<User>): Promise<void> {
-    if (!user.id) throw new Error('Cannot create user without Auth ID')
-    if (!isOnline()) throw new Error('User management requires internet')
-
-    const { error } = await supabase
+    if (!user.id || !isOnline()) return
+    await supabase
       .from('reurb_profiles')
-      .update({
-        full_name: user.name,
-        role: user.groupIds?.[0] || 'viewer',
-      })
+      .update({ full_name: user.name, role: user.groupIds?.[0] || 'viewer' })
       .eq('id', user.id)
-
-    if (error) throw error
   },
 
   async deleteUser(id: string): Promise<void> {
-    if (!isOnline()) throw new Error('User management requires internet')
-    const { error } = await supabase
-      .from('reurb_profiles')
-      .delete()
-      .eq('id', id)
-    if (error) throw error
+    if (!isOnline()) return
+    await supabase.from('reurb_profiles').delete().eq('id', id)
   },
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useSync } from '@/contexts/SyncContext' // Used for online status
+import { useSync } from '@/contexts/SyncContext'
 import { api } from '@/services/api'
 import {
   Card,
@@ -20,15 +20,17 @@ import {
   Map as MapIcon,
   AlertTriangle,
   Loader2,
+  DownloadCloud,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { GoogleMap, GoogleMapHandle } from '@/components/GoogleMap'
 import { db } from '@/services/db'
 import { Project, Lote, MapKey, MarkerIconType, DashboardStats } from '@/types'
 import { getBoundsCoordinates } from '@/utils/geoUtils'
+import { toast } from 'sonner'
 
 export default function Dashboard() {
-  const { isOnline } = useSync()
+  const { isOnline, triggerSync, isSyncing } = useSync()
   const mapRef = useRef<GoogleMapHandle>(null)
   const [activeKey, setActiveKey] = useState<MapKey | undefined>()
   const [projects, setProjects] = useState<Project[]>([])
@@ -39,6 +41,7 @@ export default function Dashboard() {
     pending: 0,
     pendingImages: 0,
     totalProjects: 0,
+    pendingSurveys: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -46,7 +49,7 @@ export default function Dashboard() {
     loadDashboardData()
     const key = db.getActiveMapKey()
     setActiveKey(key)
-  }, [])
+  }, [isOnline]) // Reload when connectivity changes
 
   const loadDashboardData = async () => {
     try {
@@ -60,6 +63,16 @@ export default function Dashboard() {
       console.error(e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleFullDownload = async () => {
+    try {
+      await triggerSync(true)
+      // Reload local state after sync
+      loadDashboardData()
+    } catch (e) {
+      toast.error('Erro no download de dados')
     }
   }
 
@@ -84,7 +97,7 @@ export default function Dashboard() {
       title: l.name,
       status: l.sync_status,
       id: l.local_id,
-      color: '#22c55e', // Default to synced color since we are online
+      color: l.sync_status === 'synchronized' ? '#22c55e' : '#f97316',
       icon: 'circle' as MarkerIconType,
     }))
     .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
@@ -114,20 +127,37 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Bem-vindo, Entrevistador!
+            Painel de Controle
           </h1>
-          <p className="text-gray-500">Resumo da coleta de dados.</p>
+          <p className="text-gray-500">Resumo da coleta de dados REURB.</p>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border shadow-sm self-start">
-          {isOnline ? (
-            <Wifi className="h-4 w-4 text-green-500" />
-          ) : (
-            <WifiOff className="h-4 w-4 text-gray-400" />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border shadow-sm">
+            {isOnline ? (
+              <Wifi className="h-4 w-4 text-green-500" />
+            ) : (
+              <WifiOff className="h-4 w-4 text-gray-400" />
+            )}
+            <span className="text-sm font-medium text-gray-700">
+              {isOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+
+          {isOnline && (
+            <Button
+              onClick={handleFullDownload}
+              disabled={isSyncing}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <DownloadCloud className="h-4 w-4 mr-2" />
+              )}
+              Baixar Dados (Offline)
+            </Button>
           )}
-          <span className="text-sm font-medium text-gray-700">
-            Status: {isOnline ? 'Online' : 'Offline'}
-          </span>
         </div>
       </div>
 
@@ -136,7 +166,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Projetos Ativos
+              Projetos Locais
             </CardTitle>
             <Folder className="h-4 w-4 text-purple-600" />
           </CardHeader>
@@ -145,7 +175,7 @@ export default function Dashboard() {
               {stats.totalProjects}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Disponíveis para coleta
+              Disponíveis offline
             </p>
           </CardContent>
           <CardFooter>
@@ -164,7 +194,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de Lotes
+              Lotes Cadastrados
             </CardTitle>
             <Database className="h-4 w-4 text-blue-600" />
           </CardHeader>
@@ -172,9 +202,7 @@ export default function Dashboard() {
             <div className="text-3xl font-bold text-gray-900">
               {stats.collected}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Armazenados na nuvem
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">No dispositivo</p>
           </CardContent>
           <CardFooter>
             <Link to="/projetos" className="w-full">
@@ -182,7 +210,49 @@ export default function Dashboard() {
                 variant="ghost"
                 className="w-full justify-between text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               >
-                Ver Projetos <ArrowRight className="h-4 w-4" />
+                Navegar <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </CardFooter>
+        </Card>
+
+        {/* Pendentes */}
+        <Card
+          className={
+            stats.pending > 0 || stats.pendingSurveys > 0
+              ? 'border-orange-200 bg-orange-50'
+              : ''
+          }
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Sincronização Pendente
+            </CardTitle>
+            <AlertTriangle
+              className={
+                stats.pending > 0 || stats.pendingSurveys > 0
+                  ? 'h-4 w-4 text-orange-500'
+                  : 'h-4 w-4 text-gray-400'
+              }
+            />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-gray-900">
+              {stats.pending + (stats.pendingSurveys || 0)}
+            </div>
+            <div className="flex flex-col gap-1 mt-1 text-xs text-muted-foreground">
+              <span>
+                {stats.pending} Lotes / {stats.pendingSurveys || 0} Vistorias
+              </span>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Link to="/sincronizacao" className="w-full">
+              <Button
+                variant="ghost"
+                className="w-full justify-between text-orange-600 hover:text-orange-700 hover:bg-orange-100"
+              >
+                Sincronizar <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </CardFooter>
@@ -192,7 +262,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lotes Sincronizados
+              Sincronizados
             </CardTitle>
             <UploadCloud className="h-4 w-4 text-green-600" />
           </CardHeader>
@@ -201,40 +271,15 @@ export default function Dashboard() {
               {stats.synced}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.lastSync
-                ? `Atualizado: ${new Date(stats.lastSync).toLocaleTimeString()}`
-                : 'Nunca sincronizado'}
+              Seguros na nuvem
             </p>
           </CardContent>
           <CardFooter>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-green-600 cursor-default hover:bg-transparent"
-            >
-              Dados seguros
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {/* Pendentes - Should be 0 in Online Mode */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pendentes
-            </CardTitle>
-            <AlertTriangle className="h-4 w-4 text-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-600">
-              {stats.pending}
+            <div className="text-xs text-gray-400 w-full text-right">
+              {stats.lastSync
+                ? `Última sync: ${new Date(stats.lastSync).toLocaleTimeString()}`
+                : 'Nunca'}
             </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-              <ImageIcon className="h-3 w-3" />
-              {stats.pendingImages} imagens
-            </div>
-          </CardContent>
-          <CardFooter>
-            <span className="text-xs text-gray-400">Modo Online Ativo</span>
           </CardFooter>
         </Card>
       </div>
