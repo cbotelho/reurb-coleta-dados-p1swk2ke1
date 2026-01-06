@@ -12,11 +12,10 @@ import { Button } from '@/components/ui/button'
 import {
   Plus,
   CheckCircle2,
-  AlertCircle,
-  Clock,
   FileText,
   Image as ImageIcon,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
@@ -40,7 +39,16 @@ export default function QuadraDetails() {
       if (q) {
         setQuadra(q)
         const l = await api.getLotes(id)
-        setLotes(l)
+
+        // Natural sort for lots (e.g. Lote 2 comes before Lote 10)
+        const sortedLotes = l.sort((a, b) => {
+          return a.name.localeCompare(b.name, undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          })
+        })
+
+        setLotes(sortedLotes)
       }
     } catch (e) {
       console.error(e)
@@ -58,14 +66,24 @@ export default function QuadraDetails() {
     )
 
   if (!quadra)
-    return <div className="p-4 text-center">Quadra não encontrada.</div>
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
+        <AlertTriangle className="h-12 w-12 text-yellow-500" />
+        <h2 className="text-xl font-bold">Quadra não encontrada</h2>
+        <Button variant="outline" asChild>
+          <Link to="/projetos">Voltar para Projetos</Link>
+        </Button>
+      </div>
+    )
 
   return (
     <div className="space-y-6 pb-20">
       <div className="bg-white p-6 rounded-lg border shadow-sm space-y-4">
         <div>
           <h2 className="text-2xl font-bold">{quadra.name}</h2>
-          <p className="text-muted-foreground">Área: {quadra.area}</p>
+          <p className="text-muted-foreground">
+            {quadra.area ? `Área: ${quadra.area}` : 'Área não informada'}
+          </p>
         </div>
 
         <Separator />
@@ -97,7 +115,7 @@ export default function QuadraDetails() {
           </h3>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {lotes.length > 0 ? (
             lotes.map((lote) => (
               <Link key={lote.local_id} to={`/lotes/${lote.local_id}`}>
@@ -113,7 +131,15 @@ export default function QuadraDetails() {
                         </CardDescription>
                       </div>
                       <div title="Sincronizado">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        {lote.sync_status === 'synchronized' && (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        )}
+                        {lote.sync_status === 'pending' && (
+                          <div className="h-3 w-3 rounded-full bg-orange-400" />
+                        )}
+                        {lote.sync_status === 'failed' && (
+                          <div className="h-3 w-3 rounded-full bg-red-500" />
+                        )}
                       </div>
                     </div>
                   </CardHeader>
