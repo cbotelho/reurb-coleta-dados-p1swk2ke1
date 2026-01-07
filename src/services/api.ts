@@ -18,6 +18,10 @@ const mapProject = (row: any): Project => ({
     ? new Date(row.last_map_update).getTime()
     : 0,
   created_by: row.created_by,
+  tags: row.tags || [],
+  city: row.city,
+  state: row.state,
+  status: row.status,
 })
 
 const mapQuadra = (row: any): Quadra => ({
@@ -101,7 +105,7 @@ export const api = {
       const { data, error } = await supabase
         .from('reurb_projects')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false }) // Updated to sort by latest
 
       if (error) throw error
       const projects = (data || []).map(mapProject)
@@ -130,6 +134,30 @@ export const api = {
     } catch {
       return db.getProject(id) || null
     }
+  },
+
+  async updateProject(id: string, updates: Partial<any>): Promise<Project> {
+    if (!isOnline()) {
+      const current = db.getProject(id)
+      if (current) {
+        const updated = { ...current, ...updates, date_updated: Date.now() }
+        db.updateProject(updated)
+        return updated
+      }
+      throw new Error('Offline project not found')
+    }
+
+    const { data, error } = await supabase
+      .from('reurb_projects')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) throw error
+    const project = mapProject(data)
+    db.updateProject(project)
+    return project
   },
 
   // Quadras
@@ -404,5 +432,23 @@ export const api = {
     } catch {
       return db.getUsers()
     }
+  },
+
+  // Users Management
+  async saveUser(user: Partial<User>): Promise<void> {
+    // Basic mock implementation for saving user profile data
+    // In a real app this would update reurb_profiles and potentially auth.users via edge function
+    if (!user.id) return
+    const payload = {
+      full_name: user.name,
+      role: user.groupIds ? user.groupIds[0] : 'viewer',
+      updated_at: new Date().toISOString(),
+    }
+    await supabase.from('reurb_profiles').update(payload).eq('id', user.id)
+  },
+
+  async deleteUser(id: string): Promise<void> {
+    // In real app, this should likely be a soft delete or an edge function to delete auth user
+    await supabase.from('reurb_profiles').delete().eq('id', id)
   },
 }

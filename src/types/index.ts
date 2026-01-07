@@ -16,6 +16,11 @@ export interface Project {
   parent_item_id?: number
   linked_id?: number
   sort_order?: number
+  // New fields for dashboard
+  tags?: string[]
+  city?: string
+  state?: string
+  status?: string
 }
 
 export interface Quadra {
