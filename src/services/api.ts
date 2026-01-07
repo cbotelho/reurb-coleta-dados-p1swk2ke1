@@ -37,7 +37,6 @@ const mapProject = (row: any): Project => ({
   status: row.status,
 })
 
-// ... (Keep existing map functions)
 const mapQuadra = (row: any): Quadra => ({
   id: 0,
   local_id: row.id,
@@ -88,7 +87,6 @@ const mapSurvey = (row: any): Survey => ({
 const isOnline = () => navigator.onLine
 
 export const api = {
-  // ... (Keep existing methods: getAppConfig, getProjects, getProject, updateProject, getQuadras, getQuadra, getLotes, getAllLotes, getLote, saveLote, deleteLote, getSurveyByPropertyId, saveSurvey, getDashboardStats, getUsers, saveUser, deleteUser)
   async getAppConfig(): Promise<Record<string, string>> {
     if (!isOnline()) return {}
     try {
@@ -463,18 +461,43 @@ export const api = {
     }
   },
 
-  async saveUser(user: Partial<User>): Promise<void> {
-    if (!user.id) return
-    const payload = {
-      full_name: user.name,
-      role: user.groupIds ? user.groupIds[0] : 'viewer',
-      updated_at: new Date().toISOString(),
+  async saveUser(
+    user: Partial<User> & { email?: string; password?: string },
+  ): Promise<void> {
+    if (user.id) {
+      // Update existing user profile
+      const payload = {
+        full_name: user.name,
+        username: user.username,
+        role: user.groupIds ? user.groupIds[0] : 'viewer',
+        updated_at: new Date().toISOString(),
+      }
+      const { error } = await supabase
+        .from('reurb_profiles')
+        .update(payload)
+        .eq('id', user.id)
+      if (error) throw error
+    } else {
+      // Create new user via Edge Function
+      const { error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: user.email,
+          password: user.password,
+          fullName: user.name,
+          username: user.username,
+          role: user.groupIds ? user.groupIds[0] : 'viewer',
+        },
+      })
+      if (error) throw error
     }
-    await supabase.from('reurb_profiles').update(payload).eq('id', user.id)
   },
 
   async deleteUser(id: string): Promise<void> {
-    await supabase.from('reurb_profiles').delete().eq('id', id)
+    const { error } = await supabase
+      .from('reurb_profiles')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
   },
 
   // --- New Analytical Methods ---

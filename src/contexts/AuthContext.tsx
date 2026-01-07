@@ -77,19 +77,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const mappedUser: User = {
         id: sbUser.id,
-        username: sbUser.email || '',
+        username: profile?.username || sbUser.email || '',
         name: fullName,
-        groupIds: [role], // Use role as group ID for simplicity in this implementation
+        groupIds: [role],
         active: true,
       }
 
       setUser(mappedUser)
-      // Map roles to permissions (Simplified Mock Logic)
+      // Map roles to permissions
       const permissions = getPermissionsForRole(role)
       setGroups([
         {
           id: role,
-          name: role.charAt(0).toUpperCase() + role.slice(1),
+          name: getRoleName(role),
           role: role as any,
           permissions,
         },
@@ -103,11 +103,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const getRoleName = (role: string): string => {
+    switch (role) {
+      case 'super_admin':
+        return 'Super Administrador'
+      case 'admin':
+        return 'Administrador'
+      case 'operator':
+        return 'Operador'
+      case 'viewer':
+        return 'Visualizador'
+      default:
+        return role
+    }
+  }
+
   const getPermissionsForRole = (role: string): string[] => {
     switch (role) {
-      case 'admin':
+      case 'super_admin':
         return ['all']
-      case 'manager':
+      case 'admin':
+        return ['manage_users', 'edit_projects', 'view_reports']
+      case 'operator':
+        return ['edit_projects', 'view_reports']
+      case 'manager': // Compatibility
         return ['edit_projects', 'view_reports']
       default:
         return ['view_only']
