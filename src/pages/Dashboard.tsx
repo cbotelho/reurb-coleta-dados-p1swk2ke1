@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/services/api'
-import { Project } from '@/types'
+import { Project, DashboardStats } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Loader2, Plus } from 'lucide-react'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { AIAssistant } from '@/components/dashboard/AIAssistant'
 import { TipsCard } from '@/components/dashboard/TipsCard'
+import { SummaryCards } from '@/components/dashboard/SummaryCards'
 import { toast } from 'sonner'
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -18,11 +20,16 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const p = await api.getProjects()
+      // Use Promise.all to fetch data in parallel
+      const [p, s] = await Promise.all([
+        api.getProjects(),
+        api.getDashboardStats(),
+      ])
       setProjects(p)
+      setStats(s)
     } catch (e) {
       console.error(e)
-      toast.error('Erro ao carregar projetos.')
+      toast.error('Erro ao carregar dados do painel.')
     } finally {
       setLoading(false)
     }
@@ -43,7 +50,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-20">
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8 p-4 sm:p-6 lg:p-8">
+        {/* Summary Cards Section */}
+        {stats && <SummaryCards stats={stats} />}
+
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">

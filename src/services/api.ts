@@ -407,6 +407,18 @@ export const api = {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'surveyed')
 
+      const { count: totalFamilies } = await supabase
+        .from('reurb_surveys')
+        .select('*', { count: 'exact', head: true })
+
+      const { count: totalQuadras } = await supabase
+        .from('reurb_quadras')
+        .select('*', { count: 'exact', head: true })
+
+      const { count: totalContracts } = await supabase
+        .from('reurb_contracts')
+        .select('*', { count: 'exact', head: true })
+
       const localStats = db.getDashboardStats()
 
       return {
@@ -418,6 +430,9 @@ export const api = {
         lastSync: Date.now(),
         pendingSurveys: localStats.pendingSurveys,
         totalSurveyed: totalSurveyed || 0,
+        totalFamilies: totalFamilies || 0,
+        totalContracts: totalContracts || 0,
+        totalQuadras: totalQuadras || 0,
       }
     } catch {
       return db.getDashboardStats()

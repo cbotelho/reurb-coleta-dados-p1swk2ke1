@@ -378,6 +378,9 @@ class DBService {
   getDashboardStats(): DashboardStats {
     const lotes = this.getAllLotes()
     const surveys = this.getSurveys()
+    const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
+    const projects = this.getProjects()
+
     return {
       collected: lotes.length,
       synced: lotes.filter((l) => l.sync_status === 'synchronized').length,
@@ -387,13 +390,16 @@ class DBService {
       pendingImages: lotes
         .filter((l) => l.sync_status !== 'synchronized')
         .reduce((acc, l) => acc + (l.images?.length || 0), 0),
-      totalProjects: this.getProjects().length,
+      totalProjects: projects.length,
       pendingSurveys: surveys.filter(
         (s) => s.sync_status === 'pending' || s.sync_status === 'failed',
       ).length,
       totalSurveyed: lotes.filter(
         (l) => l.status === 'surveyed' || l.status === 'regularized',
       ).length,
+      totalFamilies: surveys.length,
+      totalQuadras: quadras.length,
+      totalContracts: 0, // Not synced locally
     }
   }
 
