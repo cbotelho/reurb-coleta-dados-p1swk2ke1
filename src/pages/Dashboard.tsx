@@ -14,7 +14,6 @@ import {
   WifiOff,
   UploadCloud,
   Database,
-  Image as ImageIcon,
   ArrowRight,
   Folder,
   Map as MapIcon,
@@ -47,9 +46,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboardData()
-    const key = db.getActiveMapKey()
+    // Use getEffectiveMapKey to retrieve system managed key or user keys
+    const key = db.getEffectiveMapKey()
     setActiveKey(key)
-  }, [isOnline]) // Reload when connectivity changes
+  }, [isOnline])
 
   const loadDashboardData = async () => {
     try {
@@ -69,7 +69,6 @@ export default function Dashboard() {
   const handleFullDownload = async () => {
     try {
       await triggerSync(true)
-      // Reload local state after sync
       loadDashboardData()
     } catch (e) {
       toast.error('Erro no download de dados')
@@ -313,16 +312,12 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">
-                    Mapa Não Configurado
+                    Carregando Mapa...
                   </h3>
                   <p className="text-gray-500 max-w-sm mt-1">
-                    Adicione uma Chave de API do Google Maps nas configurações
-                    para visualizar o mapa geográfico.
+                    Obtendo configurações do servidor.
                   </p>
                 </div>
-                <Button asChild variant="default" className="mt-4">
-                  <Link to="/configuracoes">Configurar Agora</Link>
-                </Button>
               </div>
             )}
           </div>

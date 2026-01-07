@@ -22,6 +22,7 @@ export default function Projetos() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Refresh settings to get latest key if synced
     setSettings(db.getSettings())
     fetchProjects()
   }, [])

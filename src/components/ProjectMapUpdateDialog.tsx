@@ -66,8 +66,16 @@ export function ProjectMapUpdateDialog({
 
     setLoading(true)
 
-    // Generate URL (Using allowed placeholder service to mock Google Maps Static)
-    const mapUrl = `https://img.usecurling.com/p/800/400?q=satellite%20map%20${lat}%20${lng}&color=green`
+    // Try to get real API key for static map if available
+    const key = db.getEffectiveMapKey()?.key
+    let mapUrl
+
+    if (key) {
+      mapUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=800x400&maptype=satellite&key=${key}`
+    } else {
+      // Fallback if somehow key is missing
+      mapUrl = `https://img.usecurling.com/p/800/400?q=satellite%20map%20${lat}%20${lng}&color=green`
+    }
 
     try {
       const result = await api.updateProject(project.local_id, {

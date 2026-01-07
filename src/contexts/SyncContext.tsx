@@ -7,6 +7,7 @@ import React, {
 } from 'react'
 import { api } from '@/services/api'
 import { syncService } from '@/services/syncService'
+import { db } from '@/services/db'
 import { DashboardStats } from '@/types'
 import { toast } from 'sonner'
 
@@ -32,6 +33,36 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     pendingSurveys: 0,
   })
 
+  // Initialize and Fetch Config
+  useEffect(() => {
+    const initApp = async () => {
+      try {
+        // Fetch System Configuration (API Keys, etc)
+        const config = await api.getAppConfig()
+        if (config.google_maps_api_key) {
+          const currentSettings = db.getSettings()
+          // Only update if different to avoid redundant saves or unnecessary effects
+          if (currentSettings.googleMapsApiKey !== config.google_maps_api_key) {
+            db.saveSettings({
+              ...currentSettings,
+              googleMapsApiKey: config.google_maps_api_key,
+            })
+            // Force a slight delay reload or just let React updates handle it via props
+            // Ideally components read from db or context.
+            // Since we are not exposing settings in SyncContext, we rely on db.getSettings()
+            // being called in components or useEffects there.
+          }
+        }
+      } catch (e) {
+        console.error('Failed to initialize system config', e)
+      }
+    }
+
+    if (navigator.onLine) {
+      initApp()
+    }
+  }, [])
+
   const refreshStats = useCallback(async () => {
     try {
       const s = await api.getDashboardStats()
@@ -50,6 +81,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       setIsSyncing(true)
       try {
+        // 0. Update Config during sync
+        const config = await api.getAppConfig()
+        if (config.google_maps_api_key) {
+          const s = db.getSettings()
+          if (s.googleMapsApiKey !== config.google_maps_api_key) {
+            db.saveSettings({
+              ...s,
+              googleMapsApiKey: config.google_maps_api_key,
+            })
+          }
+        }
+
         // 1. Push pending changes
         const { successCount, failCount } = await syncService.pushPendingItems()
         if (successCount > 0)

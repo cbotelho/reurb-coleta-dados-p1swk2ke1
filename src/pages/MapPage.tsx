@@ -39,6 +39,7 @@ import {
   Globe,
   Clock,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
@@ -71,6 +72,7 @@ import { AccessibilityControls } from '@/components/Map/AccessibilityControls'
 import { CollaborationBadge } from '@/components/Map/CollaborationBadge'
 import { geocodingService } from '@/services/geocoding'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSync } from '@/contexts/SyncContext'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -162,6 +164,7 @@ const MARABAIXO_COORDS = { lat: 0.036161, lng: -51.130895 }
 export default function MapPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isOnline, isSyncing } = useSync()
   const mapRef = useRef<GoogleMapHandle>(null)
   const [mapReady, setMapReady] = useState(false)
   const initialFocusRef = useRef(false)
@@ -240,6 +243,7 @@ export default function MapPage() {
       console.error('Failed to fetch map data', e)
     }
 
+    // Try to get effective key again (might have been updated by SyncContext)
     const key = db.getEffectiveMapKey()
     setActiveKey((prev) => (prev?.key === key?.key ? prev : key))
 
@@ -253,9 +257,19 @@ export default function MapPage() {
 
   useEffect(() => {
     refreshData()
-    const interval = setInterval(refreshData, 30000)
-    return () => clearInterval(interval)
-  }, [refreshData])
+    // Poll for key update if missing
+    const interval = setInterval(() => {
+      if (!activeKey) refreshData()
+    }, 2000)
+
+    // Regular data refresh
+    const dataInterval = setInterval(refreshData, 30000)
+
+    return () => {
+      clearInterval(interval)
+      clearInterval(dataInterval)
+    }
+  }, [refreshData, activeKey])
 
   useEffect(() => {
     if (selectedDrawingIds.length === 1) {
@@ -1276,19 +1290,15 @@ export default function MapPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
-            <div className="bg-yellow-100 p-4 rounded-full">
-              <AlertTriangle className="h-8 w-8 text-yellow-600" />
+            <div className="bg-blue-50 p-4 rounded-full animate-pulse">
+              <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
             </div>
             <div>
-              <h3 className="text-xl font-semibold">Mapa Indisponível</h3>
+              <h3 className="text-xl font-semibold">Carregando Mapa...</h3>
               <p className="text-muted-foreground max-w-md mt-1">
-                Configure uma Chave de API nas configurações para visualizar o
-                mapa.
+                Obtendo configurações do servidor...
               </p>
             </div>
-            <Button asChild className="mt-4">
-              <Link to="/configuracoes">Configurar Agora</Link>
-            </Button>
           </div>
         )}
 

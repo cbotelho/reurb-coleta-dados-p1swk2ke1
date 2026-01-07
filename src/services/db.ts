@@ -51,7 +51,7 @@ const STORAGE_KEYS = {
   SURVEYS: 'reurb_surveys',
 }
 
-// ... Seed Data Constants (Preserved for brevity in thought, but included in output)
+// ... Seed Data Constants (Preserved)
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -165,7 +165,6 @@ class DBService {
     this.saveItems(STORAGE_KEYS.SURVEYS, [])
   }
 
-  // ... (Preserve ensureAuthData, ensureSavedCoords, ensureMapData, ensureSeedData as is)
   private ensureAuthData() {
     if (!localStorage.getItem(STORAGE_KEYS.GROUPS))
       this.saveItems(STORAGE_KEYS.GROUPS, SEED_GROUPS)
@@ -189,7 +188,6 @@ class DBService {
   }
 
   private ensureSeedData() {
-    // Simplified checks for brevity, assuming initialized
     if (!localStorage.getItem(STORAGE_KEYS.PROJECTS))
       this.saveItems(STORAGE_KEYS.PROJECTS, SEED_PROJECTS)
   }
@@ -273,7 +271,6 @@ class DBService {
         } as Lote
         lotes[index] = savedLote
       } else {
-        // Create with provided ID if not found (e.g. sync)
         savedLote = {
           ...loteData,
           parent_item_id: quadraId,
@@ -522,8 +519,8 @@ class DBService {
     const s = this.getSettings()
     if (s.googleMapsApiKey)
       return {
-        id: 'fallback',
-        name: 'Fallback',
+        id: 'system',
+        name: 'Chave do Sistema',
         key: s.googleMapsApiKey,
         isActive: true,
         createdAt: 0,

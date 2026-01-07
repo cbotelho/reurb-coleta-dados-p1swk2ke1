@@ -68,6 +68,30 @@ const mapSurvey = (row: any): Survey => ({
 const isOnline = () => navigator.onLine
 
 export const api = {
+  // App Config
+  async getAppConfig(): Promise<Record<string, string>> {
+    if (!isOnline()) return {} // Return empty, caller should handle fallback/cache
+
+    try {
+      // @ts-expect-error - reurb_app_config might not be in types yet
+      const { data, error } = await supabase
+        .from('reurb_app_config')
+        .select('*')
+      if (error) {
+        console.error('Error fetching app config:', error)
+        return {}
+      }
+      const config: Record<string, string> = {}
+      data?.forEach((row: any) => {
+        config[row.key] = row.value
+      })
+      return config
+    } catch (e) {
+      console.error('Error in getAppConfig:', e)
+      return {}
+    }
+  },
+
   // Projects
   async getProjects(): Promise<Project[]> {
     if (!isOnline()) return db.getProjects()

@@ -184,7 +184,9 @@ export default function ProjetoDetails() {
   }
 
   const getProjectImageUrl = (imageName?: string) => {
+    // Prefer effective key (DB stored)
     const apiKey = effectiveKey?.key
+
     if (
       apiKey &&
       project.latitude &&
