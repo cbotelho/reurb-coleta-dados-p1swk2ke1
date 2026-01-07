@@ -57,7 +57,6 @@ const STORAGE_KEYS = {
   SURVEYS: 'reurb_surveys',
 }
 
-// ... (Rest of seed data constants same as original file, omitting to save space, but they should be here)
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -90,9 +89,16 @@ const SEED_USERS: User[] = [
   {
     id: 'u1',
     username: 'carlos.botelho',
+    firstName: 'Carlos',
+    lastName: 'Botelho',
     name: 'Carlos Botelho',
+    email: 'carlos@example.com',
     groupIds: ['g1'],
+    groupNames: ['Administrador Master'],
     active: true,
+    status: 'active',
+    lastLoginAt: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
   },
 ]
 
@@ -505,6 +511,21 @@ class DBService {
   getSavedCoordinates(): SavedCoordinate[] {
     return this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
   }
+  saveSavedCoordinate(c: SavedCoordinate) {
+    const coords = this.getSavedCoordinates()
+    if (!c.id) c.id = generateUUID()
+    const index = coords.findIndex((sc) => sc.id === c.id)
+    if (index !== -1) coords[index] = c
+    else coords.push(c)
+    this.saveItems(STORAGE_KEYS.SAVED_COORDS, coords)
+  }
+  deleteSavedCoordinate(id: string) {
+    this.saveItems(
+      STORAGE_KEYS.SAVED_COORDS,
+      this.getSavedCoordinates().filter((c) => c.id !== id),
+    )
+  }
+
   getMapKeys(): MapKey[] {
     return this.getItems<MapKey>(STORAGE_KEYS.MAP_KEYS)
   }
@@ -527,6 +548,13 @@ class DBService {
   getMarkerConfigs(): MarkerConfig[] {
     return this.getItems<MarkerConfig>(STORAGE_KEYS.MARKER_CONFIGS)
   }
+  saveMarkerConfig(c: MarkerConfig) {
+    const configs = this.getMarkerConfigs()
+    const index = configs.findIndex((mc) => mc.id === c.id)
+    if (index !== -1) configs[index] = c
+    this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, configs)
+  }
+
   getCustomLayers(): CustomLayer[] {
     return this.getItems<CustomLayer>(STORAGE_KEYS.CUSTOM_LAYERS)
   }
@@ -663,6 +691,10 @@ class DBService {
       STORAGE_KEYS.GEO_ALERTS,
       this.getGeoAlerts().filter((a) => a.id !== id),
     )
+  }
+  clearCache() {
+    localStorage.clear()
+    this.init()
   }
 }
 

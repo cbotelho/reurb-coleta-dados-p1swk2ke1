@@ -17,6 +17,7 @@ interface AuthContextType {
   ) => Promise<{ error: any }>
   signOut: () => Promise<void>
   resendConfirmation: (email: string) => Promise<{ error: any }>
+  logout: () => void // Alias for signOut
   hasPermission: (permission: string) => boolean
 }
 
@@ -43,8 +44,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        // We call handleUserSession but avoid awaiting it to keep callback sync
-        // React state updates inside handleUserSession will trigger re-renders naturally
         handleUserSession(session.user)
       } else {
         setUser(null)
@@ -79,9 +78,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         id: sbUser.id,
         username: profile?.username || sbUser.email || '',
         name: fullName,
-        groupIds: [role],
-        active: true,
+        firstName: profile?.first_name || '',
+        lastName: profile?.last_name || '',
+        email: profile?.email || sbUser.email,
+        photoUrl: profile?.photo_url,
+        status: profile?.status || 'active',
+        active: profile?.status === 'active',
+        lastLoginAt: profile?.last_login_at,
+        createdAt: profile?.created_at,
+        groupIds: [role], // Fallback if groups not loaded here
       }
+
+      // Update last login
+      await supabase
+        .from('reurb_profiles')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', sbUser.id)
 
       setUser(mappedUser)
       // Map roles to permissions
@@ -123,7 +135,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       case 'super_admin':
         return ['all']
       case 'admin':
-        return ['manage_users', 'edit_projects', 'view_reports']
+        return [
+          'manage_users',
+          'edit_projects',
+          'view_reports',
+          'manage_groups',
+        ]
       case 'operator':
         return ['edit_projects', 'view_reports']
       case 'manager': // Compatibility
@@ -134,7 +151,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, pass: string) => {
-    // Trimming email prevents 400 Bad Request due to whitespace
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password: pass,
@@ -144,7 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, pass: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`
-    // Trimming email prevents 400 Bad Request due to whitespace
     const { error } = await supabase.auth.signUp({
       email: email.trim(),
       password: pass,
@@ -193,6 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signIn,
         signUp,
         signOut,
+        logout: signOut,
         resendConfirmation,
         hasPermission,
       }}

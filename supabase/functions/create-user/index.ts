@@ -19,8 +19,19 @@ Deno.serve(async (req) => {
       },
     )
 
-    const { email, password, fullName, username, role, groupIds } =
-      await req.json()
+    const {
+      email,
+      password,
+      fullName,
+      firstName,
+      lastName,
+      username,
+      photoUrl,
+      status,
+      role,
+      groupIds,
+      createdById,
+    } = await req.json()
 
     if (!email || !password || !fullName) {
       return new Response(
@@ -40,6 +51,8 @@ Deno.serve(async (req) => {
         email_confirm: true,
         user_metadata: {
           full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
         },
       })
 
@@ -54,8 +67,14 @@ Deno.serve(async (req) => {
       .from('reurb_profiles')
       .update({
         role: role || 'user',
-        username: username || email, // Use email as fallback for username
+        username: username || email,
         full_name: fullName,
+        first_name: firstName,
+        last_name: lastName,
+        photo_url: photoUrl,
+        status: status || 'active',
+        email: email, // redundantly storing for profile display
+        created_by_id: createdById,
       })
       .eq('id', userData.user.id)
 

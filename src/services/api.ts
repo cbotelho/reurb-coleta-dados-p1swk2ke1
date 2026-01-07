@@ -76,14 +76,29 @@ const mapProfile = (row: any): User => {
     (g: any) => g.reurb_user_groups?.name || 'Unknown',
   )
 
+  // Extract Creator Name if available
+  const creatorName = row.created_by_profile?.full_name
+
   return {
     id: row.id,
     username: row.username || '',
-    name: row.full_name || '',
-    email: row.username, // Sometimes username is email, fallback
+    firstName: row.first_name || '',
+    lastName: row.last_name || '',
+    name:
+      row.full_name ||
+      `${row.first_name || ''} ${row.last_name || ''}`.trim() ||
+      'Usuário',
+    email: row.email || row.username, // Sometimes username is email, fallback
+    photoUrl: row.photo_url,
+    status: (row.status as 'active' | 'inactive' | 'suspended') || 'active',
+    lastLoginAt: row.last_login_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdById: row.created_by_id,
+    createdBy: creatorName,
     groupIds: groupIds.length > 0 ? groupIds : [row.role || 'viewer'],
     groupNames: groupNames,
-    active: true,
+    active: row.status === 'active',
   }
 }
 
@@ -466,12 +481,13 @@ export const api = {
   async getUsers(): Promise<User[]> {
     if (!isOnline()) return db.getUsers()
     try {
-      // Fetch users with their group memberships
-      const { data, error } = await supabase
-        .from('reurb_profiles')
-        .select(
-          '*, reurb_user_group_membership(group_id, reurb_user_groups(name))',
-        )
+      // Fetch users with their group memberships and creator info
+      const { data, error } = await supabase.from('reurb_profiles').select(
+        `*, 
+           reurb_user_group_membership(group_id, reurb_user_groups(name)),
+           created_by_profile:created_by_id(full_name)
+          `,
+      )
 
       if (error) throw error
 
@@ -483,14 +499,23 @@ export const api = {
   },
 
   async saveUser(
-    user: Partial<User> & { email?: string; password?: string },
+    user: Partial<User> & {
+      email?: string
+      password?: string
+      createdById?: string
+    },
   ): Promise<void> {
     if (user.id) {
       // Update existing user profile
       const payload = {
-        full_name: user.name,
+        full_name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+        first_name: user.firstName,
+        last_name: user.lastName,
         username: user.username,
-        role: user.groupIds && user.groupIds.length > 0 ? 'user' : 'viewer', // Fallback role for backward compatibility
+        email: user.email,
+        status: user.status,
+        photo_url: user.photoUrl,
+        role: user.groupIds && user.groupIds.length > 0 ? 'user' : 'viewer',
         updated_at: new Date().toISOString(),
       }
 
@@ -528,10 +553,15 @@ export const api = {
         body: {
           email: user.email,
           password: user.password,
-          fullName: user.name,
+          fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+          firstName: user.firstName,
+          lastName: user.lastName,
           username: user.username,
+          photoUrl: user.photoUrl,
+          status: user.status,
           role: 'user', // Default role, groups handle permission
           groupIds: user.groupIds,
+          createdById: user.createdById,
         },
       })
       if (error) throw error
@@ -539,6 +569,10 @@ export const api = {
   },
 
   async deleteUser(id: string): Promise<void> {
+    // Delete profile (cascades to auth user if implemented, otherwise just profile)
+    // Note: Deleting from auth.users requires service role, usually edge function.
+    // Here we delete from profile which might cascade or we should use an edge function
+    // to delete the actual user. For now, we delete profile.
     const { error } = await supabase
       .from('reurb_profiles')
       .delete()

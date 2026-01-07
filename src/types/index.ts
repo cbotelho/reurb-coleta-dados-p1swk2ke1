@@ -128,11 +128,20 @@ export interface Survey {
 export interface User {
   id: string
   username: string
-  name: string
+  firstName?: string
+  lastName?: string
+  name: string // Full Name
+  email?: string
+  photoUrl?: string
+  status?: 'active' | 'inactive' | 'suspended'
+  lastLoginAt?: string
+  createdAt?: string
+  updatedAt?: string
+  createdBy?: string // Name of creator
+  createdById?: string // ID of creator
   groupIds: string[]
-  groupNames?: string[] // Optional for UI display
-  email?: string // Added for UI
-  active: boolean
+  groupNames?: string[]
+  active: boolean // Legacy boolean, mapped from status
 }
 
 export interface UserGroup {
