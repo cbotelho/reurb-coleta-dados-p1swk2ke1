@@ -1,60 +1,80 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api } from '@/services/api'
-import { Quadra, Lote } from '@/types'
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card'
+import { Quadra, Lote, Project } from '@/types'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
 import {
-  Plus,
-  CheckCircle2,
-  FileText,
-  Image as ImageIcon,
-  Loader2,
-  AlertTriangle,
-} from 'lucide-react'
-import { Separator } from '@/components/ui/separator'
-import { toast } from 'sonner'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Plus, Search, MapPin, ArrowLeft, Loader2, Home } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 export default function QuadraDetails() {
   const { quadraId } = useParams<{ quadraId: string }>()
-  const [quadra, setQuadra] = useState<Quadra | undefined>()
+  const [quadra, setQuadra] = useState<Quadra | null>(null)
+  const [project, setProject] = useState<Project | null>(null)
   const [lotes, setLotes] = useState<Lote[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
-    if (quadraId) {
-      loadData(quadraId)
+    const loadData = async () => {
+      if (!quadraId) return
+      try {
+        const q = await api.getQuadra(quadraId)
+        setQuadra(q)
+        if (q) {
+          const [p, l] = await Promise.all([
+            api.getProject(q.parent_item_id),
+            api.getLotes(q.local_id),
+          ])
+          setProject(p)
+          setLotes(l)
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
+      }
     }
+    loadData()
   }, [quadraId])
 
-  const loadData = async (id: string) => {
-    try {
-      setLoading(true)
-      const q = await api.getQuadra(id)
-      if (q) {
-        setQuadra(q)
-        const l = await api.getLotes(id)
+  const filteredLotes = lotes.filter((l) =>
+    l.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
 
-        // Natural sort for lots (e.g. Lote 2 comes before Lote 10, Lote 20 before Lote 125)
-        const sortedLotes = l.sort((a, b) => {
-          return a.name.localeCompare(b.name, undefined, {
-            numeric: true,
-            sensitivity: 'base',
-          })
-        })
-
-        setLotes(sortedLotes)
-      }
-    } catch (e) {
-      console.error(e)
-      toast.error('Erro ao carregar quadra.')
-    } finally {
-      setLoading(false)
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'surveyed':
+        return (
+          <Badge className="bg-blue-500 hover:bg-blue-600">Vistoriado</Badge>
+        )
+      case 'in_analysis':
+        return (
+          <Badge className="bg-yellow-500 hover:bg-yellow-600">
+            Em Análise
+          </Badge>
+        )
+      case 'regularized':
+        return (
+          <Badge className="bg-green-500 hover:bg-green-600">
+            Regularizado
+          </Badge>
+        )
+      default:
+        return (
+          <Badge variant="outline" className="text-gray-500">
+            Pendente
+          </Badge>
+        )
     }
   }
 
@@ -64,107 +84,93 @@ export default function QuadraDetails() {
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
-
   if (!quadra)
-    return (
-      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
-        <AlertTriangle className="h-12 w-12 text-yellow-500" />
-        <h2 className="text-xl font-bold">Quadra não encontrada</h2>
-        <Button variant="outline" asChild>
-          <Link to="/projetos">Voltar para Projetos</Link>
-        </Button>
-      </div>
-    )
+    return <div className="p-8 text-center">Quadra não encontrada</div>
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="bg-white p-6 rounded-lg border shadow-sm space-y-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Link
+          to={`/projetos/${project?.local_id}`}
+          className="hover:underline flex items-center gap-1"
+        >
+          <ArrowLeft className="h-3 w-3" /> {project?.name || 'Projeto'}
+        </Link>
+        <span>/</span>
+        <span className="font-semibold text-gray-900">{quadra.name}</span>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold">{quadra.name}</h2>
-          <p className="text-muted-foreground">
-            {quadra.area ? `Área: ${quadra.area}` : 'Área não informada'}
+          <h1 className="text-2xl font-bold text-gray-900">{quadra.name}</h1>
+          <p className="text-sm text-gray-500">
+            {lotes.length} lotes cadastrados
           </p>
         </div>
-
-        <Separator />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div className="space-y-1">
-            <span className="font-medium text-muted-foreground flex items-center gap-2">
-              <FileText className="w-4 h-4" /> Arquivo de Documento
-            </span>
-            <p className="font-mono bg-muted p-2 rounded break-all">
-              {quadra.document_url || 'Nenhum documento anexado'}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <span className="font-medium text-muted-foreground flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> Imagem da Quadra
-            </span>
-            <p className="font-mono bg-muted p-2 rounded break-all">
-              {quadra.image_url || 'Nenhuma imagem definida'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-800">
-            Lotes ({lotes.length})
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {lotes.length > 0 ? (
-            lotes.map((lote) => (
-              <Link key={lote.local_id} to={`/lotes/${lote.local_id}`}>
-                <Card className="hover:bg-slate-50 transition-colors h-full">
-                  <CardHeader className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-base font-bold">
-                          {lote.name}
-                        </CardTitle>
-                        <CardDescription className="text-xs mt-1">
-                          {lote.area} • {lote.images.length} fotos
-                        </CardDescription>
-                      </div>
-                      <div title="Sincronizado">
-                        {lote.sync_status === 'synchronized' && (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        )}
-                        {lote.sync_status === 'pending' && (
-                          <div className="h-3 w-3 rounded-full bg-orange-400" />
-                        )}
-                        {lote.sync_status === 'failed' && (
-                          <div className="h-3 w-3 rounded-full bg-red-500" />
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-10 text-muted-foreground bg-white rounded-lg border border-dashed">
-              Nenhum lote cadastrado nesta quadra.
-            </div>
-          )}
-        </div>
-      </div>
-
-      <Link
-        to={`/quadras/${quadraId}/lotes/new`}
-        className="fixed bottom-20 right-4 md:bottom-8 md:right-8 z-30"
-      >
-        <Button
-          size="icon"
-          className="h-14 w-14 rounded-full shadow-elevation bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="h-6 w-6 text-white" />
+        <Button asChild className="bg-blue-600">
+          <Link to={`/quadras/${quadraId}/lotes/new`}>
+            <Plus className="h-4 w-4 mr-2" /> Novo Lote
+          </Link>
         </Button>
-      </Link>
+      </div>
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="relative mb-4">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              placeholder="Buscar lote..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Lote</TableHead>
+                  <TableHead className="hidden sm:table-cell">Área</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLotes.map((lote) => (
+                  <TableRow key={lote.local_id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <Home className="h-4 w-4 text-gray-400" />
+                        {lote.name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {lote.area}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(lote.status)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link to={`/lotes/${lote.local_id}`}>Abrir</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredLotes.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      Nenhum lote encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

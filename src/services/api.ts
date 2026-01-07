@@ -47,6 +47,7 @@ const mapLote = (row: any): Lote => ({
   latitude: row.latitude?.toString(),
   longitude: row.longitude?.toString(),
   parent_item_id: row.quadra_id,
+  status: row.status || 'not_surveyed',
 })
 
 const mapProfile = (row: any): User => ({
@@ -63,6 +64,7 @@ const mapSurvey = (row: any): Survey => ({
   residents_count: row.residents_count || 0,
   rooms_count: row.rooms_count || 0,
   has_children: row.has_children ?? false,
+  survey_date: row.survey_date?.split('T')[0],
 })
 
 const isOnline = () => navigator.onLine
@@ -70,8 +72,7 @@ const isOnline = () => navigator.onLine
 export const api = {
   // App Config
   async getAppConfig(): Promise<Record<string, string>> {
-    if (!isOnline()) return {} // Return empty, caller should handle fallback/cache
-
+    if (!isOnline()) return {}
     try {
       // @ts-expect-error - reurb_app_config might not be in types yet
       const { data, error } = await supabase
@@ -129,61 +130,6 @@ export const api = {
     } catch {
       return db.getProject(id) || null
     }
-  },
-
-  async createProject(project: Partial<Project>): Promise<Project> {
-    if (!isOnline()) throw new Error('Requires internet')
-
-    const { data, error } = await supabase
-      .from('reurb_projects')
-      .insert({
-        name: project.name,
-        description: project.description,
-        image_url: project.image_url,
-        latitude: project.latitude ? parseFloat(project.latitude) : null,
-        longitude: project.longitude ? parseFloat(project.longitude) : null,
-        auto_update_map: project.auto_update_map,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    const newProject = mapProject(data)
-    db.updateProject(newProject)
-    return newProject
-  },
-
-  async updateProject(id: string, updates: Partial<Project>): Promise<Project> {
-    if (!isOnline()) throw new Error('Requires internet')
-
-    const payload: any = {}
-    if (updates.name !== undefined) payload.name = updates.name
-    if (updates.description !== undefined)
-      payload.description = updates.description
-    if (updates.image_url !== undefined) payload.image_url = updates.image_url
-    if (updates.latitude !== undefined)
-      payload.latitude = updates.latitude ? parseFloat(updates.latitude) : null
-    if (updates.longitude !== undefined)
-      payload.longitude = updates.longitude
-        ? parseFloat(updates.longitude)
-        : null
-    if (updates.auto_update_map !== undefined)
-      payload.auto_update_map = updates.auto_update_map
-    if (updates.last_map_update !== undefined)
-      payload.last_map_update = new Date(updates.last_map_update).toISOString()
-    payload.updated_at = new Date().toISOString()
-
-    const { data, error } = await supabase
-      .from('reurb_projects')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) throw error
-    const updated = mapProject(data)
-    db.updateProject(updated)
-    return updated
   },
 
   // Quadras
@@ -249,7 +195,6 @@ export const api = {
     if (!isOnline()) return db.getAllLotes()
 
     try {
-      // Limit to 2000 to prevent massive payloads in demo
       const { data, error } = await supabase
         .from('reurb_properties')
         .select('*')
@@ -287,7 +232,7 @@ export const api = {
     if (!isOnline()) {
       return db.saveLote(
         { ...lote, sync_status: 'pending' },
-        lote.quadra_id || '',
+        lote.quadra_id || lote.parent_item_id || '',
       )
     }
 
@@ -300,7 +245,7 @@ export const api = {
       latitude: lote.latitude ? parseFloat(lote.latitude) : null,
       longitude: lote.longitude ? parseFloat(lote.longitude) : null,
       updated_at: new Date().toISOString(),
-      status: 'synchronized',
+      status: lote.status,
     }
 
     if (lote.quadra_id) payload.quadra_id = lote.quadra_id
@@ -312,8 +257,6 @@ export const api = {
         lote.local_id.length > 10 &&
         lote.local_id.includes('-')
       ) {
-        // Heuristic: UUIDs usually have hyphens. If local ID is UUID-like, update.
-        // Or if it matches a known format.
         query = supabase
           .from('reurb_properties')
           .update(payload)
@@ -341,14 +284,14 @@ export const api = {
       console.warn('Save lote failed, saving locally', e)
       return db.saveLote(
         { ...lote, sync_status: 'pending' },
-        lote.quadra_id || '',
+        lote.quadra_id || lote.parent_item_id || '',
       )
     }
   },
 
   async deleteLote(id: string): Promise<void> {
     if (!isOnline()) {
-      db.deleteLote(id) // Ideally mark as deleted
+      db.deleteLote(id)
       return
     }
     await supabase.from('reurb_properties').delete().eq('id', id)
@@ -426,10 +369,18 @@ export const api = {
       const { count: totalProjects } = await supabase
         .from('reurb_projects')
         .select('*', { count: 'exact', head: true })
+
       const { count: totalLotes } = await supabase
         .from('reurb_properties')
         .select('*', { count: 'exact', head: true })
+
+      const { count: totalSurveyed } = await supabase
+        .from('reurb_properties')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'surveyed')
+
       const localStats = db.getDashboardStats()
+
       return {
         collected: totalLotes || 0,
         synced: totalLotes || 0,
@@ -438,6 +389,7 @@ export const api = {
         totalProjects: totalProjects || 0,
         lastSync: Date.now(),
         pendingSurveys: localStats.pendingSurveys,
+        totalSurveyed: totalSurveyed || 0,
       }
     } catch {
       return db.getDashboardStats()
@@ -452,18 +404,5 @@ export const api = {
     } catch {
       return db.getUsers()
     }
-  },
-
-  async saveUser(user: Partial<User>): Promise<void> {
-    if (!user.id || !isOnline()) return
-    await supabase
-      .from('reurb_profiles')
-      .update({ full_name: user.name, role: user.groupIds?.[0] || 'viewer' })
-      .eq('id', user.id)
-  },
-
-  async deleteUser(id: string): Promise<void> {
-    if (!isOnline()) return
-    await supabase.from('reurb_profiles').delete().eq('id', id)
   },
 }

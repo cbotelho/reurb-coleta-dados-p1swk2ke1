@@ -1,6 +1,6 @@
 export interface Project {
-  id: number // Legacy numeric ID
-  local_id: string // UUID
+  id: number
+  local_id: string
   sync_status: 'pending' | 'synchronized' | 'failed'
   date_added: number
   date_updated: number
@@ -48,7 +48,7 @@ export interface Lote {
   coordinates?: { x: number; y: number }
   created_by?: number
   deleted?: number
-  status?: string
+  status?: string // 'not_surveyed' | 'surveyed' | 'in_analysis' | 'regularized'
 }
 
 export interface Survey {
@@ -56,48 +56,48 @@ export interface Survey {
   local_id?: string
   sync_status?: 'pending' | 'synchronized' | 'failed'
   property_id: string
-  form_number: string
-  survey_date: string
+  form_number?: string
+  survey_date?: string
   city: string
   state: string
 
   // Applicant
   applicant_name: string
-  applicant_cpf: string
-  applicant_rg: string
-  applicant_civil_status: string
-  applicant_profession: string
-  applicant_income: string
-  applicant_nis: string
-  spouse_name: string
-  spouse_cpf: string
+  applicant_cpf?: string
+  applicant_rg?: string
+  applicant_civil_status?: string
+  applicant_profession?: string
+  applicant_income?: string
+  applicant_nis?: string
+  spouse_name?: string
+  spouse_cpf?: string
 
   // Household
   residents_count: number
   has_children: boolean
 
   // Occupation
-  occupation_time: string
-  acquisition_mode: string
-  property_use: string
+  occupation_time?: string
+  acquisition_mode?: string
+  property_use?: string
 
   // Characteristics
-  construction_type: string
-  roof_type: string
-  floor_type: string
+  construction_type?: string
+  roof_type?: string
+  floor_type?: string
   rooms_count: number
-  conservation_state: string
+  conservation_state?: string
   fencing?: string
 
   // Infrastructure
-  water_supply: string
-  energy_supply: string
-  sanitation: string
-  street_paving: string
+  water_supply?: string
+  energy_supply?: string
+  sanitation?: string
+  street_paving?: string
 
   // Meta
-  observations: string
-  surveyor_name: string
+  observations?: string
+  surveyor_name?: string
 
   created_at?: string
   updated_at?: string
@@ -134,6 +134,7 @@ export interface DashboardStats {
   totalProjects: number
   lastSync?: number
   pendingSurveys?: number
+  totalSurveyed?: number
 }
 
 export interface SyncLogEntry {

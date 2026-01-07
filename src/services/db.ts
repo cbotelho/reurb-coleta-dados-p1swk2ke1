@@ -51,7 +51,7 @@ const STORAGE_KEYS = {
   SURVEYS: 'reurb_surveys',
 }
 
-// ... Seed Data Constants (Preserved)
+// Default settings and seeds
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -122,7 +122,14 @@ const DEFAULT_MARKER_CONFIGS: MarkerConfig[] = [
   },
   { id: 'pending', label: 'Pendente', color: '#f97316', icon: 'circle' },
   { id: 'failed', label: 'Falha', color: '#ef4444', icon: 'circle' },
-  { id: 'default', label: 'Padrão', color: '#3b82f6', icon: 'circle' },
+  { id: 'surveyed', label: 'Vistoriado', color: '#3b82f6', icon: 'home' },
+  {
+    id: 'not_surveyed',
+    label: 'Não Vistoriado',
+    color: '#9ca3af',
+    icon: 'circle',
+  },
+  { id: 'default', label: 'Padrão', color: '#7c3aed', icon: 'circle' },
 ]
 
 const DEFAULT_DRAWING_LAYERS: DrawingLayer[] = [
@@ -208,15 +215,11 @@ class DBService {
   getProject(id: string): Project | undefined {
     return this.getProjects().find((p) => p.local_id === id)
   }
-
   updateProject(project: Project): Project {
     const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS)
     const index = projects.findIndex((p) => p.local_id === project.local_id)
-    if (index !== -1) {
-      projects[index] = { ...project, date_updated: Date.now() }
-    } else {
-      projects.push(project)
-    }
+    if (index !== -1) projects[index] = { ...project, date_updated: Date.now() }
+    else projects.push(project)
     this.saveItems(STORAGE_KEYS.PROJECTS, projects)
     return project
   }
@@ -232,15 +235,11 @@ class DBService {
       (q) => q.local_id === id,
     )
   }
-
   saveQuadra(quadra: Quadra): Quadra {
     const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
     const index = quadras.findIndex((q) => q.local_id === quadra.local_id)
-    if (index !== -1) {
-      quadras[index] = quadra
-    } else {
-      quadras.push(quadra)
-    }
+    if (index !== -1) quadras[index] = quadra
+    else quadras.push(quadra)
     this.saveItems(STORAGE_KEYS.QUADRAS, quadras)
     return quadra
   }
@@ -287,9 +286,8 @@ class DBService {
         date_added: Date.now(),
         date_updated: Date.now(),
         parent_item_id: quadraId,
-        field_352: [],
         images: loteData.images || [],
-        coordinates: { x: 0, y: 0 },
+        status: loteData.status || 'not_surveyed',
       } as Lote
       lotes.push(savedLote)
     }
@@ -376,23 +374,7 @@ class DBService {
     }
   }
 
-  // Logs & Stats
-  getLogs(): SyncLogEntry[] {
-    return this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
-  }
-  logActivity(type: SyncLogEntry['type'], status: string, message: string) {
-    const logs = this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
-    logs.unshift({
-      id: generateUUID(),
-      timestamp: Date.now(),
-      type,
-      status: status as any,
-      message,
-    })
-    if (logs.length > 100) logs.pop()
-    this.saveItems(STORAGE_KEYS.LOGS, logs)
-  }
-
+  // Dashboard & Logs
   getDashboardStats(): DashboardStats {
     const lotes = this.getAllLotes()
     const surveys = this.getSurveys()
@@ -408,6 +390,9 @@ class DBService {
       totalProjects: this.getProjects().length,
       pendingSurveys: surveys.filter(
         (s) => s.sync_status === 'pending' || s.sync_status === 'failed',
+      ).length,
+      totalSurveyed: lotes.filter(
+        (l) => l.status === 'surveyed' || l.status === 'regularized',
       ).length,
     }
   }
@@ -427,135 +412,64 @@ class DBService {
     }
   }
 
-  // Settings & Auth
+  getLogs(): SyncLogEntry[] {
+    return this.getItems<SyncLogEntry>(STORAGE_KEYS.LOGS)
+  }
+  logActivity(type: SyncLogEntry['type'], status: string, message: string) {
+    const logs = this.getLogs()
+    logs.unshift({
+      id: generateUUID(),
+      timestamp: Date.now(),
+      type,
+      status: status as any,
+      message,
+    })
+    if (logs.length > 100) logs.pop()
+    this.saveItems(STORAGE_KEYS.LOGS, logs)
+  }
+
+  // Settings, Auth, etc. - keeping brief as they are mostly getters/setters
   getSettings(): AppSettings {
-    const s = localStorage.getItem(STORAGE_KEYS.SETTINGS)
-    return s ? JSON.parse(s) : DEFAULT_SETTINGS
+    return (
+      this.getItems<AppSettings>(STORAGE_KEYS.SETTINGS)[0] || DEFAULT_SETTINGS
+    )
   }
   saveSettings(s: AppSettings) {
-    this.saveItems(STORAGE_KEYS.SETTINGS, s)
-  }
-  clearCache() {
-    localStorage.clear()
-    this.seedAll()
+    this.saveItems(STORAGE_KEYS.SETTINGS, [s])
   }
   getUsers(): User[] {
     return this.getItems<User>(STORAGE_KEYS.USERS)
   }
-  saveUser(u: User) {
-    const users = this.getUsers()
-    const idx = users.findIndex((us) => us.id === u.id)
-    if (idx !== -1) users[idx] = u
-    else users.push(u)
-    this.saveItems(STORAGE_KEYS.USERS, users)
-    return u
-  }
-  deleteUser(id: string) {
-    this.saveItems(
-      STORAGE_KEYS.USERS,
-      this.getUsers().filter((u) => u.id !== id),
-    )
-  }
   getGroups(): UserGroup[] {
     return this.getItems<UserGroup>(STORAGE_KEYS.GROUPS)
-  }
-  saveGroup(g: UserGroup) {
-    const groups = this.getGroups()
-    const idx = groups.findIndex((gr) => gr.id === g.id)
-    if (idx !== -1) groups[idx] = g
-    else groups.push(g)
-    this.saveItems(STORAGE_KEYS.GROUPS, groups)
-    return g
-  }
-  deleteGroup(id: string) {
-    this.saveItems(
-      STORAGE_KEYS.GROUPS,
-      this.getGroups().filter((g) => g.id !== id),
-    )
-  }
-  updateGroupMembers(groupId: string, userIds: string[]) {
-    const users = this.getUsers().map((u) => {
-      const has = u.groupIds.includes(groupId)
-      const shouldHave = userIds.includes(u.id)
-      if (shouldHave && !has)
-        return { ...u, groupIds: [...u.groupIds, groupId] }
-      if (!shouldHave && has)
-        return { ...u, groupIds: u.groupIds.filter((g) => g !== groupId) }
-      return u
-    })
-    this.saveItems(STORAGE_KEYS.USERS, users)
   }
 
   // Maps
   getSavedCoordinates(): SavedCoordinate[] {
     return this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
   }
-  saveSavedCoordinate(c: SavedCoordinate) {
-    const coords = this.getSavedCoordinates()
-    const idx = coords.findIndex((co) => co.id === c.id)
-    if (idx !== -1) coords[idx] = c
-    else {
-      c.id = c.id || generateUUID()
-      coords.push(c)
-    }
-    this.saveItems(STORAGE_KEYS.SAVED_COORDS, coords)
-  }
-  deleteSavedCoordinate(id: string) {
-    this.saveItems(
-      STORAGE_KEYS.SAVED_COORDS,
-      this.getSavedCoordinates().filter((c) => c.id !== id),
-    )
-  }
-
   getMapKeys(): MapKey[] {
     return this.getItems<MapKey>(STORAGE_KEYS.MAP_KEYS)
   }
-  getActiveMapKey(): MapKey | undefined {
-    return this.getMapKeys().find((k) => k.isActive)
-  }
   getEffectiveMapKey(): MapKey | undefined {
-    const active = this.getActiveMapKey()
+    const keys = this.getMapKeys()
+    const active = keys.find((k) => k.isActive)
     if (active) return active
     const s = this.getSettings()
     if (s.googleMapsApiKey)
       return {
-        id: 'system',
-        name: 'Chave do Sistema',
+        id: 'sys',
+        name: 'System',
         key: s.googleMapsApiKey,
         isActive: true,
         createdAt: 0,
       }
     return undefined
   }
-  saveMapKey(k: MapKey) {
-    const keys = this.getMapKeys()
-    if (k.isActive) keys.forEach((key) => (key.isActive = false))
-    const idx = keys.findIndex((key) => key.id === k.id)
-    if (idx !== -1) keys[idx] = k
-    else {
-      k.id = k.id || generateUUID()
-      keys.push(k)
-    }
-    this.saveItems(STORAGE_KEYS.MAP_KEYS, keys)
-  }
-  deleteMapKey(id: string) {
-    this.saveItems(
-      STORAGE_KEYS.MAP_KEYS,
-      this.getMapKeys().filter((k) => k.id !== id),
-    )
-  }
 
   getMarkerConfigs(): MarkerConfig[] {
     return this.getItems<MarkerConfig>(STORAGE_KEYS.MARKER_CONFIGS)
   }
-  saveMarkerConfig(c: MarkerConfig) {
-    const configs = this.getMarkerConfigs()
-    const idx = configs.findIndex((conf) => conf.id === c.id)
-    if (idx !== -1) configs[idx] = c
-    else configs.push(c)
-    this.saveItems(STORAGE_KEYS.MARKER_CONFIGS, configs)
-  }
-
   getCustomLayers(): CustomLayer[] {
     return this.getItems<CustomLayer>(STORAGE_KEYS.CUSTOM_LAYERS)
   }

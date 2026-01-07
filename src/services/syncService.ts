@@ -16,14 +16,12 @@ export const syncService = {
       pCount = projects.length
 
       // 2. Quadras (for each project)
-      // To avoid flooding, we could do this sequentially or batched
       for (const p of projects) {
         const quadras = await api.getQuadras(p.local_id)
         qCount += quadras.length
       }
 
       // 3. Lotes (All)
-      // API supports fetching all with limit, let's try fetching all
       const lotes = await api.getAllLotes()
       lCount = lotes.length
 
@@ -41,24 +39,19 @@ export const syncService = {
     let successCount = 0
     let failCount = 0
 
-    // 1. Push Lotes First (Parents of surveys)
+    // 1. Push Lotes First (Parents of surveys) - Update status, location, etc.
     for (const lote of pending.lotes) {
       try {
         const saved = await api.saveLote(lote)
 
-        // If local ID was temporary (generatedUUID not matching remote format),
-        // we might need to handle ID swap if backend generated a new one.
-        // Current api.saveLote updates local db with new ID/status if successful.
-
-        // However, if we swap ID, we must update child surveys that reference this lote!
         if (lote.local_id !== saved.local_id) {
+          // Update foreign keys in local surveys if ID changed (e.g. temporary ID -> UUID)
           const childSurveys = db
             .getSurveys()
             .filter((s) => s.property_id === lote.local_id)
           childSurveys.forEach((s) => {
             db.saveSurvey({ ...s, property_id: saved.local_id })
           })
-          // Delete old local lote if ID changed
           db.deleteLote(lote.local_id)
         }
         successCount++
@@ -70,13 +63,11 @@ export const syncService = {
     }
 
     // 2. Push Surveys
-    // Refresh pending after potential ID updates
     const currentPendingSurveys = db.getPendingItems().surveys
 
     for (const survey of currentPendingSurveys) {
       try {
         await api.saveSurvey(survey)
-        // api.saveSurvey updates DB status on success
         successCount++
       } catch (e) {
         console.error('Failed to sync survey', survey.id, e)
@@ -84,9 +75,6 @@ export const syncService = {
         failCount++
       }
     }
-
-    // 3. Push Projects/Quadras if any pending (mostly read-only for this user story, but good to have)
-    // Skipped for brevity as per user story focusing on Surveys/Lotes.
 
     return { successCount, failCount }
   },

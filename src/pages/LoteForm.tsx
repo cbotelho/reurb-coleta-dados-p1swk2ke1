@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { api } from '@/services/api'
-import { reportService } from '@/services/report'
 import { Lote } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +16,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { PhotoCapture } from '@/components/PhotoCapture'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -24,9 +30,10 @@ import {
   X as XIcon,
   Trash2,
   Printer,
-  MapPin,
   Loader2,
   CloudOff,
+  FileText,
+  Image,
 } from 'lucide-react'
 import {
   AlertDialog,
@@ -43,6 +50,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SurveyForm } from '@/components/SurveyForm'
 import { useSync } from '@/contexts/SyncContext'
+import { reportService } from '@/services/report'
 
 const formSchema = z.object({
   name: z.string().min(1, 'Nome do lote é obrigatório'),
@@ -52,6 +60,7 @@ const formSchema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   images: z.array(z.string()).optional(),
+  status: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -84,6 +93,7 @@ export default function LoteForm() {
       latitude: '',
       longitude: '',
       images: [],
+      status: 'not_surveyed',
     },
   })
 
@@ -104,22 +114,14 @@ export default function LoteForm() {
             latitude: lote.latitude || '',
             longitude: lote.longitude || '',
             images: lote.images || [],
+            status: lote.status || 'not_surveyed',
           })
         } else {
-          // If offline and not in cache, we show error
-          if (!isOnline) {
-            toast({
-              title: 'Offline',
-              description: 'Lote não encontrado no cache local.',
-              variant: 'destructive',
-            })
-          } else {
-            toast({
-              title: 'Erro',
-              description: 'Lote não encontrado',
-              variant: 'destructive',
-            })
-          }
+          toast({
+            title: 'Erro',
+            description: 'Lote não encontrado',
+            variant: 'destructive',
+          })
           navigate(-1)
         }
       } catch (e) {
@@ -134,29 +136,12 @@ export default function LoteForm() {
       }
     }
 
-    if (loteId) {
-      loadLote(loteId)
-    }
-  }, [loteId, form, navigate, toast, isOnline])
+    if (loteId) loadLote(loteId)
+  }, [loteId, form, navigate, toast])
 
   const onSubmit = async (values: FormValues) => {
-    if (!canEdit) {
-      toast({
-        title: 'Sem permissão',
-        description: 'Você não tem permissão para editar lotes.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (!parentQuadraId) {
-      toast({
-        title: 'Erro',
-        description: 'Quadra pai não identificada',
-        variant: 'destructive',
-      })
-      return
-    }
+    if (!canEdit) return
+    if (!parentQuadraId) return
 
     setLoading(true)
     try {
@@ -170,22 +155,19 @@ export default function LoteForm() {
         latitude: values.latitude,
         longitude: values.longitude,
         images: values.images || [],
+        status: values.status,
       })
 
-      refreshStats() // Update pending counts if offline
+      refreshStats()
 
-      if (saved.sync_status === 'pending') {
-        toast({
-          title: 'Salvo Localmente',
-          description: 'Lote salvo no dispositivo. Sincronize quando online.',
-          className: 'bg-orange-50 border-orange-200 text-orange-800',
-        })
-      } else {
-        toast({ title: 'Sucesso', description: 'Lote salvo e sincronizado!' })
-      }
-
-      // Don't navigate away immediately if editing, to allow Survey editing
-      if (!isEditMode) navigate(-1)
+      toast({
+        title: saved.sync_status === 'pending' ? 'Salvo Localmente' : 'Sucesso',
+        description: 'Lote atualizado com sucesso!',
+        className:
+          saved.sync_status === 'pending'
+            ? 'bg-orange-50 border-orange-200 text-orange-800'
+            : '',
+      })
     } catch (error) {
       console.error(error)
       toast({
@@ -216,12 +198,10 @@ export default function LoteForm() {
 
   const handlePrint = async () => {
     if (currentLote && parentQuadraId) {
-      // Need fetching extra data for report
       const quadra = await api.getQuadra(parentQuadraId)
       const project = quadra
         ? await api.getProject(quadra.parent_item_id)
         : undefined
-
       reportService.generateLoteReport(
         currentLote,
         quadra?.name || 'Desconhecida',
@@ -230,57 +210,28 @@ export default function LoteForm() {
     }
   }
 
-  const getCurrentLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          form.setValue('latitude', position.coords.latitude.toFixed(6))
-          form.setValue('longitude', position.coords.longitude.toFixed(6))
-          toast({
-            title: 'Localização obtida',
-            description: 'Coordenadas atualizadas.',
-          })
-        },
-        (error) => {
-          toast({
-            title: 'Erro',
-            description: 'Não foi possível obter a localização.',
-            variant: 'destructive',
-          })
-        },
-      )
-    } else {
-      toast({
-        title: 'Erro',
-        description: 'Geolocalização não suportada.',
-        variant: 'destructive',
-      })
-    }
-  }
-
-  if (fetching) {
+  if (fetching)
     return (
       <div className="flex justify-center items-center h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     )
-  }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto pb-20">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">
-          {isEditMode ? 'Detalhes do Lote' : 'Novo Lote'}
-        </h2>
+    <div className="space-y-4 pb-20 px-2 sm:px-0 max-w-3xl mx-auto">
+      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border">
+        <div>
+          <h2 className="text-xl font-bold">
+            {isEditMode ? form.getValues('name') : 'Novo Lote'}
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            {currentLote?.area || 'Nova área'}
+          </p>
+        </div>
         <div className="flex items-center gap-2">
           {isEditMode && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePrint}
-              title="Imprimir Ficha"
-            >
-              <Printer className="h-5 w-5" />
+            <Button variant="outline" size="icon" onClick={handlePrint}>
+              <Printer className="h-4 w-4" />
             </Button>
           )}
           {isEditMode && canEdit && (
@@ -288,24 +239,24 @@ export default function LoteForm() {
               <AlertDialogTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  className="text-red-500 hover:bg-red-50"
+                  size="icon"
                 >
-                  <Trash2 className="h-5 w-5" />
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Excluir Lote?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Esta ação não pode ser desfeita. O lote e suas fotos serão
-                    removidos permanentemente do banco de dados.
+                    Ação irreversível.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleDelete}
-                    className="bg-red-600 hover:bg-red-700"
+                    className="bg-red-600"
                   >
                     Excluir
                   </AlertDialogAction>
@@ -316,28 +267,25 @@ export default function LoteForm() {
         </div>
       </div>
 
-      <Tabs defaultValue="lote" className="w-full">
+      <Tabs defaultValue="survey" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="lote">Dados do Lote</TabsTrigger>
-          <TabsTrigger value="survey" disabled={!isEditMode}>
-            Ficha de Vistoria
+          <TabsTrigger
+            value="survey"
+            disabled={!isEditMode}
+            className="flex gap-2"
+          >
+            <FileText className="h-4 w-4" /> Vistoria
+          </TabsTrigger>
+          <TabsTrigger value="lote" className="flex gap-2">
+            <Image className="h-4 w-4" /> Dados & Fotos
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="lote">
           <Form {...form}>
-            {!isOnline && (
-              <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-md flex items-center gap-2 text-sm text-orange-800">
-                <CloudOff className="h-4 w-4" />
-                <span>
-                  Modo Offline: As alterações serão salvas localmente e enviadas
-                  depois.
-                </span>
-              </div>
-            )}
             <form
               onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-6 bg-white p-6 rounded-lg border shadow-sm mt-4"
+              className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
@@ -345,19 +293,49 @@ export default function LoteForm() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Identificação do Lote *</FormLabel>
+                      <FormLabel>Nome do Lote *</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="Ex: Lote 12"
-                          {...field}
-                          disabled={!canEdit}
-                        />
+                        <Input {...field} disabled={!canEdit} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status do Processo</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={!canEdit}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="not_surveyed">
+                            Não Vistoriado
+                          </SelectItem>
+                          <SelectItem value="surveyed">Vistoriado</SelectItem>
+                          <SelectItem value="in_analysis">
+                            Em Análise
+                          </SelectItem>
+                          <SelectItem value="regularized">
+                            Regularizado
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="area"
@@ -365,15 +343,20 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Área (m²) *</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="Ex: 250.00"
-                          type="text"
-                          inputMode="decimal"
-                          {...field}
-                          disabled={!canEdit}
-                        />
+                        <Input {...field} disabled={!canEdit} />
                       </FormControl>
-                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Endereço</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled={!canEdit} />
+                      </FormControl>
                     </FormItem>
                   )}
                 />
@@ -381,90 +364,13 @@ export default function LoteForm() {
 
               <FormField
                 control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Endereço / Localização</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Rua, Número, Bairro"
-                        {...field}
-                        disabled={!canEdit}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="p-4 bg-slate-50 rounded-lg border space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-semibold text-gray-700">
-                    Geolocalização
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={getCurrentLocation}
-                    disabled={!canEdit}
-                  >
-                    <MapPin className="w-3 h-3 mr-2" /> Obter Atual
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="latitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Latitude</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="0.000000"
-                            {...field}
-                            disabled={!canEdit}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="longitude"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Longitude</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="-00.000000"
-                            {...field}
-                            disabled={!canEdit}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-
-              <FormField
-                control={form.control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Memorial Descritivo / Notas</FormLabel>
+                    <FormLabel>Descrição</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Descreva as características do lote..."
-                        className="min-h-[100px]"
-                        {...field}
-                        disabled={!canEdit}
-                      />
+                      <Textarea {...field} disabled={!canEdit} />
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -474,7 +380,7 @@ export default function LoteForm() {
                 name="images"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Documentos / Fotos</FormLabel>
+                    <FormLabel>Fotos do Imóvel e Documentos</FormLabel>
                     <FormControl>
                       {canEdit ? (
                         <PhotoCapture
@@ -484,21 +390,12 @@ export default function LoteForm() {
                       ) : (
                         <div className="grid grid-cols-3 gap-2">
                           {field.value?.map((photo, i) => (
-                            <div
+                            <img
                               key={i}
-                              className="aspect-square bg-gray-100 rounded-lg overflow-hidden border"
-                            >
-                              <img
-                                src={photo}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                              src={photo}
+                              className="aspect-square w-full object-cover rounded border"
+                            />
                           ))}
-                          {(!field.value || field.value.length === 0) && (
-                            <p className="text-sm text-muted-foreground">
-                              Sem fotos.
-                            </p>
-                          )}
                         </div>
                       )}
                     </FormControl>
@@ -508,30 +405,13 @@ export default function LoteForm() {
               />
 
               {canEdit && (
-                <div className="flex gap-4 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => navigate(-1)}
-                  >
-                    <XIcon className="mr-2 h-4 w-4" /> Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <>Salvando...</>
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-4 w-4" />
-                        {isOnline ? 'Salvar' : 'Salvar Localmente (Offline)'}
-                      </>
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  disabled={loading}
+                >
+                  {loading ? 'Salvando...' : 'Salvar Dados do Lote'}
+                </Button>
               )}
             </form>
           </Form>
@@ -539,7 +419,7 @@ export default function LoteForm() {
 
         <TabsContent value="survey">
           {loteId && (
-            <div className="bg-white p-6 rounded-lg border shadow-sm mt-4">
+            <div className="bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4">
               <SurveyForm propertyId={loteId} canEdit={canEdit} />
             </div>
           )}

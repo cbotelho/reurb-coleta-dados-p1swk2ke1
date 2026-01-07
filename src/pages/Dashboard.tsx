@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useSync } from '@/contexts/SyncContext'
 import { api } from '@/services/api'
 import {
@@ -6,49 +6,35 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardFooter,
+  CardDescription,
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
   Wifi,
   WifiOff,
-  UploadCloud,
-  Database,
-  ArrowRight,
   Folder,
   Map as MapIcon,
+  CheckCircle2,
   AlertTriangle,
   Loader2,
   DownloadCloud,
+  FileText,
+  Home,
+  ArrowRight,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { GoogleMap, GoogleMapHandle } from '@/components/GoogleMap'
-import { db } from '@/services/db'
-import { Project, Lote, MapKey, MarkerIconType, DashboardStats } from '@/types'
-import { getBoundsCoordinates } from '@/utils/geoUtils'
+import { Project, DashboardStats } from '@/types'
 import { toast } from 'sonner'
+import { Progress } from '@/components/ui/progress'
 
 export default function Dashboard() {
-  const { isOnline, triggerSync, isSyncing } = useSync()
-  const mapRef = useRef<GoogleMapHandle>(null)
-  const [activeKey, setActiveKey] = useState<MapKey | undefined>()
+  const { isOnline, triggerSync, isSyncing, stats: syncStats } = useSync()
   const [projects, setProjects] = useState<Project[]>([])
-  const [lotes, setLotes] = useState<Lote[]>([])
-  const [stats, setStats] = useState<DashboardStats>({
-    collected: 0,
-    synced: 0,
-    pending: 0,
-    pendingImages: 0,
-    totalProjects: 0,
-    pendingSurveys: 0,
-  })
+  const [stats, setStats] = useState<DashboardStats>(syncStats)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadDashboardData()
-    // Use getEffectiveMapKey to retrieve system managed key or user keys
-    const key = db.getEffectiveMapKey()
-    setActiveKey(key)
   }, [isOnline])
 
   const loadDashboardData = async () => {
@@ -57,8 +43,6 @@ export default function Dashboard() {
       setStats(s)
       const p = await api.getProjects()
       setProjects(p)
-      const l = await api.getAllLotes()
-      setLotes(l)
     } catch (e) {
       console.error(e)
     } finally {
@@ -66,52 +50,9 @@ export default function Dashboard() {
     }
   }
 
-  const handleFullDownload = async () => {
-    try {
-      await triggerSync(true)
-      loadDashboardData()
-    } catch (e) {
-      toast.error('Erro no download de dados')
-    }
-  }
-
-  // Prepare markers for map
-  const projectMarkers = projects
-    .filter((p) => p.latitude && p.longitude)
-    .map((p) => ({
-      lat: parseFloat(String(p.latitude).replace(',', '.')),
-      lng: parseFloat(String(p.longitude).replace(',', '.')),
-      title: `Projeto: ${p.name}`,
-      id: p.local_id,
-      color: '#7c3aed',
-      icon: 'flag' as MarkerIconType,
-    }))
-    .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
-
-  const loteMarkers = lotes
-    .filter((l) => l.latitude && l.longitude)
-    .map((l) => ({
-      lat: parseFloat(String(l.latitude).replace(',', '.')),
-      lng: parseFloat(String(l.longitude).replace(',', '.')),
-      title: l.name,
-      status: l.sync_status,
-      id: l.local_id,
-      color: l.sync_status === 'synchronized' ? '#22c55e' : '#f97316',
-      icon: 'circle' as MarkerIconType,
-    }))
-    .filter((m) => !isNaN(m.lat) && !isNaN(m.lng) && m.lat !== 0 && m.lng !== 0)
-
-  const allMarkers = [...projectMarkers, ...loteMarkers]
-
-  const handleMapLoad = () => {
-    setTimeout(() => {
-      if (mapRef.current && allMarkers.length > 0) {
-        const points = getBoundsCoordinates(lotes, [], projects)
-        if (points.length > 0) {
-          mapRef.current.fitBounds(points)
-        }
-      }
-    }, 500)
+  const handleSync = async () => {
+    await triggerSync(false)
+    loadDashboardData()
   }
 
   if (loading)
@@ -121,208 +62,169 @@ export default function Dashboard() {
       </div>
     )
 
+  const surveyProgress =
+    stats.collected > 0
+      ? ((stats.totalSurveyed || 0) / stats.collected) * 100
+      : 0
+  const pendingTotal = stats.pending + (stats.pendingSurveys || 0)
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Painel de Controle
-          </h1>
-          <p className="text-gray-500">Resumo da coleta de dados REURB.</p>
-        </div>
+    <div className="space-y-6 pb-20">
+      {/* Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold text-gray-900">Olá, Vistoriador</h1>
+        <p className="text-gray-500 text-sm">
+          Bem-vindo ao painel de campo do SisReurb.
+        </p>
+      </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border shadow-sm">
-            {isOnline ? (
-              <Wifi className="h-4 w-4 text-green-500" />
-            ) : (
-              <WifiOff className="h-4 w-4 text-gray-400" />
-            )}
-            <span className="text-sm font-medium text-gray-700">
-              {isOnline ? 'Online' : 'Offline'}
-            </span>
-          </div>
-
-          {isOnline && (
-            <Button
-              onClick={handleFullDownload}
-              disabled={isSyncing}
-              className="bg-blue-600 hover:bg-blue-700"
+      {/* Sync Status Card */}
+      <Card
+        className={
+          isOnline
+            ? 'bg-gradient-to-br from-white to-blue-50 border-blue-100'
+            : 'bg-gradient-to-br from-white to-orange-50 border-orange-100'
+        }
+      >
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={
+                isOnline
+                  ? 'p-2 bg-green-100 rounded-full'
+                  : 'p-2 bg-orange-100 rounded-full'
+              }
             >
-              {isSyncing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              {isOnline ? (
+                <Wifi className="h-5 w-5 text-green-600" />
               ) : (
-                <DownloadCloud className="h-4 w-4 mr-2" />
+                <WifiOff className="h-5 w-5 text-orange-600" />
               )}
-              Baixar Dados (Offline)
-            </Button>
+            </div>
+            <div>
+              <div className="font-semibold">
+                {isOnline ? 'Online' : 'Offline'}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {pendingTotal > 0
+                  ? `${pendingTotal} itens pendentes`
+                  : 'Tudo sincronizado'}
+              </div>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleSync}
+            disabled={isSyncing}
+            variant={hasPending(stats) ? 'default' : 'outline'}
+            className={
+              hasPending(stats)
+                ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                : ''
+            }
+          >
+            {isSyncing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <DownloadCloud className="h-4 w-4" />
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground font-medium uppercase">
+                Total Lotes
+              </span>
+              <div className="flex items-center gap-2">
+                <Home className="h-4 w-4 text-blue-500" />
+                <span className="text-2xl font-bold">{stats.collected}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground font-medium uppercase">
+                Vistoriados
+              </span>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-2xl font-bold">
+                  {stats.totalSurveyed || 0}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Progress */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Progresso Geral</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Progress value={surveyProgress} className="h-2" />
+          <p className="text-xs text-right mt-2 text-muted-foreground">
+            {surveyProgress.toFixed(0)}% Concluído
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Projects List */}
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">Meus Projetos</h2>
+          <Link
+            to="/projetos"
+            className="text-sm text-blue-600 hover:underline"
+          >
+            Ver Todos
+          </Link>
+        </div>
+        <div className="space-y-3">
+          {projects.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 bg-white rounded-lg border border-dashed">
+              Nenhum projeto encontrado.
+            </div>
+          ) : (
+            projects.slice(0, 3).map((project) => (
+              <Link
+                key={project.local_id}
+                to={`/projetos/${project.local_id}`}
+                className="block"
+              >
+                <Card className="hover:border-blue-300 transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Folder className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-sm">{project.name}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(project.date_added).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))
           )}
         </div>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Projetos Ativos */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Projetos Locais
-            </CardTitle>
-            <Folder className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {stats.totalProjects}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Disponíveis offline
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Link to="/projetos" className="w-full">
-              <Button
-                variant="ghost"
-                className="w-full justify-between text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-              >
-                Ver Lista <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </CardFooter>
-        </Card>
-
-        {/* Lotes Coletados */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Lotes Cadastrados
-            </CardTitle>
-            <Database className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {stats.collected}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">No dispositivo</p>
-          </CardContent>
-          <CardFooter>
-            <Link to="/projetos" className="w-full">
-              <Button
-                variant="ghost"
-                className="w-full justify-between text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              >
-                Navegar <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </CardFooter>
-        </Card>
-
-        {/* Pendentes */}
-        <Card
-          className={
-            stats.pending > 0 || stats.pendingSurveys > 0
-              ? 'border-orange-200 bg-orange-50'
-              : ''
-          }
-        >
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Sincronização Pendente
-            </CardTitle>
-            <AlertTriangle
-              className={
-                stats.pending > 0 || stats.pendingSurveys > 0
-                  ? 'h-4 w-4 text-orange-500'
-                  : 'h-4 w-4 text-gray-400'
-              }
-            />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {stats.pending + (stats.pendingSurveys || 0)}
-            </div>
-            <div className="flex flex-col gap-1 mt-1 text-xs text-muted-foreground">
-              <span>
-                {stats.pending} Lotes / {stats.pendingSurveys || 0} Vistorias
-              </span>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Link to="/sincronizacao" className="w-full">
-              <Button
-                variant="ghost"
-                className="w-full justify-between text-orange-600 hover:text-orange-700 hover:bg-orange-100"
-              >
-                Sincronizar <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </CardFooter>
-        </Card>
-
-        {/* Lotes Sincronizados */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Sincronizados
-            </CardTitle>
-            <UploadCloud className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-gray-900">
-              {stats.synced}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Seguros na nuvem
-            </p>
-          </CardContent>
-          <CardFooter>
-            <div className="text-xs text-gray-400 w-full text-right">
-              {stats.lastSync
-                ? `Última sync: ${new Date(stats.lastSync).toLocaleTimeString()}`
-                : 'Nunca'}
-            </div>
-          </CardFooter>
-        </Card>
-      </div>
-
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Mapa Geral</h2>
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/mapa">
-              <MapIcon className="w-4 h-4 mr-2" />
-              Ver Mapa Completo
-            </Link>
-          </Button>
-        </div>
-        <Card className="overflow-hidden border-2 border-slate-100 shadow-md">
-          <div className="h-[400px] w-full bg-slate-50 relative">
-            {activeKey ? (
-              <GoogleMap
-                ref={mapRef}
-                apiKey={activeKey.key}
-                mapId={activeKey.mapId}
-                markers={allMarkers}
-                className="h-full w-full"
-                onMapLoad={handleMapLoad}
-                presentationMode
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-4">
-                <div className="bg-yellow-100 p-4 rounded-full">
-                  <AlertTriangle className="h-8 w-8 text-yellow-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Carregando Mapa...
-                  </h3>
-                  <p className="text-gray-500 max-w-sm mt-1">
-                    Obtendo configurações do servidor.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
     </div>
   )
+}
+
+function hasPending(stats: DashboardStats) {
+  return stats.pending + (stats.pendingSurveys || 0) > 0
 }
