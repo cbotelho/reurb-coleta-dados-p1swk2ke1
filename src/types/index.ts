@@ -1,7 +1,7 @@
 export interface Project {
   id: number
   local_id: string
-  sync_status?: 'pending' | 'synchronized' | 'failed'
+  sync_status: 'pending' | 'synchronized' | 'failed'
   date_added: number
   date_updated: number
   name: string
@@ -9,61 +9,120 @@ export interface Project {
   image_url: string
   latitude?: string
   longitude?: string
-  auto_update_map?: boolean | null
+  auto_update_map?: boolean
   last_map_update?: number
-  created_by?: number | null
+  created_by?: number
   tags?: string[]
-  city?: string | null
-  state?: string | null
-  status?: string | null
-  [key: string]: any
+  city?: string
+  state?: string
+  status?: string
+  // Legacy fields kept for compatibility with seed data
+  field_348?: string
+  field_350?: string
+  field_351?: string
+  parent_id?: number
+  parent_item_id?: number
+  linked_id?: number
+  sort_order?: number
 }
 
 export interface Quadra {
   id: number
   local_id: string
-  sync_status?: 'pending' | 'synchronized' | 'failed'
+  sync_status: 'pending' | 'synchronized' | 'failed'
   date_added: number
   date_updated: number
   name: string
   area: string
-  parent_item_id?: string | null
-  document_url?: string | null
-  image_url?: string | null
-  status?: string | null
-  [key: string]: any
+  parent_item_id: string
+  document_url?: string
+  image_url?: string
+  // Legacy fields
+  field_329?: string
+  field_330?: string
+  field_349?: string
+  field_331?: string
+  field_332?: string
 }
 
 export interface Lote {
   id: number
   local_id: string
-  sync_status?: 'pending' | 'synchronized' | 'failed'
+  sync_status: 'pending' | 'synchronized' | 'failed'
   date_added: number
   date_updated: number
   name: string
-  address: string
+  address?: string
   area: string
   description: string
   images: string[]
   latitude?: string
   longitude?: string
-  parent_item_id?: string | null
-  status: string
-  quadra_id?: string
-  [key: string]: any
+  parent_item_id: string
+  status:
+    | 'not_surveyed'
+    | 'surveyed'
+    | 'regularized'
+    | 'pending'
+    | 'failed'
+    | 'synchronized'
+  // Legacy fields
+  field_338?: string
+  field_339?: string
+  field_340?: string
+  field_352?: string[]
+  created_by?: number
+  deleted?: number
 }
 
 export interface Survey {
   id: string
+  local_id?: string
   property_id: string
-  residents_count: number
-  rooms_count: number
-  has_children: boolean
-  survey_date?: string
-  sync_status?: 'pending' | 'synchronized' | 'failed'
+  sync_status: 'pending' | 'synchronized' | 'failed'
   created_at?: string
   updated_at?: string
-  [key: string]: any
+
+  // Applicant
+  applicant_name?: string
+  applicant_cpf?: string
+  applicant_rg?: string
+  applicant_civil_status?: string
+  applicant_profession?: string
+  applicant_income?: string
+  applicant_nis?: string
+  spouse_name?: string
+  spouse_cpf?: string
+
+  // Address
+  city?: string
+  state?: string
+
+  // Household
+  residents_count: number
+  has_children: boolean
+
+  // Property Info
+  form_number?: string
+  survey_date?: string
+  occupation_time?: string
+  acquisition_mode?: string
+  property_use?: string
+  construction_type?: string
+  roof_type?: string
+  floor_type?: string
+  rooms_count: number
+  conservation_state?: string
+  fencing?: string
+
+  // Infrastructure
+  water_supply?: string
+  energy_supply?: string
+  sanitation?: string
+  street_paving?: string
+
+  observations?: string
+  surveyor_name?: string
 }
 
 export interface User {
@@ -77,8 +136,16 @@ export interface User {
 export interface UserGroup {
   id: string
   name: string
-  role: string
+  role: 'admin' | 'manager' | 'viewer'
   permissions: string[]
+}
+
+export interface SyncLogEntry {
+  id: string
+  timestamp: number
+  type: 'upload' | 'download' | 'error'
+  status: 'success' | 'failed'
+  message: string
 }
 
 export interface DashboardStats {
@@ -90,27 +157,42 @@ export interface DashboardStats {
   lastSync: number
   pendingSurveys: number
   totalSurveyed: number
-  totalFamilies?: number
-  totalContracts?: number
-  totalQuadras?: number
+  totalFamilies: number
+  totalContracts: number
+  totalQuadras: number
 }
 
-export interface SyncLogEntry {
+// Analytics Types
+export interface ProductivityData {
+  month: string
+  cadastros: number
+  titulos: number
+  fullDate?: string
+}
+
+export interface ModalityData {
+  name: string // REURB-S or REURB-E
+  value: number
+  fill: string
+}
+
+export interface RecentActivityItem {
   id: string
-  timestamp: number
-  type: 'upload' | 'download' | 'error' | 'info'
-  status: 'success' | 'error' | 'warning'
-  message: string
+  action: string
+  details: string
+  user_name: string
+  user_avatar?: string
+  timestamp: string // ISO string
+  type: 'registration' | 'approval' | 'document' | 'system' | 'other'
 }
 
-export interface AppSettings {
-  apiEndpoint: string
-  cacheEnabled: boolean
-  syncFrequency: string
-  pushNotifications: boolean
-  googleMapsApiKey: string
+export interface TitlingGoalData {
+  current: number
+  goal: number
+  monthly_rhythm: number
 }
 
+// Map Types
 export interface SavedCoordinate {
   id: string
   name: string
@@ -130,21 +212,39 @@ export interface MarkerConfig {
   id: string
   label: string
   color: string
-  icon: string
+  icon: string // 'circle' | 'square' | 'triangle' | 'star' | 'pin'
 }
 
 export interface CustomLayer {
   id: string
   name: string
+  url: string // For WMS/XYZ/GeoJSON url
+  type: 'wms' | 'xyz' | 'geojson'
   visible: boolean
-  [key: string]: any
+  opacity: number
+}
+
+export interface DrawingLayer {
+  id: string
+  name: string
+  visible: boolean
 }
 
 export interface MapDrawing {
   id: string
+  type: 'point' | 'line' | 'polygon' | 'circle' | 'rectangle' | 'marker'
+  coordinates: any // GeoJSON coordinates or specific format
+  properties: {
+    color: string
+    width: number
+    fillColor?: string
+    fillOpacity?: number
+    radius?: number // for circles
+    text?: string // for markers/labels
+    layerId: string // Link to DrawingLayer
+  }
   createdAt: number
   updatedAt: number
-  [key: string]: any
 }
 
 export interface DrawingHistory {
@@ -157,21 +257,28 @@ export interface DrawingHistory {
   userName: string
 }
 
-export interface DrawingLayer {
-  id: string
-  name: string
-  visible: boolean
-}
-
-export interface GeoAlert {
-  id: string
-  [key: string]: any
-}
-
 export interface ActiveSession {
   id: string
   userId: string
   userName: string
   lastActive: number
   color: string
+}
+
+export interface GeoAlert {
+  id: string
+  name: string
+  type: 'overlap' | 'proximity' | 'zone'
+  geometry: any // The shape to check against
+  message: string
+  isActive: boolean
+  createdAt: number
+}
+
+export interface AppSettings {
+  apiEndpoint: string
+  cacheEnabled: boolean
+  syncFrequency: string
+  pushNotifications: boolean
+  googleMapsApiKey: string
 }

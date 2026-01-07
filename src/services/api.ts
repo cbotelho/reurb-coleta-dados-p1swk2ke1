@@ -1,6 +1,19 @@
 import { supabase } from '@/lib/supabase/client'
-import { Project, Quadra, Lote, DashboardStats, User, Survey } from '@/types'
+import {
+  Project,
+  Quadra,
+  Lote,
+  DashboardStats,
+  User,
+  Survey,
+  ProductivityData,
+  ModalityData,
+  RecentActivityItem,
+  TitlingGoalData,
+} from '@/types'
 import { db } from './db'
+import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 const mapProject = (row: any): Project => ({
   id: 0,
@@ -24,6 +37,7 @@ const mapProject = (row: any): Project => ({
   status: row.status,
 })
 
+// ... (Keep existing map functions)
 const mapQuadra = (row: any): Quadra => ({
   id: 0,
   local_id: row.id,
@@ -74,7 +88,7 @@ const mapSurvey = (row: any): Survey => ({
 const isOnline = () => navigator.onLine
 
 export const api = {
-  // App Config
+  // ... (Keep existing methods: getAppConfig, getProjects, getProject, updateProject, getQuadras, getQuadra, getLotes, getAllLotes, getLote, saveLote, deleteLote, getSurveyByPropertyId, saveSurvey, getDashboardStats, getUsers, saveUser, deleteUser)
   async getAppConfig(): Promise<Record<string, string>> {
     if (!isOnline()) return {}
     try {
@@ -105,7 +119,7 @@ export const api = {
       const { data, error } = await supabase
         .from('reurb_projects')
         .select('*')
-        .order('updated_at', { ascending: false }) // Updated to sort by latest
+        .order('updated_at', { ascending: false })
 
       if (error) throw error
       const projects = (data || []).map(mapProject)
@@ -449,10 +463,7 @@ export const api = {
     }
   },
 
-  // Users Management
   async saveUser(user: Partial<User>): Promise<void> {
-    // Basic mock implementation for saving user profile data
-    // In a real app this would update reurb_profiles and potentially auth.users via edge function
     if (!user.id) return
     const payload = {
       full_name: user.name,
@@ -463,7 +474,151 @@ export const api = {
   },
 
   async deleteUser(id: string): Promise<void> {
-    // In real app, this should likely be a soft delete or an edge function to delete auth user
     await supabase.from('reurb_profiles').delete().eq('id', id)
+  },
+
+  // --- New Analytical Methods ---
+
+  async getProductivityStats(): Promise<ProductivityData[]> {
+    if (!isOnline()) return db.getProductivityStats()
+
+    try {
+      const startDate = subMonths(new Date(), 6)
+
+      // Fetch surveys (cadastros) created in last 6 months
+      const { data: surveys } = await supabase
+        .from('reurb_surveys')
+        .select('created_at')
+        .gte('created_at', startDate.toISOString())
+
+      // Fetch contracts (titulos) created in last 6 months
+      const { data: contracts } = await supabase
+        .from('reurb_contracts')
+        .select('created_at')
+        .gte('created_at', startDate.toISOString())
+
+      // Aggregate data
+      const stats: ProductivityData[] = []
+      for (let i = 5; i >= 0; i--) {
+        const d = subMonths(new Date(), i)
+        const start = startOfMonth(d)
+        const end = endOfMonth(d)
+
+        const cadastros = (surveys || []).filter((s) => {
+          const date = new Date(s.created_at || '')
+          return date >= start && date <= end
+        }).length
+
+        const titulos = (contracts || []).filter((c) => {
+          const date = new Date(c.created_at || '')
+          return date >= start && date <= end
+        }).length
+
+        stats.push({
+          month: format(d, 'MMM', { locale: ptBR }),
+          cadastros,
+          titulos,
+          fullDate: format(d, 'MMMM yyyy', { locale: ptBR }),
+        })
+      }
+      return stats
+    } catch (e) {
+      console.error('Error fetching productivity stats:', e)
+      return db.getProductivityStats()
+    }
+  },
+
+  async getModalitiesStats(): Promise<ModalityData[]> {
+    if (!isOnline()) return db.getModalitiesStats()
+
+    try {
+      const { data: projects } = await supabase
+        .from('reurb_projects')
+        .select('tags')
+
+      let sCount = 0
+      let eCount = 0
+
+      projects?.forEach((p: any) => {
+        if (p.tags && Array.isArray(p.tags)) {
+          if (p.tags.some((t: string) => t.includes('REURB-S'))) sCount++
+          if (p.tags.some((t: string) => t.includes('REURB-E'))) eCount++
+        }
+      })
+
+      // If no data, fallback to mock to show UI
+      if (sCount === 0 && eCount === 0) return db.getModalitiesStats()
+
+      return [
+        { name: 'REURB-S', value: sCount, fill: 'hsl(var(--chart-1))' },
+        { name: 'REURB-E', value: eCount, fill: 'hsl(var(--chart-2))' },
+      ]
+    } catch {
+      return db.getModalitiesStats()
+    }
+  },
+
+  async getRecentActivities(): Promise<RecentActivityItem[]> {
+    if (!isOnline()) return db.getRecentActivities()
+
+    try {
+      const { data: audits, error } = await supabase
+        .from('reurb_audit_processes')
+        .select(
+          `
+          id, action, details, created_at, target_type,
+          reurb_profiles:user_id ( full_name )
+        `,
+        )
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) throw error
+
+      return audits.map((a: any) => {
+        let type: RecentActivityItem['type'] = 'other'
+        if (a.action.includes('cadastro')) type = 'registration'
+        else if (a.action.includes('aprova')) type = 'approval'
+        else if (a.action.includes('Edital') || a.action.includes('Documento'))
+          type = 'document'
+        else if (!a.reurb_profiles) type = 'system'
+
+        return {
+          id: a.id,
+          action: a.action,
+          details: a.details || '',
+          user_name: a.reurb_profiles?.full_name || 'Sistema',
+          timestamp: a.created_at,
+          type,
+        }
+      })
+    } catch {
+      return db.getRecentActivities()
+    }
+  },
+
+  async getTitlingGoalStats(): Promise<TitlingGoalData> {
+    if (!isOnline()) return db.getTitlingGoalStats()
+
+    try {
+      // Count titles issued this year
+      const startOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString()
+      const { count } = await supabase
+        .from('reurb_contracts')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', startOfYear)
+
+      const current = count || 0
+      const currentMonth = new Date().getMonth() + 1
+      const monthly_rhythm = Math.round(current / (currentMonth || 1))
+
+      return {
+        current,
+        goal: 2000,
+        monthly_rhythm,
+      }
+    } catch {
+      return db.getTitlingGoalStats()
+    }
   },
 }

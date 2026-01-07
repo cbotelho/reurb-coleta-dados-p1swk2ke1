@@ -17,8 +17,14 @@ import {
   DrawingHistory,
   ActiveSession,
   Survey,
+  ProductivityData,
+  ModalityData,
+  RecentActivityItem,
+  TitlingGoalData,
 } from '@/types'
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
+import { subMonths, format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -51,7 +57,7 @@ const STORAGE_KEYS = {
   SURVEYS: 'reurb_surveys',
 }
 
-// Default settings and seeds
+// ... (Rest of seed data constants same as original file, omitting to save space, but they should be here)
 const SEED_GROUPS: UserGroup[] = [
   {
     id: 'g1',
@@ -172,6 +178,7 @@ class DBService {
     this.saveItems(STORAGE_KEYS.SURVEYS, [])
   }
 
+  // ... (Keep existing private ensure methods)
   private ensureAuthData() {
     if (!localStorage.getItem(STORAGE_KEYS.GROUPS))
       this.saveItems(STORAGE_KEYS.GROUPS, SEED_GROUPS)
@@ -199,6 +206,7 @@ class DBService {
       this.saveItems(STORAGE_KEYS.PROJECTS, SEED_PROJECTS)
   }
 
+  // ... (Keep existing generic methods)
   getItems<T>(key: string): T[] {
     const items = localStorage.getItem(key)
     return items ? JSON.parse(items) : []
@@ -208,7 +216,7 @@ class DBService {
     localStorage.setItem(key, JSON.stringify(items))
   }
 
-  // Projects
+  // ... (Keep all existing project, quadra, lote, survey methods)
   getProjects(): Project[] {
     return this.getItems<Project>(STORAGE_KEYS.PROJECTS)
   }
@@ -224,7 +232,6 @@ class DBService {
     return project
   }
 
-  // Quadras
   getQuadrasByProject(projectId: string): Quadra[] {
     return this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).filter(
       (q) => q.parent_item_id === projectId,
@@ -244,7 +251,6 @@ class DBService {
     return quadra
   }
 
-  // Lotes
   getAllLotes(): Lote[] {
     return this.getItems<Lote>(STORAGE_KEYS.LOTES)
   }
@@ -254,7 +260,6 @@ class DBService {
   getLote(id: string): Lote | undefined {
     return this.getAllLotes().find((l) => l.local_id === id)
   }
-
   saveLote(loteData: Partial<Lote>, quadraId: string): Lote {
     const lotes = this.getAllLotes()
     let savedLote: Lote
@@ -294,12 +299,10 @@ class DBService {
     this.saveItems(STORAGE_KEYS.LOTES, lotes)
     return savedLote
   }
-
   deleteLote(localId: string) {
     const lotes = this.getAllLotes().filter((l) => l.local_id !== localId)
     this.saveItems(STORAGE_KEYS.LOTES, lotes)
   }
-
   updateLoteStatus(
     localId: string,
     status: 'synchronized' | 'failed',
@@ -314,7 +317,6 @@ class DBService {
     }
   }
 
-  // Surveys
   getSurveys(): Survey[] {
     return this.getItems<Survey>(STORAGE_KEYS.SURVEYS)
   }
@@ -327,7 +329,6 @@ class DBService {
           new Date(a.updated_at || 0).getTime(),
       )[0]
   }
-
   saveSurvey(surveyData: Partial<Survey>): Survey {
     const surveys = this.getSurveys()
     const now = new Date().toISOString()
@@ -359,7 +360,6 @@ class DBService {
     this.saveItems(STORAGE_KEYS.SURVEYS, surveys)
     return savedSurvey
   }
-
   updateSurveyStatus(
     localId: string,
     status: 'synchronized' | 'failed',
@@ -374,7 +374,6 @@ class DBService {
     }
   }
 
-  // Dashboard & Logs
   getDashboardStats(): DashboardStats {
     const lotes = this.getAllLotes()
     const surveys = this.getSurveys()
@@ -399,7 +398,60 @@ class DBService {
       ).length,
       totalFamilies: surveys.length,
       totalQuadras: quadras.length,
-      totalContracts: 0, // Not synced locally
+      totalContracts: 0,
+    }
+  }
+
+  // Enhanced Dashboard Stats for Offline Mode
+  getProductivityStats(): ProductivityData[] {
+    // Generate last 6 months mock/calculated data
+    const data: ProductivityData[] = []
+    for (let i = 5; i >= 0; i--) {
+      const date = subMonths(new Date(), i)
+      const monthLabel = format(date, 'MMM', { locale: ptBR })
+      // For offline dev, use random numbers that increase slightly
+      data.push({
+        month: monthLabel,
+        cadastros: 20 + i * 5 + Math.floor(Math.random() * 10),
+        titulos: 5 + i * 3 + Math.floor(Math.random() * 5),
+      })
+    }
+    return data
+  }
+
+  getModalitiesStats(): ModalityData[] {
+    return [
+      { name: 'REURB-S', value: 842, fill: 'hsl(var(--chart-1))' },
+      { name: 'REURB-E', value: 406, fill: 'hsl(var(--chart-2))' },
+    ]
+  }
+
+  getRecentActivities(): RecentActivityItem[] {
+    return [
+      {
+        id: '1',
+        action: 'Novo cadastro realizado',
+        details: 'Por: João Silva',
+        user_name: 'João Silva',
+        timestamp: new Date().toISOString(),
+        type: 'registration',
+      },
+      {
+        id: '2',
+        action: 'Dossiê aprovado pela IA',
+        details: 'Análise automática',
+        user_name: 'Sistema',
+        timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+        type: 'approval',
+      },
+    ]
+  }
+
+  getTitlingGoalStats(): TitlingGoalData {
+    return {
+      current: 1248,
+      goal: 2000,
+      monthly_rhythm: 145,
     }
   }
 
@@ -434,7 +486,7 @@ class DBService {
     this.saveItems(STORAGE_KEYS.LOGS, logs)
   }
 
-  // Settings, Auth, etc. - keeping brief as they are mostly getters/setters
+  // ... (Keep existing getter/setters for Settings, Users, Groups, Maps)
   getSettings(): AppSettings {
     return (
       this.getItems<AppSettings>(STORAGE_KEYS.SETTINGS)[0] || DEFAULT_SETTINGS
@@ -450,7 +502,6 @@ class DBService {
     return this.getItems<UserGroup>(STORAGE_KEYS.GROUPS)
   }
 
-  // Maps
   getSavedCoordinates(): SavedCoordinate[] {
     return this.getItems<SavedCoordinate>(STORAGE_KEYS.SAVED_COORDS)
   }
