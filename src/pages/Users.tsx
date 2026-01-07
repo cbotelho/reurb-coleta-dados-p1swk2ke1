@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { api } from '@/services/api'
-import { User } from '@/types'
+import { User, UserGroup } from '@/types'
 import {
   Table,
   TableBody,
@@ -29,31 +29,21 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Plus, Trash2, Edit2, Loader2, ShieldAlert } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Plus, Trash2, Edit2, Loader2, ShieldAlert, Shield } from 'lucide-react'
 import { toast } from 'sonner'
-import { Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-
-const ROLES = [
-  { id: 'super_admin', name: 'Super Administrador' },
-  { id: 'admin', name: 'Administrador' },
-  { id: 'operator', name: 'Usuário/Operador' },
-]
+import { UserGroupsManager } from './UserGroups'
 
 const formSchema = z.object({
   name: z.string().min(1, 'Nome completo é obrigatório'),
   email: z.string().email('Email inválido'),
   username: z.string().min(1, 'Nome de usuário é obrigatório'),
-  role: z.string().min(1, 'Selecione uma função'),
+  groups: z.array(z.string()).optional(),
   password: z.string().optional(),
 })
 
@@ -62,6 +52,7 @@ type FormValues = z.infer<typeof formSchema>
 export default function Users() {
   const { user, hasPermission } = useAuth()
   const [users, setUsers] = useState<User[]>([])
+  const [availableGroups, setAvailableGroups] = useState<UserGroup[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -73,7 +64,7 @@ export default function Users() {
       name: '',
       email: '',
       username: '',
-      role: 'operator',
+      groups: [],
       password: '',
     },
   })
@@ -85,10 +76,14 @@ export default function Users() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const data = await api.getUsers()
-      setUsers(data)
+      const [usersData, groupsData] = await Promise.all([
+        api.getUsers(),
+        api.getGroups(),
+      ])
+      setUsers(usersData)
+      setAvailableGroups(groupsData)
     } catch (e) {
-      toast.error('Erro ao carregar usuários')
+      toast.error('Erro ao carregar dados')
     } finally {
       setLoading(false)
     }
@@ -125,9 +120,9 @@ export default function Users() {
         id: editingUser?.id,
         name: values.name,
         username: values.username,
-        groupIds: [values.role],
         email: values.email,
         password: values.password,
+        groupIds: values.groups,
       }
 
       await api.saveUser(userData)
@@ -169,7 +164,7 @@ export default function Users() {
       name: '',
       email: '',
       username: '',
-      role: 'operator',
+      groups: [],
       password: '',
     })
     setIsDialogOpen(true)
@@ -179,10 +174,10 @@ export default function Users() {
     setEditingUser(u)
     form.reset({
       name: u.name,
-      email: u.username, // Assuming username holds email in list view based on existing mapping
+      email: u.email || u.username,
       username: u.username,
-      role: u.groupIds[0] || 'operator',
-      password: '', // Password not editable directly here usually, but keeping field optional
+      groups: u.groupIds || [],
+      password: '',
     })
     setIsDialogOpen(true)
   }
@@ -199,78 +194,101 @@ export default function Users() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">
-            Gestão de Usuários
+            Gestão de Acesso
           </h2>
           <p className="text-muted-foreground mt-1">
-            Controle de acesso e atribuição de funções.
+            Controle de usuários e grupos de permissão.
           </p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="w-4 h-4 mr-2" /> Adicionar Usuário
-        </Button>
       </div>
 
-      <div className="border rounded-lg bg-white overflow-hidden shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nome Completo</TableHead>
-              <TableHead>Username / Email</TableHead>
-              <TableHead>Função</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.map((u) => (
-              <TableRow key={u.id}>
-                <TableCell className="font-medium">{u.name}</TableCell>
-                <TableCell>{u.username}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      u.groupIds.includes('super_admin')
-                        ? 'default'
-                        : 'secondary'
-                    }
-                  >
-                    {ROLES.find((r) => r.id === u.groupIds[0])?.name ||
-                      u.groupIds[0]}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(u)}
+      <Tabs defaultValue="users" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="users">Usuários</TabsTrigger>
+          <TabsTrigger value="groups">Grupos de Acesso</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users">
+          <div className="flex justify-end mb-4">
+            <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4 mr-2" /> Adicionar Usuário
+            </Button>
+          </div>
+
+          <div className="border rounded-lg bg-white overflow-hidden shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome Completo</TableHead>
+                  <TableHead>Username / Email</TableHead>
+                  <TableHead>Grupos</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell className="font-medium">{u.name}</TableCell>
+                    <TableCell>{u.username}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {u.groupNames && u.groupNames.length > 0 ? (
+                          u.groupNames.map((gName, idx) => (
+                            <Badge
+                              key={idx}
+                              variant="secondary"
+                              className="text-[10px]"
+                            >
+                              {gName}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground text-xs italic">
+                            Sem grupo
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEdit(u)}
+                        >
+                          <Edit2 className="w-4 h-4 text-blue-500" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(u.id)}
+                          disabled={u.id === user?.id}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {users.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center py-8 text-muted-foreground"
                     >
-                      <Edit2 className="w-4 h-4 text-blue-500" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(u.id)}
-                      disabled={u.id === user?.id}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-            {users.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="text-center py-8 text-muted-foreground"
-                >
-                  Nenhum usuário encontrado.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                      Nenhum usuário encontrado.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="groups">
+          <UserGroupsManager />
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -279,7 +297,7 @@ export default function Users() {
               {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
             </DialogTitle>
             <DialogDescription>
-              Preencha os dados do usuário para conceder acesso ao sistema.
+              Preencha os dados e atribua os grupos de acesso.
             </DialogDescription>
           </DialogHeader>
 
@@ -338,27 +356,59 @@ export default function Users() {
 
               <FormField
                 control={form.control}
-                name="role"
+                name="groups"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Função</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a função" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {ROLES.map((role) => (
-                          <SelectItem key={role.id} value={role.id}>
-                            {role.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Grupos de Acesso</FormLabel>
+                    <div className="border rounded-md p-3">
+                      <ScrollArea className="h-[150px]">
+                        <div className="space-y-2">
+                          {availableGroups.map((group) => (
+                            <FormField
+                              key={group.id}
+                              control={form.control}
+                              name="groups"
+                              render={({ field }) => {
+                                return (
+                                  <FormItem
+                                    key={group.id}
+                                    className="flex flex-row items-start space-x-3 space-y-0"
+                                  >
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(
+                                          group.id,
+                                        )}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? field.onChange([
+                                                ...(field.value || []),
+                                                group.id,
+                                              ])
+                                            : field.onChange(
+                                                field.value?.filter(
+                                                  (value) => value !== group.id,
+                                                ),
+                                              )
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal cursor-pointer text-sm">
+                                      {group.name}
+                                    </FormLabel>
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          ))}
+                          {availableGroups.length === 0 && (
+                            <p className="text-xs text-muted-foreground italic">
+                              Nenhum grupo disponível.
+                            </p>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

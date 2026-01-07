@@ -19,9 +19,10 @@ Deno.serve(async (req) => {
       },
     )
 
-    const { email, password, fullName, username, role } = await req.json()
+    const { email, password, fullName, username, role, groupIds } =
+      await req.json()
 
-    if (!email || !password || !fullName || !role) {
+    if (!email || !password || !fullName) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
         {
@@ -49,17 +50,33 @@ Deno.serve(async (req) => {
     }
 
     // 2. Update Profile in reurb_profiles
-    // The trigger on_auth_user_created inserts the initial row, we update it with specific role and username
     const { error: updateError } = await supabaseClient
       .from('reurb_profiles')
       .update({
-        role: role,
+        role: role || 'user',
         username: username || email, // Use email as fallback for username
         full_name: fullName,
       })
       .eq('id', userData.user.id)
 
     if (updateError) throw updateError
+
+    // 3. Assign Groups
+    if (groupIds && Array.isArray(groupIds) && groupIds.length > 0) {
+      const membershipData = groupIds.map((gid) => ({
+        user_id: userData.user.id,
+        group_id: gid,
+      }))
+
+      const { error: groupError } = await supabaseClient
+        .from('reurb_user_group_membership')
+        .insert(membershipData)
+
+      if (groupError) {
+        console.error('Failed to assign groups:', groupError)
+        // Non-fatal, continue
+      }
+    }
 
     return new Response(JSON.stringify(userData.user), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

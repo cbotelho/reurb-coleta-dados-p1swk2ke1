@@ -130,14 +130,18 @@ export interface User {
   username: string
   name: string
   groupIds: string[]
+  groupNames?: string[] // Optional for UI display
+  email?: string // Added for UI
   active: boolean
 }
 
 export interface UserGroup {
   id: string
   name: string
-  role: 'admin' | 'manager' | 'viewer'
+  description?: string
+  role?: 'admin' | 'manager' | 'viewer' // kept for compatibility
   permissions: string[]
+  created_at?: string
 }
 
 export interface SyncLogEntry {
@@ -218,10 +222,12 @@ export interface MarkerConfig {
 export interface CustomLayer {
   id: string
   name: string
-  url: string // For WMS/XYZ/GeoJSON url
+  url?: string // For WMS/XYZ/GeoJSON url
+  data?: any // For direct GeoJSON
   type: 'wms' | 'xyz' | 'geojson'
   visible: boolean
-  opacity: number
+  opacity?: number
+  zIndex: number
 }
 
 export interface DrawingLayer {
@@ -230,11 +236,23 @@ export interface DrawingLayer {
   visible: boolean
 }
 
+export interface DrawingStyle {
+  strokeColor?: string
+  strokeWeight?: number
+  fillColor?: string
+  fillOpacity?: number
+  markerIcon?: 'circle' | 'pin' | 'home' | 'star' | 'alert' | 'flag'
+  markerSize?: number
+}
+
+export type MarkerIconType = NonNullable<DrawingStyle['markerIcon']>
+
 export interface MapDrawing {
   id: string
   type: 'point' | 'line' | 'polygon' | 'circle' | 'rectangle' | 'marker'
   coordinates: any // GeoJSON coordinates or specific format
-  properties: {
+  style?: DrawingStyle
+  properties?: {
     color: string
     width: number
     fillColor?: string
@@ -243,15 +261,17 @@ export interface MapDrawing {
     text?: string // for markers/labels
     layerId: string // Link to DrawingLayer
   }
+  notes?: string
+  layerId?: string
   createdAt: number
-  updatedAt: number
+  updatedAt?: number
 }
 
 export interface DrawingHistory {
   id: string
   drawingId: string
   timestamp: number
-  action: 'create' | 'update' | 'delete'
+  action: 'create' | 'update' | 'delete' | 'style_change'
   details: string
   userId: string
   userName: string
@@ -268,11 +288,13 @@ export interface ActiveSession {
 export interface GeoAlert {
   id: string
   name: string
-  type: 'overlap' | 'proximity' | 'zone'
-  geometry: any // The shape to check against
-  message: string
-  isActive: boolean
-  createdAt: number
+  type?: 'overlap' | 'proximity' | 'zone'
+  condition: 'enter' | 'exit'
+  geometryId: string // The shape to check against
+  message?: string
+  enabled: boolean
+  isActive?: boolean
+  createdAt?: number
 }
 
 export interface AppSettings {

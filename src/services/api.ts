@@ -10,6 +10,7 @@ import {
   ModalityData,
   RecentActivityItem,
   TitlingGoalData,
+  UserGroup,
 } from '@/types'
 import { db } from './db'
 import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns'
@@ -67,13 +68,24 @@ const mapLote = (row: any): Lote => ({
   status: row.status || 'not_surveyed',
 })
 
-const mapProfile = (row: any): User => ({
-  id: row.id,
-  username: row.username || '',
-  name: row.full_name || '',
-  groupIds: [row.role || 'viewer'],
-  active: true,
-})
+const mapProfile = (row: any): User => {
+  // Extract group IDs and Names from nested reurb_user_group_membership
+  const groups = row.reurb_user_group_membership || []
+  const groupIds = groups.map((g: any) => g.group_id)
+  const groupNames = groups.map(
+    (g: any) => g.reurb_user_groups?.name || 'Unknown',
+  )
+
+  return {
+    id: row.id,
+    username: row.username || '',
+    name: row.full_name || '',
+    email: row.username, // Sometimes username is email, fallback
+    groupIds: groupIds.length > 0 ? groupIds : [row.role || 'viewer'],
+    groupNames: groupNames,
+    active: true,
+  }
+}
 
 const mapSurvey = (row: any): Survey => ({
   ...row,
@@ -90,7 +102,6 @@ export const api = {
   async getAppConfig(): Promise<Record<string, string>> {
     if (!isOnline()) return {}
     try {
-      // @ts-expect-error - reurb_app_config might not be in types yet
       const { data, error } = await supabase
         .from('reurb_app_config')
         .select('*')
@@ -451,12 +462,22 @@ export const api = {
     }
   },
 
+  // Users & Groups
   async getUsers(): Promise<User[]> {
     if (!isOnline()) return db.getUsers()
     try {
-      const { data } = await supabase.from('reurb_profiles').select('*')
+      // Fetch users with their group memberships
+      const { data, error } = await supabase
+        .from('reurb_profiles')
+        .select(
+          '*, reurb_user_group_membership(group_id, reurb_user_groups(name))',
+        )
+
+      if (error) throw error
+
       return (data || []).map(mapProfile)
-    } catch {
+    } catch (e) {
+      console.error('Error fetching users:', e)
       return db.getUsers()
     }
   },
@@ -469,14 +490,38 @@ export const api = {
       const payload = {
         full_name: user.name,
         username: user.username,
-        role: user.groupIds ? user.groupIds[0] : 'viewer',
+        role: user.groupIds && user.groupIds.length > 0 ? 'user' : 'viewer', // Fallback role for backward compatibility
         updated_at: new Date().toISOString(),
       }
+
       const { error } = await supabase
         .from('reurb_profiles')
         .update(payload)
         .eq('id', user.id)
+
       if (error) throw error
+
+      // Update Group Memberships
+      if (user.groupIds) {
+        // First delete existing
+        await supabase
+          .from('reurb_user_group_membership')
+          .delete()
+          .eq('user_id', user.id)
+
+        // Then insert new
+        if (user.groupIds.length > 0) {
+          const membershipData = user.groupIds.map((gid) => ({
+            user_id: user.id,
+            group_id: gid,
+          }))
+          const { error: groupError } = await supabase
+            .from('reurb_user_group_membership')
+            .insert(membershipData)
+
+          if (groupError) console.error('Error saving groups:', groupError)
+        }
+      }
     } else {
       // Create new user via Edge Function
       const { error } = await supabase.functions.invoke('create-user', {
@@ -485,7 +530,8 @@ export const api = {
           password: user.password,
           fullName: user.name,
           username: user.username,
-          role: user.groupIds ? user.groupIds[0] : 'viewer',
+          role: 'user', // Default role, groups handle permission
+          groupIds: user.groupIds,
         },
       })
       if (error) throw error
@@ -500,7 +546,75 @@ export const api = {
     if (error) throw error
   },
 
-  // --- New Analytical Methods ---
+  // Groups
+  async getGroups(): Promise<UserGroup[]> {
+    if (!isOnline()) return db.getGroups()
+    try {
+      const { data, error } = await supabase
+        .from('reurb_user_groups')
+        .select('*')
+      if (error) throw error
+      return (data || []).map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        description: g.description,
+        permissions: g.permissions || [],
+        created_at: g.created_at,
+      }))
+    } catch (e) {
+      console.error(e)
+      return db.getGroups()
+    }
+  },
+
+  async saveGroup(group: Partial<UserGroup>): Promise<UserGroup> {
+    if (!isOnline()) throw new Error('Offline group management not supported')
+
+    const payload = {
+      name: group.name,
+      description: group.description,
+      permissions: group.permissions,
+      updated_at: new Date().toISOString(),
+    }
+
+    let query
+    if (group.id) {
+      query = supabase
+        .from('reurb_user_groups')
+        .update(payload)
+        .eq('id', group.id)
+        .select()
+        .single()
+    } else {
+      query = supabase
+        .from('reurb_user_groups')
+        .insert(payload)
+        .select()
+        .single()
+    }
+
+    const { data, error } = await query
+    if (error) throw error
+
+    return {
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      permissions: data.permissions || [],
+      created_at: data.created_at,
+    }
+  },
+
+  async deleteGroup(id: string): Promise<void> {
+    if (!isOnline()) throw new Error('Offline group management not supported')
+    const { error } = await supabase
+      .from('reurb_user_groups')
+      .delete()
+      .eq('id', id)
+    if (error) throw error
+  },
+
+  // --- Analytical Methods ---
 
   async getProductivityStats(): Promise<ProductivityData[]> {
     if (!isOnline()) return db.getProductivityStats()
