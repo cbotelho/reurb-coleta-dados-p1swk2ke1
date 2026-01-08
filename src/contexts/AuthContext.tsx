@@ -70,39 +70,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Default role if profile is missing (fallback)
-      const role = profile?.role || 'viewer'
+      const grupoAcesso = profile?.grupo_acesso || 'Externo'
       const fullName =
-        profile?.full_name || sbUser.user_metadata?.full_name || 'Usuário'
+        profile?.nome || profile?.nome_usuario || sbUser.user_metadata?.full_name || 'Usuário'
 
       const mappedUser: User = {
         id: sbUser.id,
-        username: profile?.username || sbUser.email || '',
+        username: profile?.nome_usuario || sbUser.email || '',
         name: fullName,
-        firstName: profile?.first_name || '',
-        lastName: profile?.last_name || '',
+        firstName: profile?.nome || '',
+        lastName: profile?.sobrenome || '',
         email: profile?.email || sbUser.email,
-        photoUrl: profile?.photo_url,
-        status: profile?.status || 'active',
-        active: profile?.status === 'active',
-        lastLoginAt: profile?.last_login_at,
+        photoUrl: profile?.foto,
+        status: profile?.situacao === 'Ativo' ? 'active' : 'inactive',
+        active: profile?.situacao === 'Ativo',
+        lastLoginAt: profile?.ultimo_login,
         createdAt: profile?.created_at,
-        groupIds: [role], // Fallback if groups not loaded here
+        groupIds: [grupoAcesso], // Fallback if groups not loaded here
       }
 
       // Update last login
       await supabase
         .from('reurb_profiles')
-        .update({ last_login_at: new Date().toISOString() })
+        .update({ ultimo_login: new Date().toISOString() })
         .eq('id', sbUser.id)
 
       setUser(mappedUser)
       // Map roles to permissions
-      const permissions = getPermissionsForRole(role)
+      const permissions = getPermissionsForRole(grupoAcesso)
       setGroups([
         {
-          id: role,
-          name: getRoleName(role),
-          role: role as any,
+          id: grupoAcesso,
+          name: getRoleName(grupoAcesso),
+          role: grupoAcesso as any,
           permissions,
         },
       ])
@@ -132,8 +132,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const getPermissionsForRole = (role: string): string[] => {
     switch (role) {
+      case 'Administradores':
       case 'super_admin':
         return ['all']
+      case 'Administrador':
       case 'admin':
         return [
           'manage_users',
@@ -141,9 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'view_reports',
           'manage_groups',
         ]
+      case 'Vistoriador':
       case 'operator':
         return ['edit_projects', 'view_reports']
-      case 'manager': // Compatibility
+      case 'Analista':
+      case 'manager':
         return ['edit_projects', 'view_reports']
       default:
         return ['view_only']

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { Project, AppSettings } from '@/types'
 import { db } from '@/services/db' // For settings
+import { useAuth } from '@/contexts/AuthContext'
 import {
   Card,
   CardContent,
@@ -12,7 +13,14 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Calendar, FileText, Map, Loader2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Building2, Calendar, FileText, Map, Loader2, MoreHorizontal, Edit, Trash2, Plus } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 
@@ -20,6 +28,9 @@ export default function Projetos() {
   const [projects, setProjects] = useState<Project[]>([])
   const [settings, setSettings] = useState<AppSettings>(db.getSettings())
   const [loading, setLoading] = useState(true)
+  const { hasPermission } = useAuth()
+
+  const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
 
   useEffect(() => {
     // Refresh settings to get latest key if synced
@@ -37,6 +48,21 @@ export default function Projetos() {
       toast.error('Erro ao carregar projetos.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteProject = async (project: Project) => {
+    if (!confirm(`Tem certeza que deseja excluir o projeto "${project.name}"?`)) {
+      return
+    }
+    
+    try {
+      await api.deleteProject(project.local_id)
+      setProjects(projects.filter(p => p.local_id !== project.local_id))
+      toast.success('Projeto excluído com sucesso!')
+    } catch (error) {
+      console.error(error)
+      toast.error('Erro ao excluir projeto.')
     }
   }
 
@@ -76,6 +102,14 @@ export default function Projetos() {
             Gerencie os projetos e loteamentos disponíveis.
           </p>
         </div>
+        {canEditProjects && (
+          <Button asChild>
+            <Link to="/projetos/novo">
+              <Plus className="w-4 h-4 mr-2" />
+              Novo Projeto
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -132,12 +166,39 @@ export default function Projetos() {
               </div>
             </CardContent>
             <CardFooter className="pt-4 border-t bg-muted/20">
-              <Button asChild className="w-full">
-                <Link to={`/projetos/${project.local_id}`}>
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Ver Detalhes
-                </Link>
-              </Button>
+              <div className="flex gap-2 w-full">
+                <Button asChild className="flex-1">
+                  <Link to={`/projetos/${project.local_id}`}>
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Ver Detalhes
+                  </Link>
+                </Button>
+                {canEditProjects && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link to={`/projetos/${project.local_id}/editar`}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          Editar
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="text-red-600"
+                        onClick={() => handleDeleteProject(project)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </div>
             </CardFooter>
           </Card>
         ))}

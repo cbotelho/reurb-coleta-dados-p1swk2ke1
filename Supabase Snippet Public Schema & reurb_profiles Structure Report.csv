@@ -1,0 +1,14 @@
+schemaname,tablename,inserts,updates,deletes,live_rows,dead_rows
+public,reurb_app_config,1,0,0,1,0
+public,reurb_audit_processes,4,0,0,4,0
+public,reurb_contracts,30,0,0,30,0
+public,reurb_map_layers,0,0,0,0,0
+public,reurb_owners,4,0,4,0,4
+public,reurb_profiles,1,0,0,1,0
+public,reurb_project_checkpoints,0,0,0,0,0
+public,reurb_projects,6,4,1,2,8
+public,reurb_properties,585,17,6,579,16
+public,reurb_quadras,32,0,10,19,13
+public,reurb_surveys,1,1,0,1,1
+public,reurb_user_group_membership,1,0,0,1,0
+public,reurb_user_groups,15,0,0,9,6

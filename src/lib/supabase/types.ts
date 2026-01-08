@@ -185,28 +185,46 @@ export type Database = {
       }
       reurb_profiles: {
         Row: {
-          created_at: string | null
-          full_name: string | null
           id: string
-          role: string | null
+          grupo_acesso: string | null
+          nome_usuario: string | null
+          nome: string | null
+          sobrenome: string | null
+          email: string | null
+          foto: string | null
+          ultimo_login: string | null
+          situacao: string | null
+          criado_por: string | null
+          created_at: string | null
           updated_at: string | null
-          username: string | null
         }
         Insert: {
-          created_at?: string | null
-          full_name?: string | null
           id: string
-          role?: string | null
+          grupo_acesso?: string | null
+          nome_usuario?: string | null
+          nome?: string | null
+          sobrenome?: string | null
+          email?: string | null
+          foto?: string | null
+          ultimo_login?: string | null
+          situacao?: string | null
+          criado_por?: string | null
+          created_at?: string | null
           updated_at?: string | null
-          username?: string | null
         }
         Update: {
-          created_at?: string | null
-          full_name?: string | null
           id?: string
-          role?: string | null
+          grupo_acesso?: string | null
+          nome_usuario?: string | null
+          nome?: string | null
+          sobrenome?: string | null
+          email?: string | null
+          foto?: string | null
+          ultimo_login?: string | null
+          situacao?: string | null
+          criado_por?: string | null
+          created_at?: string | null
           updated_at?: string | null
-          username?: string | null
         }
         Relationships: []
       }

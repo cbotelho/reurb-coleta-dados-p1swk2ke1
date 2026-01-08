@@ -154,6 +154,27 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
 export function useSync() {
   const context = useContext(SyncContext)
-  if (!context) throw new Error('useSync must be used within a SyncProvider')
+  if (!context) {
+    // Return default values instead of throwing error to prevent crashes
+    return {
+      isOnline: navigator.onLine,
+      isSyncing: false,
+      stats: {
+        collected: 0,
+        synced: 0,
+        pending: 0,
+        pendingImages: 0,
+        totalProjects: 0,
+        lastSync: Date.now(),
+        pendingSurveys: 0,
+        totalSurveyed: 0,
+        totalFamilies: 0,
+        totalContracts: 0,
+        totalQuadras: 0,
+      },
+      triggerSync: async () => {},
+      refreshStats: () => {},
+    }
+  }
   return context
 }
