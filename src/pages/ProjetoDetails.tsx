@@ -31,14 +31,18 @@ import {
   Globe,
   RefreshCw,
   Loader2,
+  Plus,
+  MoreHorizontal,
+  Edit,
+  Trash2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
@@ -55,6 +59,8 @@ export default function ProjetoDetails() {
   )
   const [loadingProject, setLoadingProject] = useState(true)
   const [loadingQuadras, setLoadingQuadras] = useState(true)
+
+  const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
 
   useEffect(() => {
     setSettings(db.getSettings())
@@ -161,6 +167,21 @@ export default function ProjetoDetails() {
     } catch (e) {
       toast.dismiss('export')
       toast.error('Erro ao exportar dados.')
+    }
+  }
+
+  const handleDeleteQuadra = async (quadra: Quadra) => {
+    if (!confirm(`Tem certeza que deseja excluir a quadra "${quadra.name}"?`)) {
+      return
+    }
+    
+    try {
+      await api.deleteQuadra(quadra.local_id)
+      setQuadras(quadras.filter(q => q.local_id !== quadra.local_id))
+      toast.success('Quadra excluída com sucesso!')
+    } catch (error) {
+      console.error('Error deleting quadra:', error)
+      toast.error('Erro ao excluir quadra.')
     }
   }
 
@@ -365,7 +386,17 @@ export default function ProjetoDetails() {
 
           {/* Quadras List */}
           <div>
-            <h3 className="text-xl font-semibold mb-4">Quadras Vinculadas</h3>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold">Quadras Vinculadas</h3>
+              {canEditProjects && (
+                <Button size="sm" asChild>
+                  <Link to={`/projetos/${projectId}/quadras/nova`}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nova Quadra
+                  </Link>
+                </Button>
+              )}
+            </div>
             {loadingQuadras ? (
               <div className="grid gap-4 md:grid-cols-2">
                 {[1, 2, 3, 4].map((i) => (
@@ -388,7 +419,34 @@ export default function ProjetoDetails() {
                   >
                     <CardHeader className="pb-2">
                       <CardTitle className="text-lg flex justify-between items-center">
-                        {quadra.name}
+                        <div className="flex items-center gap-2">
+                          {quadra.name}
+                          {canEditProjects && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                  <MoreHorizontal className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/quadras/${quadra.local_id}/editar`}>
+                                    <Edit className="w-3 h-3 mr-2" />
+                                    Editar
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-red-600"
+                                  onClick={() => handleDeleteQuadra(quadra)}
+                                >
+                                  <Trash2 className="w-3 h-3 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                         <Badge
                           variant={
                             quadra.sync_status === 'synchronized'

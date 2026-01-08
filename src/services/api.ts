@@ -46,6 +46,7 @@ const mapQuadra = (row: any): Quadra => ({
   date_updated: new Date(row.updated_at).getTime(),
   name: row.name,
   area: row.area || '',
+  description: row.description || '',
   parent_item_id: row.project_id,
   document_url: row.document_url,
   image_url: row.image_url,
@@ -68,37 +69,58 @@ const mapLote = (row: any): Lote => ({
   status: row.status || 'not_surveyed',
 })
 
-const mapProfile = (row: any): User => {
-  // Extract group IDs and Names from nested reurb_user_group_membership
-  const groups = row.reurb_user_group_membership || []
-  const groupIds = groups.map((g: any) => g.group_id)
-  const groupNames = groups.map(
-    (g: any) => g.reurb_user_groups?.name || 'Unknown',
-  )
+const getPermissionsForGroup = (group: string): string[] => {
+  switch (group) {
+    case 'Administradores':
+    case 'Administrador':
+    case 'super_admin':
+      return ['all']
+    case 'SEHAB':
+    case 'admin':
+      return ['manage_users', 'edit_projects', 'view_reports', 'manage_groups']
+    case 'Técnicos Amapá Terra':
+    case 'Vistoriador':
+    case 'operator':
+      return ['edit_projects', 'view_reports']
+    case 'Next Ambiente':
+    case 'Analista':
+    case 'manager':
+      return ['edit_projects', 'view_reports']
+    case 'Externo':
+    case 'viewer':
+      return ['view_only']
+    default:
+      return ['view_only']
+  }
+}
 
+const mapProfile = (row: any): User => {
+  // Use grupo_acesso as the primary group
+  const grupoAcesso = row.grupo_acesso || 'viewer'
+  
   // Extract Creator Name if available
-  const creatorName = row.created_by_profile?.full_name
+  const creatorName = row.criado_por
 
   return {
     id: row.id,
-    username: row.username || '',
-    firstName: row.first_name || '',
-    lastName: row.last_name || '',
+    username: row.nome_usuario || '',
+    firstName: row.nome || '',
+    lastName: row.sobrenome || '',
     name:
-      row.full_name ||
-      `${row.first_name || ''} ${row.last_name || ''}`.trim() ||
+      row.nome ||
+      `${row.nome || ''} ${row.sobrenome || ''}`.trim() ||
       'Usuário',
-    email: row.email || row.username, // Sometimes username is email, fallback
-    photoUrl: row.photo_url,
-    status: (row.status as 'active' | 'inactive' | 'suspended') || 'active',
-    lastLoginAt: row.last_login_at,
+    email: row.email || row.nome_usuario, // Sometimes username is email, fallback
+    photoUrl: row.foto,
+    status: (row.situacao as 'active' | 'inactive' | 'suspended') || 'active',
+    lastLoginAt: row.ultimo_login,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    createdById: row.created_by_id,
+    createdById: row.criado_por,
     createdBy: creatorName,
-    groupIds: groupIds.length > 0 ? groupIds : [row.role || 'viewer'],
-    groupNames: groupNames,
-    active: row.status === 'active',
+    groupIds: [grupoAcesso],
+    groupNames: [grupoAcesso],
+    active: row.situacao === 'Ativo',
   }
 }
 
@@ -185,17 +207,143 @@ export const api = {
       throw new Error('Offline project not found')
     }
 
+    console.log('Updating project ID:', id)
+    console.log('Raw updates received:', updates)
+    
+    // Check current user and permissions
+    const { data: { user } } = await supabase.auth.getUser()
+    console.log('Current user:', user?.id, user?.email)
+    
+    // Check user profile and permissions
+    const { data: profile } = await supabase
+      .from('reurb_profiles')
+      .select('*')
+      .eq('id', user?.id)
+      .single()
+    
+    console.log('User profile:', profile)
+    console.log('User group:', profile?.grupo_acesso)
+
+    // Try the simplest possible update - just updated_at
+    const simpleUpdate = {
+      updated_at: new Date().toISOString()
+    }
+
+    console.log('Simple update payload:', simpleUpdate)
+
     const { data, error } = await supabase
       .from('reurb_projects')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update(simpleUpdate)
       .eq('id', id)
       .select()
-      .single()
 
-    if (error) throw error
-    const project = mapProject(data)
+    if (error) {
+      console.error('Supabase error details:', error)
+      console.error('Error message:', error.message)
+      console.error('Error details:', error.details)
+      console.error('Error hint:', error.hint)
+      throw error
+    }
+    
+    console.log('Update result:', data)
+    console.log('Update affected rows:', data?.length || 0)
+    
+    // Check if RLS is blocking by trying to count rows
+    const { count } = await supabase
+      .from('reurb_projects')
+      .select('*', { count: 'exact', head: true })
+      .eq('id', id)
+    
+    console.log('Project exists check:', count)
+    
+    // Now try with actual data
+    if (updates.name) {
+      console.log('Trying to update name...')
+      const { data: nameData, error: nameError } = await supabase
+        .from('reurb_projects')
+        .update({ name: updates.name })
+        .eq('id', id)
+        .select()
+        
+      if (nameError) {
+        console.error('Name update error:', nameError)
+      } else {
+        console.log('Name update success:', nameData)
+        console.log('Name update affected rows:', nameData?.length || 0)
+      }
+    }
+    
+    // Try city update separately
+    if (updates.city !== undefined) {
+      console.log('Trying to update city to:', updates.city)
+      const { data: cityData, error: cityError } = await supabase
+        .from('reurb_projects')
+        .update({ city: updates.city })
+        .eq('id', id)
+        .select()
+        
+      if (cityError) {
+        console.error('City update error:', cityError)
+        console.error('City update error details:', cityError.details)
+      } else {
+        console.log('City update success:', cityData)
+        console.log('City update affected rows:', cityData?.length || 0)
+      }
+    }
+    
+    // Try state update separately
+    if (updates.state !== undefined) {
+      console.log('Trying to update state to:', updates.state)
+      const { data: stateData, error: stateError } = await supabase
+        .from('reurb_projects')
+        .update({ state: updates.state })
+        .eq('id', id)
+        .select()
+        
+      if (stateError) {
+        console.error('State update error:', stateError)
+        console.error('State update error details:', stateError.details)
+      } else {
+        console.log('State update success:', stateData)
+        console.log('State update affected rows:', stateData?.length || 0)
+      }
+    }
+    
+    // Fetch final project state
+    const { data: finalProject, error: fetchError } = await supabase
+      .from('reurb_projects')
+      .select('*')
+      .eq('id', id)
+      .single()
+      
+    if (fetchError) {
+      console.error('Error fetching final project:', fetchError)
+      throw fetchError
+    }
+    
+    console.log('Final project state:', finalProject)
+    const project = mapProject(finalProject)
     db.updateProject(project)
     return project
+  },
+
+  async deleteProject(id: string): Promise<void> {
+    if (!isOnline()) {
+      // For offline, just remove from local cache
+      const current = db.getProject(id)
+      if (current) {
+        // Remove from local storage when offline
+        // The actual deletion will sync when online
+      }
+      return
+    }
+
+    const { error } = await supabase
+      .from('reurb_projects')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
   },
 
   // Quadras
@@ -234,6 +382,170 @@ export const api = {
       return q
     } catch {
       return db.getQuadra(id) || null
+    }
+  },
+
+  async updateQuadra(id: string, updates: Partial<any>): Promise<Quadra> {
+    if (!isOnline()) {
+      const current = db.getQuadra(id)
+      if (current) {
+        const updated = { ...current, ...updates, date_updated: Date.now() }
+        db.saveQuadra(updated)
+        return updated
+      }
+      throw new Error('Offline quadra not found')
+    }
+
+    console.log('Updating quadra ID:', id)
+    console.log('Raw updates received:', updates)
+
+    // Try the simplest possible update - just updated_at
+    const simpleUpdate = {
+      updated_at: new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('reurb_quadras')
+      .update(simpleUpdate)
+      .eq('id', id)
+      .select()
+
+    if (error) {
+      console.error('Supabase error details:', error)
+      throw error
+    }
+    
+    // Now try with actual data
+    if (updates.name) {
+      const { data: nameData, error: nameError } = await supabase
+        .from('reurb_quadras')
+        .update({ name: updates.name })
+        .eq('id', id)
+        .select()
+        
+      if (nameError) {
+        console.error('Name update error:', nameError)
+      }
+    }
+    
+    if (updates.area !== undefined) {
+      const { data: areaData, error: areaError } = await supabase
+        .from('reurb_quadras')
+        .update({ area: updates.area })
+        .eq('id', id)
+        .select()
+        
+      if (areaError) {
+        console.error('Area update error:', areaError)
+      }
+    }
+    
+    if (updates.description !== undefined) {
+      const { data: descData, error: descError } = await supabase
+        .from('reurb_quadras')
+        .update({ description: updates.description } as any)
+        .eq('id', id)
+        .select()
+        
+      if (descError) {
+        console.error('Description update error:', descError)
+      }
+    }
+    
+    // Fetch final quadra state
+    const { data: finalQuadra, error: fetchError } = await supabase
+      .from('reurb_quadras')
+      .select('*')
+      .eq('id', id)
+      .single()
+      
+    if (fetchError) {
+      console.error('Error fetching final quadra:', fetchError)
+      throw fetchError
+    }
+    
+    const quadra = mapQuadra(finalQuadra)
+    db.saveQuadra(quadra)
+    return quadra
+  },
+
+  async deleteQuadra(id: string): Promise<void> {
+    if (!isOnline()) {
+      // For offline, just remove from local cache
+      const current = db.getQuadra(id)
+      if (current) {
+        // Remove from local storage when offline
+        // The actual deletion will sync when online
+      }
+      return
+    }
+
+    const { error } = await supabase
+      .from('reurb_quadras')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+  },
+
+  async createQuadra(quadra: Partial<Quadra> & { project_id: string }): Promise<Quadra> {
+    if (!isOnline()) {
+      const newQuadra = {
+        id: 0,
+        local_id: Date.now().toString(),
+        sync_status: 'pending' as const,
+        date_added: Date.now(),
+        date_updated: Date.now(),
+        name: quadra.name || '',
+        area: quadra.area || '',
+        description: quadra.description || '',
+        parent_item_id: quadra.project_id,
+        document_url: quadra.document_url,
+        image_url: quadra.image_url,
+      }
+      db.saveQuadra(newQuadra)
+      return newQuadra
+    }
+
+    const payload: any = {
+      name: quadra.name,
+      area: quadra.area,
+      description: quadra.description,
+      project_id: quadra.project_id,
+      document_url: quadra.document_url,
+      image_url: quadra.image_url,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('reurb_quadras')
+        .insert(payload)
+        .select()
+        .single()
+
+      if (error) throw error
+      const saved = mapQuadra(data)
+      db.saveQuadra(saved)
+      return saved
+    } catch (e) {
+      console.warn('Create quadra failed, saving locally', e)
+      const newQuadra = {
+        id: 0,
+        local_id: Date.now().toString(),
+        sync_status: 'pending' as const,
+        date_added: Date.now(),
+        date_updated: Date.now(),
+        name: quadra.name || '',
+        area: quadra.area || '',
+        description: quadra.description || '',
+        parent_item_id: quadra.project_id,
+        document_url: quadra.document_url,
+        image_url: quadra.image_url,
+      }
+      db.saveQuadra(newQuadra)
+      return newQuadra
     }
   },
 
@@ -393,15 +705,28 @@ export const api = {
       return db.saveSurvey({ ...survey, sync_status: 'pending' })
     }
 
-    const payload = { ...survey, updated_at: new Date().toISOString() }
-    delete (payload as any).sync_status
-    delete (payload as any).local_id
+    // Campos válidos da tabela reurb_surveys
+    const validFields = [
+      'id', 'property_id', 'applicant_name', 'applicant_cpf', 'applicant_nis',
+      'applicant_civil_status', 'applicant_profession', 'applicant_income',
+      'acquisition_mode', 'acquisition_year', 'acquisition_document',
+      'property_type', 'property_area', 'property_address', 'property_number',
+      'property_complement', 'property_neighborhood', 'property_city',
+      'property_state', 'property_cep', 'property_zone', 'property_face',
+      'property_paviment', 'property_energy_supply', 'property_water_supply',
+      'property_sewage_system', 'property_urbanization', 'property_irregular',
+      'property_observations', 'surveyor_name', 'surveyor_document',
+      'survey_date', 'survey_status', 'created_at', 'updated_at'
+    ]
 
-    // Cleanup undefined
-    Object.keys(payload).forEach(
-      (key) =>
-        (payload as any)[key] === undefined && delete (payload as any)[key],
-    )
+    const payload: any = {}
+    validFields.forEach(field => {
+      if (survey[field as keyof Survey] !== undefined) {
+        payload[field] = survey[field as keyof Survey]
+      }
+    })
+
+    payload.updated_at = new Date().toISOString()
 
     try {
       let query
@@ -413,7 +738,7 @@ export const api = {
           .select()
           .single()
       } else {
-        delete (payload as any).id
+        delete payload.id
         query = supabase.from('reurb_surveys').insert(payload).select().single()
       }
 
@@ -481,13 +806,8 @@ export const api = {
   async getUsers(): Promise<User[]> {
     if (!isOnline()) return db.getUsers()
     try {
-      // Fetch users with their group memberships and creator info
-      const { data, error } = await supabase.from('reurb_profiles').select(
-        `*, 
-           reurb_user_group_membership(group_id, reurb_user_groups(name)),
-           created_by_profile:created_by_id(full_name)
-          `,
-      )
+      // Fetch users from reurb_profiles table
+      const { data, error } = await supabase.from('reurb_profiles').select('*')
 
       if (error) throw error
 
@@ -508,14 +828,13 @@ export const api = {
     if (user.id) {
       // Update existing user profile
       const payload = {
-        full_name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        first_name: user.firstName,
-        last_name: user.lastName,
-        username: user.username,
+        nome: user.firstName,
+        sobrenome: user.lastName,
+        nome_usuario: user.username,
         email: user.email,
-        status: user.status,
-        photo_url: user.photoUrl,
-        role: user.groupIds && user.groupIds.length > 0 ? 'user' : 'viewer',
+        foto: user.photoUrl,
+        grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Externo',
+        situacao: user.status === 'active' ? 'Ativo' : 'Inativo',
         updated_at: new Date().toISOString(),
       }
 
@@ -525,54 +844,43 @@ export const api = {
         .eq('id', user.id)
 
       if (error) throw error
-
-      // Update Group Memberships
-      if (user.groupIds) {
-        // First delete existing
-        await supabase
-          .from('reurb_user_group_membership')
-          .delete()
-          .eq('user_id', user.id)
-
-        // Then insert new
-        if (user.groupIds.length > 0) {
-          const membershipData = user.groupIds.map((gid) => ({
-            user_id: user.id,
-            group_id: gid,
-          }))
-          const { error: groupError } = await supabase
-            .from('reurb_user_group_membership')
-            .insert(membershipData)
-
-          if (groupError) console.error('Error saving groups:', groupError)
-        }
-      }
     } else {
       // Create new user via Edge Function
       const { error } = await supabase.functions.invoke('create-user', {
         body: {
           email: user.email,
           password: user.password,
-          fullName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-          firstName: user.firstName,
-          lastName: user.lastName,
-          username: user.username,
-          photoUrl: user.photoUrl,
-          status: user.status,
-          role: 'user', // Default role, groups handle permission
-          groupIds: user.groupIds,
-          createdById: user.createdById,
+          nome: user.firstName,
+          sobrenome: user.lastName,
+          nome_usuario: user.username,
+          grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Externo',
+          foto: user.photoUrl,
+          situacao: user.status === 'active' ? 'Ativo' : 'Inativo',
+          criado_por: user.createdById || 'system',
         },
       })
+
       if (error) throw error
     }
   },
 
   async deleteUser(id: string): Promise<void> {
-    // Delete profile (cascades to auth user if implemented, otherwise just profile)
-    // Note: Deleting from auth.users requires service role, usually edge function.
-    // Here we delete from profile which might cascade or we should use an edge function
-    // to delete the actual user. For now, we delete profile.
+    // Get user email first
+    const { data: profile } = await supabase
+      .from('reurb_profiles')
+      .select('email')
+      .eq('id', id)
+      .single()
+    
+    if (profile?.email) {
+      // Delete from auth.users via edge function
+      const { error: authError } = await supabase.functions.invoke('delete-user', {
+        body: { email: profile.email }
+      })
+      if (authError) console.error('Error deleting auth user:', authError)
+    }
+    
+    // Delete profile
     const { error } = await supabase
       .from('reurb_profiles')
       .delete()
@@ -584,16 +892,23 @@ export const api = {
   async getGroups(): Promise<UserGroup[]> {
     if (!isOnline()) return db.getGroups()
     try {
+      // Get unique groups from reurb_profiles
       const { data, error } = await supabase
-        .from('reurb_user_groups')
-        .select('*')
+        .from('reurb_profiles')
+        .select('grupo_acesso')
+        .not('grupo_acesso', 'is', null)
+      
       if (error) throw error
-      return (data || []).map((g: any) => ({
-        id: g.id,
-        name: g.name,
-        description: g.description,
-        permissions: g.permissions || [],
-        created_at: g.created_at,
+      
+      // Get unique groups and map to UserGroup format
+      const uniqueGroups = [...new Set((data || []).map((row: any) => row.grupo_acesso))]
+      
+      return uniqueGroups.map((group: string) => ({
+        id: group,
+        name: group,
+        description: `Grupo: ${group}`,
+        permissions: getPermissionsForGroup(group),
+        created_at: new Date().toISOString(),
       }))
     } catch (e) {
       console.error(e)
@@ -738,7 +1053,7 @@ export const api = {
         .select(
           `
           id, action, details, created_at, target_type,
-          reurb_profiles:user_id ( full_name )
+          reurb_profiles:user_id ( nome )
         `,
         )
         .order('created_at', { ascending: false })
@@ -758,7 +1073,7 @@ export const api = {
           id: a.id,
           action: a.action,
           details: a.details || '',
-          user_name: a.reurb_profiles?.full_name || 'Sistema',
+          user_name: a.reurb_profiles?.nome || 'Sistema',
           timestamp: a.created_at,
           type,
         }

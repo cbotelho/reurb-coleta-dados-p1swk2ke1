@@ -34,6 +34,7 @@ export interface Quadra {
   date_updated: number
   name: string
   area: string
+  description?: string
   parent_item_id: string
   document_url?: string
   image_url?: string
