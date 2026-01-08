@@ -1,4 +1,4 @@
-# Projeto Criado com o Skip
+# Projeto Criado com o Skip e Windsurf
 
 Este projeto foi criado de ponta a ponta com o [Skip](https://goskip.dev).
 
