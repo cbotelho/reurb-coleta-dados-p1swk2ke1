@@ -3,8 +3,10 @@ import { useParams, Link } from 'react-router-dom'
 import { db } from '@/services/db'
 import { api } from '@/services/api'
 import { exporter } from '@/utils/exporter'
+import { DocumentSection } from '@/features/reurb/components/DocumentSection'
 import { geoExporter } from '@/utils/geoExporter'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/hooks/usePermissions'
 import { Project, Quadra, AppSettings, MapKey } from '@/types'
 import { Button } from '@/components/ui/button'
 import { ProjectMapUpdateDialog } from '@/components/ProjectMapUpdateDialog'
@@ -50,6 +52,7 @@ import { toast } from 'sonner'
 export default function ProjetoDetails() {
   const { projectId } = useParams()
   const { hasPermission } = useAuth()
+  const { hasPermission: checkPermission, isAdmin } = usePermissions()
   const [project, setProject] = useState<Project | undefined>()
   const [quadras, setQuadras] = useState<Quadra[]>([])
   const [isUpdatingMap, setIsUpdatingMap] = useState(false)
@@ -59,8 +62,25 @@ export default function ProjetoDetails() {
   )
   const [loadingProject, setLoadingProject] = useState(true)
   const [loadingQuadras, setLoadingQuadras] = useState(true)
+  const [canEditProjects, setCanEditProjects] = useState(false)
+  const [canUploadDocuments, setCanUploadDocuments] = useState(false)
+  const [canViewDocuments, setCanViewDocuments] = useState(false)
 
-  const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
+  useEffect(() => {
+    const loadPermissions = async () => {
+      console.log('Verificando permissões para:', { isAdmin, checkPermission })
+      const [hasEditPermission, hasUploadPermission, hasViewPermission] = await Promise.all([
+        checkPermission('edit_projects'),
+        checkPermission('upload_documents'),
+        checkPermission('view_documents')
+      ])
+      console.log('Permissões verificadas:', { hasEditPermission, hasUploadPermission, hasViewPermission })
+      setCanEditProjects(isAdmin || hasEditPermission)
+      setCanUploadDocuments(isAdmin || hasUploadPermission)
+      setCanViewDocuments(isAdmin || hasViewPermission)
+    }
+    loadPermissions()
+  }, [isAdmin, checkPermission])
 
   useEffect(() => {
     setSettings(db.getSettings())
@@ -235,11 +255,11 @@ export default function ProjetoDetails() {
           </Button>
           <div>
             <h2 className="text-3xl font-bold tracking-tight">
-              Loteamento {project.name}
+              Loteamento {project?.name || `Projeto ${project?.local_id || ''}`}
             </h2>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className="text-xs">
-                ID: {project.local_id.slice(0, 8)}
+                ID: {project?.local_id?.slice(0, 8) || 'N/A'}
               </Badge>
               <Badge variant="default">Online</Badge>
             </div>
@@ -247,7 +267,7 @@ export default function ProjetoDetails() {
         </div>
 
         <div className="flex gap-2">
-          {hasPermission('all') && (
+          {isAdmin && (
             <ProjectMapUpdateDialog
               project={project}
               onUpdate={(updatedProject) => setProject(updatedProject)}
@@ -383,6 +403,15 @@ export default function ProjetoDetails() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Documentos do Projeto */}
+          <DocumentSection 
+            projectId={projectId || ''} 
+            canUpload={canUploadDocuments}
+            canDelete={isAdmin}
+            canDownload={canViewDocuments}
+            className="mb-6"
+          />
 
           {/* Quadras List */}
           <div>

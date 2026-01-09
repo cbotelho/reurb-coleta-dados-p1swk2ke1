@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Edit } from 'lucide-react'
 
 interface ProjectCardProps {
   project: Project
@@ -60,7 +61,12 @@ export function ProjectCard({ project }: ProjectCardProps) {
               <DropdownMenuItem asChild>
                 <Link to={`/projetos/${project.local_id}`}>Ver detalhes</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>Editar</DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to={`/projetos/${project.local_id}/editar`}>
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem className="text-red-600">
                 Arquivar
               </DropdownMenuItem>

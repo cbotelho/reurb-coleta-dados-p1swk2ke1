@@ -19,6 +19,7 @@ import { ModalitiesChart } from '@/components/dashboard/ModalitiesChart'
 import { RecentActivity } from '@/components/dashboard/RecentActivity'
 import { TitlingGoalCard } from '@/components/dashboard/TitlingGoalCard'
 import { toast } from 'sonner'
+import { Link } from 'react-router-dom'
 
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -64,12 +65,7 @@ export default function Dashboard() {
     }
   }
 
-  const handleNewProject = () => {
-    toast.info('Funcionalidade de criação iniciada', {
-      description: 'O fluxo de novo projeto será aberto.',
-    })
-  }
-
+  
   if (loading)
     return (
       <div className="flex justify-center items-center h-screen bg-slate-50">
@@ -89,11 +85,13 @@ export default function Dashboard() {
             Seus Projetos Ativos
           </h1>
           <Button
-            onClick={handleNewProject}
+            asChild
             className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 border-0 shadow-sm font-medium"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Projeto
+            <Link to="/projetos/novo">
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Projeto
+            </Link>
           </Button>
         </div>
 
@@ -105,8 +103,10 @@ export default function Dashboard() {
             {projects.length === 0 ? (
               <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
                 <p className="text-gray-500 mb-4">Nenhum projeto encontrado.</p>
-                <Button variant="outline" onClick={handleNewProject}>
-                  Criar Primeiro Projeto
+                <Button variant="outline" asChild>
+                  <Link to="/projetos/novo">
+                    Criar Primeiro Projeto
+                  </Link>
                 </Button>
               </div>
             ) : (

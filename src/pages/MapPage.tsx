@@ -61,7 +61,6 @@ import {
   exportToGeoJSON,
   exportToKML,
   getBoundsCoordinates,
-  DEFAULT_STYLE,
 } from '@/utils/geoUtils'
 import { LayerManager } from '@/components/LayerManager'
 import { ExternalDataDialog } from '@/components/ExternalDataDialog'
@@ -161,6 +160,15 @@ const DARK_MAP_STYLE = [
 
 const MARABAIXO_COORDS = { lat: 0.036161, lng: -51.130895 }
 
+const DEFAULT_STYLE: DrawingStyle = {
+  strokeColor: '#2563eb',
+  strokeWeight: 2,
+  fillColor: '#2563eb',
+  fillOpacity: 0.3,
+  markerIcon: 'circle',
+  markerSize: 1,
+}
+
 export default function MapPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -185,7 +193,9 @@ export default function MapPage() {
     'street' | 'satellite' | 'terrain' | 'hybrid' | 'dark'
   >((sessionStorage.getItem('map_layer') as any) || 'street')
   const [markerMode, setMarkerMode] = useState<'status' | 'default'>('status')
-  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>()
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>(
+    MARABAIXO_COORDS // Coordenadas padrão iniciais
+  )
   const [mapZoom, setMapZoom] = useState(15)
 
   // Layers & Drawing
@@ -368,9 +378,11 @@ export default function MapPage() {
     }
 
     const project = projects.find((p) => p.local_id === projectId)
-    if (project && project.latitude && project.longitude) {
+    if (project) {
+      // Sempre centralizar no projeto selecionado, mesmo sem lotes
       const lat = parseFloat(String(project.latitude).replace(',', '.'))
       const lng = parseFloat(String(project.longitude).replace(',', '.'))
+      
       if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
         setMapCenter({ lat, lng })
         setMapZoom(17)
@@ -379,7 +391,13 @@ export default function MapPage() {
         }
         toast.success(`Visualizando: ${project.name}`)
       } else {
-        toast.warning('Projeto sem coordenadas válidas.')
+        toast.warning('Projeto sem coordenadas válidas. Usando coordenadas padrão.')
+        // Fallback para coordenadas padrão se o projeto não tiver coordenadas
+        setMapCenter(MARABAIXO_COORDS)
+        setMapZoom(15)
+        if (mapRef.current) {
+          mapRef.current.panTo(MARABAIXO_COORDS.lat, MARABAIXO_COORDS.lng)
+        }
       }
     }
   }
@@ -429,6 +447,7 @@ export default function MapPage() {
     if (mapReady && !initialFocusRef.current && projects.length > 0) {
       setTimeout(() => {
         if (mapRef.current) {
+          // Se houver um projeto selecionado que não seja "all", centralizar nele
           if (selectedProjectId !== 'all') {
             const activeProj = projects.find(
               (p) => p.local_id === selectedProjectId,
@@ -440,7 +459,7 @@ export default function MapPage() {
               const lng = parseFloat(
                 String(activeProj.longitude).replace(',', '.'),
               )
-              if (!isNaN(lat) && !isNaN(lng)) {
+              if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
                 setMapCenter({ lat, lng })
                 mapRef.current.panTo(lat, lng)
                 initialFocusRef.current = true
@@ -449,18 +468,26 @@ export default function MapPage() {
             }
           }
 
-          const validProj = projects.find((p) => p.latitude && p.longitude)
+          // Tentar centralizar no primeiro projeto com coordenadas válidas
+          const validProj = projects.find((p) => {
+            const lat = parseFloat(String(p.latitude || '0').replace(',', '.'))
+            const lng = parseFloat(String(p.longitude || '0').replace(',', '.'))
+            return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0
+          })
+          
           if (validProj) {
             const lat = parseFloat(String(validProj.latitude).replace(',', '.'))
-            const lng = parseFloat(
-              String(validProj.longitude).replace(',', '.'),
-            )
+            const lng = parseFloat(String(validProj.longitude).replace(',', '.'))
             if (!isNaN(lat) && !isNaN(lng)) {
               setMapCenter({ lat, lng })
               mapRef.current.panTo(lat, lng)
               initialFocusRef.current = true
+              return
             }
           }
+
+          // Se nenhum projeto tiver coordenadas, manter as coordenadas padrão
+          console.log('Nenhum projeto com coordenadas válidas encontrado. Usando coordenadas padrão.')
         }
       }, 500)
     }

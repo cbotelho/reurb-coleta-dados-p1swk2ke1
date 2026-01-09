@@ -3,26 +3,28 @@ import { useParams, Link } from 'react-router-dom'
 import { api } from '@/services/api'
 import { Quadra, Lote, Project } from '@/types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Plus, Search, MapPin, ArrowLeft, Loader2, Home } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/contexts/AuthContext'
+import { toast } from 'sonner'
+import { Plus, ArrowLeft, Loader2, Home, MoreHorizontal, Edit, Trash2, MapPin, FileText } from 'lucide-react'
 
 export default function QuadraDetails() {
   const { quadraId } = useParams<{ quadraId: string }>()
+  const { hasPermission } = useAuth()
   const [quadra, setQuadra] = useState<Quadra | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [lotes, setLotes] = useState<Lote[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+
+  const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,37 +49,23 @@ export default function QuadraDetails() {
     loadData()
   }, [quadraId])
 
-  const filteredLotes = lotes.filter((l) =>
-    l.name.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
-
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'surveyed':
-        return (
-          <Badge className="bg-blue-500 hover:bg-blue-600">Vistoriado</Badge>
-        )
-      case 'in_analysis':
-        return (
-          <Badge className="bg-yellow-500 hover:bg-yellow-600">
-            Em Análise
-          </Badge>
-        )
-      case 'regularized':
-        return (
-          <Badge className="bg-green-500 hover:bg-green-600">
-            Regularizado
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="outline" className="text-gray-500">
-            Pendente
-          </Badge>
-        )
+  
+  const handleDeleteLote = async (lote: Lote) => {
+    if (!confirm(`Tem certeza que deseja excluir o lote "${lote.name}"?`)) {
+      return
+    }
+    
+    try {
+      await api.deleteLote(lote.local_id)
+      setLotes(lotes.filter(l => l.local_id !== lote.local_id))
+      toast.success('Lote excluído com sucesso!')
+    } catch (error) {
+      console.error('Error deleting lote:', error)
+      toast.error('Erro ao excluir lote.')
     }
   }
 
+  
   if (loading)
     return (
       <div className="flex justify-center items-center h-[50vh]">
@@ -107,70 +95,139 @@ export default function QuadraDetails() {
             {lotes.length} lotes cadastrados
           </p>
         </div>
-        <Button asChild className="bg-blue-600">
-          <Link to={`/quadras/${quadraId}/lotes/new`}>
-            <Plus className="h-4 w-4 mr-2" /> Novo Lote
-          </Link>
-        </Button>
+        {canEditProjects && (
+          <Button asChild className="bg-blue-600">
+            <Link to={`/quadras/${quadraId}/lotes/new`}>
+              <Plus className="h-4 w-4 mr-2" /> Novo Lote
+            </Link>
+          </Button>
+        )}
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input
-              placeholder="Buscar lote..."
-              className="pl-9"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lote</TableHead>
-                  <TableHead className="hidden sm:table-cell">Área</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLotes.map((lote) => (
-                  <TableRow key={lote.local_id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <Home className="h-4 w-4 text-gray-400" />
-                        {lote.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {lote.area}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(lote.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild size="sm" variant="ghost">
-                        <Link to={`/lotes/${lote.local_id}`}>Abrir</Link>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {lotes.map((lote) => (
+          <Card
+            key={lote.local_id}
+            className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow"
+          >
+            <div className="aspect-video w-full overflow-hidden bg-muted relative">
+              <img
+                src={`https://img.usecurling.com/p/400/250?q=house%20map&color=blue`}
+                alt={`Imagem do lote ${lote.name}`}
+                className="w-full h-full object-cover transition-transform hover:scale-105 duration-500"
+              />
+              <div className="absolute top-2 right-2">
+                <Badge
+                  variant="outline"
+                  className="px-2.5 py-0.5 text-xs font-semibold"
+                  style={{
+                    backgroundColor: lote.status === 'synchronized' 
+                      ? '#10b981'  // verde
+                      : lote.status === 'surveyed'
+                        ? '#10b981'  // verde
+                        : lote.status === 'regularized'
+                          ? '#3b82f6'  // azul
+                          : lote.status === 'not_surveyed'
+                            ? '#6b7280'  // cinza
+                            : '#eab308', // amarelo (para pending)
+                    color: 'white',
+                    borderColor: lote.status === 'synchronized' 
+                      ? '#10b981'
+                      : lote.status === 'surveyed'
+                        ? '#10b981'
+                        : lote.status === 'regularized'
+                          ? '#3b82f6'
+                          : lote.status === 'not_surveyed'
+                            ? '#6b7280'
+                            : '#eab308'
+                  }}
+                >
+                  {lote.status === 'synchronized' 
+                    ? 'Sincronizado'
+                    : lote.status === 'surveyed'
+                      ? 'Vistoriado'
+                      : lote.status === 'regularized'
+                        ? 'Regularizado'
+                        : lote.status === 'not_surveyed'
+                          ? 'Não Vistoriado'
+                          : 'Pendente'}
+                </Badge>
+              </div>
+            </div>
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-xl">
+                    Lote {lote.name}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+                    <Home className="w-3 h-3" /> Área:{' '}
+                    {lote.area || 'Não informada'}
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 pb-2">
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="w-4 h-4" />
+                  <span className="truncate max-w-[200px]">
+                    {lote.address || 'Sem endereço'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <FileText className="w-4 h-4" />
+                  <span>
+                    ID: {lote.local_id.slice(0, 8)}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="pt-4 border-t bg-muted/20">
+              <div className="flex gap-2 w-full">
+                <Button asChild className="flex-1">
+                  <Link to={`/lotes/${lote.local_id}`}>
+                    <Home className="w-4 h-4 mr-2" />
+                    Ver Detalhes
+                  </Link>
+                </Button>
+                {canEditProjects && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <MoreHorizontal className="w-4 h-4" />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredLotes.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={4}
-                      className="text-center py-8 text-muted-foreground"
-                    >
-                      Nenhum lote encontrado.
-                    </TableCell>
-                  </TableRow>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link to={`/lotes/${lote.local_id}/editar`}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          Editar
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="text-red-600"
+                        onClick={() => handleDeleteLote(lote)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Excluir
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-              </TableBody>
-            </Table>
+              </div>
+            </CardFooter>
+          </Card>
+        ))}
+        {lotes.length === 0 && (
+          <div className="col-span-full text-center py-12 text-muted-foreground">
+            <Home className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">Nenhum lote encontrado</p>
+            <p className="text-sm mt-1">Tente ajustar sua busca ou adicione novos lotes</p>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </div>
   )
 }

@@ -15,6 +15,7 @@ import {
 import { db } from './db'
 import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { decryptApiKey, encryptApiKey } from '@/utils/encryption'
 
 const mapProject = (row: any): Project => ({
   id: 0,
@@ -22,8 +23,8 @@ const mapProject = (row: any): Project => ({
   sync_status: 'synchronized',
   date_added: new Date(row.created_at).getTime(),
   date_updated: new Date(row.updated_at).getTime(),
-  name: row.name,
-  description: row.description || '',
+  name: row.name || row.field_348 || `Projeto ${row.id}`, // Usando name como prioridade
+  description: row.description || row.field_350 || '', // Usando field_350 como description
   image_url: row.image_url || '',
   latitude: row.latitude?.toString(),
   longitude: row.longitude?.toString(),
@@ -148,12 +149,45 @@ export const api = {
       }
       const config: Record<string, string> = {}
       data?.forEach((row: any) => {
-        config[row.key] = row.value
+        // Descriptografar a chave do Google Maps
+        if (row.key === 'google_maps_api_key') {
+          config[row.key] = decryptApiKey(row.value)
+        } else {
+          config[row.key] = row.value
+        }
       })
       return config
     } catch (e) {
       console.error('Error in getAppConfig:', e)
       return {}
+    }
+  },
+
+  async setAppConfig(key: string, value: string): Promise<boolean> {
+    if (!isOnline()) return false
+    try {
+      // Criptografar a chave do Google Maps antes de salvar
+      const encryptedValue = key === 'google_maps_api_key' 
+        ? encryptApiKey(value) 
+        : value
+      
+      const { error } = await supabase
+        .from('reurb_app_config')
+        .upsert({ 
+          key, 
+          value: encryptedValue,
+          updated_at: new Date().toISOString()
+        })
+        .eq('key', key)
+
+      if (error) {
+        console.error('Error saving app config:', error)
+        return false
+      }
+      return true
+    } catch (e) {
+      console.error('Error in setAppConfig:', e)
+      return false
     }
   },
 
@@ -488,6 +522,74 @@ export const api = {
     if (error) throw error
   },
 
+  async createProject(project: Partial<Project>): Promise<Project> {
+    if (!isOnline()) {
+      const newProject = {
+        id: 0,
+        local_id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: project.name || '',
+        description: project.description || '',
+        latitude: project.latitude || '',
+        longitude: project.longitude || '',
+        image_url: project.image_url || '',
+        date_added: Date.now(),
+        date_updated: Date.now(),
+        sync_status: 'pending' as const,
+      }
+      const projects = db.getProjects()
+      projects.push(newProject)
+      db.saveItems('reurb_projects', projects)
+      return newProject
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('reurb_projects')
+        .insert({
+          name: project.name,
+          description: project.description,
+          latitude: project.latitude ? parseFloat(project.latitude) : null,
+          longitude: project.longitude ? parseFloat(project.longitude) : null,
+          image_url: project.image_url,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as any)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw error
+      }
+      
+      const mappedProject: Project = {
+        id: 0,
+        local_id: (data as any).id,
+        sync_status: 'synchronized',
+        date_added: Date.now(),
+        date_updated: Date.now(),
+        name: project.name || `Projeto ${(data as any).id}`,
+        description: project.description || '',
+        image_url: project.image_url || '',
+        latitude: project.latitude || '',
+        longitude: project.longitude || '',
+      }
+      
+      const projects = db.getProjects()
+      projects.push(mappedProject)
+      db.saveItems('reurb_projects', projects)
+      return mappedProject
+    } catch (error) {
+      console.error('Error creating project:', error)
+      throw error
+    }
+  },
+
   async createQuadra(quadra: Partial<Quadra> & { project_id: string }): Promise<Quadra> {
     if (!isOnline()) {
       const newQuadra = {
@@ -607,10 +709,12 @@ export const api = {
   },
 
   async saveLote(lote: Partial<Lote> & { quadra_id?: string }): Promise<Lote> {
+    const resolvedQuadraId = lote.quadra_id || lote.parent_item_id
+
     if (!isOnline()) {
       return db.saveLote(
         { ...lote, sync_status: 'pending' },
-        lote.quadra_id || lote.parent_item_id || '',
+        resolvedQuadraId || '',
       )
     }
 
@@ -626,7 +730,7 @@ export const api = {
       status: lote.status,
     }
 
-    if (lote.quadra_id) payload.quadra_id = lote.quadra_id
+    if (resolvedQuadraId) payload.quadra_id = resolvedQuadraId
 
     try {
       let query
@@ -642,7 +746,7 @@ export const api = {
           .select()
           .single()
       } else {
-        if (!lote.quadra_id) throw new Error('Quadra ID required')
+        if (!resolvedQuadraId) throw new Error('Quadra ID required')
         query = supabase
           .from('reurb_properties')
           .insert(payload)
@@ -662,7 +766,7 @@ export const api = {
       console.warn('Save lote failed, saving locally', e)
       return db.saveLote(
         { ...lote, sync_status: 'pending' },
-        lote.quadra_id || lote.parent_item_id || '',
+        resolvedQuadraId || '',
       )
     }
   },
@@ -674,6 +778,114 @@ export const api = {
     }
     await supabase.from('reurb_properties').delete().eq('id', id)
     db.deleteLote(id)
+  },
+
+  async updateLote(id: string, updates: Partial<any>): Promise<Lote> {
+    if (!isOnline()) {
+      const current = db.getLote(id)
+      if (current) {
+        const updated = { ...current, ...updates, date_updated: Date.now() }
+        db.saveLote(updated, current.parent_item_id)
+        return updated
+      }
+      throw new Error('Offline lote not found')
+    }
+
+    console.log('Updating lote ID:', id)
+    console.log('Raw updates received:', updates)
+
+    // Try the simplest possible update - just updated_at
+    const simpleUpdate = {
+      updated_at: new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('reurb_properties')
+      .update(simpleUpdate)
+      .eq('id', id)
+      .select()
+
+    if (error) {
+      console.error('Supabase error details:', error)
+      throw error
+    }
+    
+    // Now try with actual data
+    if (updates.name) {
+      const { data: nameData, error: nameError } = await supabase
+        .from('reurb_properties')
+        .update({ name: updates.name })
+        .eq('id', id)
+        .select()
+        
+      if (nameError) {
+        console.error('Name update error:', nameError)
+      }
+    }
+    
+    if (updates.address !== undefined) {
+      const { data: addressData, error: addressError } = await supabase
+        .from('reurb_properties')
+        .update({ address: updates.address })
+        .eq('id', id)
+        .select()
+        
+      if (addressError) {
+        console.error('Address update error:', addressError)
+      }
+    }
+    
+    if (updates.area !== undefined) {
+      const { data: areaData, error: areaError } = await supabase
+        .from('reurb_properties')
+        .update({ area: updates.area })
+        .eq('id', id)
+        .select()
+        
+      if (areaError) {
+        console.error('Area update error:', areaError)
+      }
+    }
+    
+    if (updates.description !== undefined) {
+      const { data: descData, error: descError } = await supabase
+        .from('reurb_properties')
+        .update({ description: updates.description } as any)
+        .eq('id', id)
+        .select()
+        
+      if (descError) {
+        console.error('Description update error:', descError)
+      }
+    }
+    
+    if (updates.status !== undefined) {
+      const { data: statusData, error: statusError } = await supabase
+        .from('reurb_properties')
+        .update({ status: updates.status })
+        .eq('id', id)
+        .select()
+        
+      if (statusError) {
+        console.error('Status update error:', statusError)
+      }
+    }
+    
+    // Fetch final lote state
+    const { data: finalLote, error: fetchError } = await supabase
+      .from('reurb_properties')
+      .select('*')
+      .eq('id', id)
+      .single()
+      
+    if (fetchError) {
+      console.error('Error fetching final lote:', fetchError)
+      throw fetchError
+    }
+    
+    const lote = mapLote(finalLote)
+    db.saveLote(lote, lote.parent_item_id)
+    return lote
   },
 
   // Surveys
@@ -707,16 +919,41 @@ export const api = {
 
     // Campos válidos da tabela reurb_surveys
     const validFields = [
-      'id', 'property_id', 'applicant_name', 'applicant_cpf', 'applicant_nis',
-      'applicant_civil_status', 'applicant_profession', 'applicant_income',
-      'acquisition_mode', 'acquisition_year', 'acquisition_document',
-      'property_type', 'property_area', 'property_address', 'property_number',
-      'property_complement', 'property_neighborhood', 'property_city',
-      'property_state', 'property_cep', 'property_zone', 'property_face',
-      'property_paviment', 'property_energy_supply', 'property_water_supply',
-      'property_sewage_system', 'property_urbanization', 'property_irregular',
-      'property_observations', 'surveyor_name', 'surveyor_document',
-      'survey_date', 'survey_status', 'created_at', 'updated_at'
+      'id',
+      'property_id',
+      'form_number',
+      'survey_date',
+      'city',
+      'state',
+      'applicant_name',
+      'applicant_cpf',
+      'applicant_rg',
+      'applicant_civil_status',
+      'applicant_profession',
+      'applicant_income',
+      'applicant_nis',
+      'spouse_name',
+      'spouse_cpf',
+      'residents_count',
+      'has_children',
+      'occupation_time',
+      'acquisition_mode',
+      'property_use',
+      'construction_type',
+      'roof_type',
+      'floor_type',
+      'rooms_count',
+      'conservation_state',
+      'fencing',
+      'water_supply',
+      'energy_supply',
+      'sanitation',
+      'street_paving',
+      'observations',
+      'surveyor_name',
+      'surveyor_signature',
+      'created_at',
+      'updated_at',
     ]
 
     const payload: any = {}
@@ -725,6 +962,10 @@ export const api = {
         payload[field] = survey[field as keyof Survey]
       }
     })
+
+    if (payload.surveyor_signature === '') {
+      delete payload.surveyor_signature
+    }
 
     payload.updated_at = new Date().toISOString()
 

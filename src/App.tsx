@@ -8,22 +8,25 @@ import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import Projetos from './pages/Projetos'
 import ProjetoDetails from './pages/ProjetoDetails'
+import ProjetoNew from './pages/ProjetoNew'
 import ProjetoEdit from './pages/ProjetoEdit'
 import QuadraDetails from './pages/QuadraDetails'
-import QuadraEdit from './pages/QuadraEdit'
 import QuadraNew from './pages/QuadraNew'
+import QuadraEdit from './pages/QuadraEdit'
 import LoteForm from './pages/LoteForm'
+import LoteEdit from './pages/LoteEdit'
+import CSVImport from './pages/CSVImport'
 import SyncStatus from './pages/SyncStatus'
 import NotFound from './pages/NotFound'
 import Login from './pages/Login'
 import MapPage from './pages/MapPage'
 import GeoAlerts from './pages/GeoAlerts'
+import GeoAnalysis from './pages/GeoAnalysis'
 import Settings from './pages/Settings'
 import Users from './pages/Users'
 import UserGroups from './pages/UserGroups'
 import ReportConfig from './pages/ReportConfig'
 import SavedCoordinates from './pages/SavedCoordinates'
-import GeoAnalysis from './pages/GeoAnalysis'
 import React from 'react'
 
 const LoadingSpinner = () => (
@@ -87,12 +90,14 @@ const App = () => (
             >
               <Route path="/" element={<Dashboard />} />
               <Route path="/projetos" element={<Projetos />} />
+              <Route path="/projetos/novo" element={<ProjetoNew />} />
               <Route path="/projetos/:projectId" element={<ProjetoDetails />} />
               <Route path="/projetos/:projectId/editar" element={<ProjetoEdit />} />
               <Route path="/projetos/:projectId/quadras/nova" element={<QuadraNew />} />
               <Route path="/quadras/:quadraId" element={<QuadraDetails />} />
               <Route path="/quadras/:quadraId/editar" element={<QuadraEdit />} />
               <Route path="/lotes/:loteId" element={<LoteForm />} />
+              <Route path="/lotes/:loteId/editar" element={<LoteEdit />} />
               <Route
                 path="/quadras/:quadraId/lotes/new"
                 element={<LoteForm />}
@@ -109,6 +114,7 @@ const App = () => (
               <Route path="/users" element={<Users />} />
               <Route path="/groups" element={<UserGroups />} />
               <Route path="/relatorios/:projectId" element={<ReportConfig />} />
+              <Route path="/importar-csv" element={<CSVImport />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

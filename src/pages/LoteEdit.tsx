@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { api } from '@/services/api'
-import { Project } from '@/types'
+import { Lote } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,100 +16,111 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Save, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/AuthContext'
-import { usePermissions } from '@/hooks/usePermissions'
 
 const formSchema = z.object({
-  name: z.string().min(1, 'Nome do projeto é obrigatório'),
+  name: z.string().min(1, 'Nome do lote é obrigatório'),
+  address: z.string().optional(),
+  area: z.string().optional(),
   description: z.string().optional(),
-  city: z.string().min(1, 'Cidade é obrigatória'),
-  state: z.string().min(1, 'Estado é obrigatório'),
   latitude: z.string().optional(),
   longitude: z.string().optional(),
-  image_url: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  status: z.enum(['not_surveyed', 'surveyed', 'regularized', 'pending', 'failed', 'synchronized']),
 })
 
 type FormValues = z.infer<typeof formSchema>
 
-export default function ProjetoEdit() {
-  const { projectId } = useParams()
+const statusOptions = [
+  { value: 'not_surveyed', label: 'Não Vistoriado' },
+  { value: 'surveyed', label: 'Vistoriado' },
+  { value: 'regularized', label: 'Regularizado' },
+  { value: 'pending', label: 'Pendente' },
+  { value: 'failed', label: 'Falhou' },
+  { value: 'synchronized', label: 'Sincronizado' },
+]
+
+export default function LoteEdit() {
+  const { loteId } = useParams()
   const navigate = useNavigate()
   const { hasPermission } = useAuth()
-  const { isAdmin } = usePermissions()
-  const [project, setProject] = useState<Project | null>(null)
+  const [lote, setLote] = useState<Lote | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const canEditProjects = isAdmin || hasPermission('edit_projects')
+  const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      address: '',
+      area: '',
       description: '',
-      city: '',
-      state: '',
       latitude: '',
       longitude: '',
-      image_url: '',
-      tags: [],
+      status: 'not_surveyed',
     },
   })
 
   useEffect(() => {
-    if (projectId) {
-      loadProject()
+    if (loteId) {
+      loadLote()
     }
-  }, [projectId])
+  }, [loteId])
 
-  const loadProject = async () => {
+  const loadLote = async () => {
     try {
-      const data = await api.getProject(projectId)
+      const data = await api.getLote(loteId)
       if (data) {
-        setProject(data)
+        setLote(data)
         form.reset({
           name: data.name,
+          address: data.address || '',
+          area: data.area || '',
           description: data.description || '',
-          city: data.city || '',
-          state: data.state || '',
           latitude: data.latitude || '',
           longitude: data.longitude || '',
-          image_url: data.image_url || '',
-          tags: data.tags || [],
+          status: data.status || 'not_surveyed',
         })
       }
     } catch (error) {
-      console.error('Error loading project:', error)
-      toast.error('Erro ao carregar projeto.')
+      console.error('Error loading lote:', error)
+      toast.error('Erro ao carregar lote.')
     } finally {
       setLoading(false)
     }
   }
 
   const onSubmit = async (values: FormValues) => {
-    if (!projectId || !canEditProjects) return
+    if (!loteId || !canEditProjects) return
 
     setSaving(true)
     try {
-      await api.updateProject(projectId, {
+      await api.updateLote(loteId, {
         name: values.name,
+        address: values.address,
+        area: values.area,
         description: values.description,
-        city: values.city || null,  // Explicit null if empty
-        state: values.state || null,  // Explicit null if empty
         latitude: values.latitude,
         longitude: values.longitude,
-        image_url: values.image_url,
+        status: values.status,
       })
-      toast.success('Projeto atualizado com sucesso!')
-      navigate(`/projetos/${projectId}`)
+      toast.success('Lote atualizado com sucesso!')
+      navigate(`/lotes/${loteId}`)
     } catch (error) {
-      console.error('Error saving project:', error)
-      toast.error('Erro ao salvar projeto.')
+      console.error('Error saving lote:', error)
+      toast.error('Erro ao salvar lote.')
     } finally {
       setSaving(false)
     }
@@ -121,7 +132,7 @@ export default function ProjetoEdit() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Acesso Negado</h1>
           <p className="text-gray-500">
-            Você não tem permissão para editar projetos.
+            Você não tem permissão para editar lotes.
           </p>
           <Button asChild className="mt-4">
             <Link to="/projetos">
@@ -152,16 +163,16 @@ export default function ProjetoEdit() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Editar Projeto</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Editar Lote</h1>
           <p className="text-muted-foreground">
-            {project?.name || 'Carregando...'}
+            {lote?.name || 'Carregando...'}
           </p>
         </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Informações do Projeto</CardTitle>
+          <CardTitle>Informações do Lote</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -172,9 +183,9 @@ export default function ProjetoEdit() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome do Projeto *</FormLabel>
+                      <FormLabel>Nome do Lote *</FormLabel>
                       <FormControl>
-                        <Input placeholder="Nome do projeto" {...field} />
+                        <Input placeholder="Nome do lote" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -183,44 +194,12 @@ export default function ProjetoEdit() {
 
                 <FormField
                   control={form.control}
-                  name="city"
+                  name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Cidade *</FormLabel>
+                      <FormLabel>Endereço</FormLabel>
                       <FormControl>
-                        <Input placeholder="Cidade" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="state"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Estado *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Estado" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descrição</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="Descrição do projeto" 
-                          className="min-h-[100px]"
-                          {...field} 
-                        />
+                        <Input placeholder="Endereço do lote" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -231,12 +210,71 @@ export default function ProjetoEdit() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
+                  name="area"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Área</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Área do lote" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {statusOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Descrição do lote" 
+                        className="min-h-[100px]"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
                   name="latitude"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Latitude</FormLabel>
                       <FormControl>
-                        <Input placeholder="-0.0000" {...field} />
+                        <Input placeholder="Latitude" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -250,27 +288,13 @@ export default function ProjetoEdit() {
                     <FormItem>
                       <FormLabel>Longitude</FormLabel>
                       <FormControl>
-                        <Input placeholder="-0.0000" {...field} />
+                        <Input placeholder="Longitude" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-
-              <FormField
-                control={form.control}
-                name="image_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL da Imagem</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://exemplo.com/imagem.jpg" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <div className="flex justify-end gap-4">
                 <Button type="button" variant="outline" asChild>
@@ -279,7 +303,7 @@ export default function ProjetoEdit() {
                 <Button type="submit" disabled={saving}>
                   {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   <Save className="w-4 h-4 mr-2" />
-                  Salvar Projeto
+                  Salvar Lote
                 </Button>
               </div>
             </form>

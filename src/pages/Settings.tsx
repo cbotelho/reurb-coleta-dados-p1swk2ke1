@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { notificationService } from '@/services/notification'
-import { Trash2, Save, MapPin, Key, ShieldCheck } from 'lucide-react'
+import { Trash2, Save, MapPin, Key, ShieldCheck, Database, Upload } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,10 +35,19 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Link } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useAuth } from '@/contexts/AuthContext'
+import { CSVImportSelector } from '@/components/csv-import/CSVImportSelector'
+import { useState as useStateHook } from 'react'
 
 export default function Settings() {
+  const { user } = useAuth()
   const [settings, setSettings] = useState<AppSettings>(db.getSettings())
   const [markerConfigs, setMarkerConfigs] = useState<MarkerConfig[]>([])
+  const [showCSVImport, setShowCSVImport] = useStateHook(false)
+  
+  // Verificar se é administrador usando o novo sistema
+  const isAdmin = user?.grupo_acesso === 'Administrador' || 
+                   user?.grupo_acesso === 'Administradores'
 
   useEffect(() => {
     setSettings(db.getSettings())
@@ -89,6 +98,9 @@ export default function Settings() {
         <TabsList className="mb-4">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="map">Mapas e Geolocalização</TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="admin">Ferramentas Admin</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -311,7 +323,73 @@ export default function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
+
+        {isAdmin && (
+          <TabsContent value="admin" className="space-y-6">
+            {showCSVImport ? (
+              <CSVImportSelector onCancel={() => setShowCSVImport(false)} />
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Database className="h-5 w-5 mr-2" />
+                    Ferramentas Administrativas
+                  </CardTitle>
+                  <CardDescription>
+                    Ferramentas exclusivas para administradores do sistema.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <ShieldCheck className="h-5 w-5 text-amber-600" />
+                      <h4 className="font-semibold text-amber-800">
+                        Acesso Restrito
+                      </h4>
+                    </div>
+                    <p className="text-sm text-amber-700">
+                      Estas ferramentas são exclusivas para administradores e permitem
+                      manipulação direta dos dados do sistema. Use com cuidado.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-1">
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start h-auto p-4"
+                      onClick={() => setShowCSVImport(true)}
+                    >
+                      <Upload className="w-4 h-4 mr-3" />
+                      <div className="text-left">
+                        <div className="font-medium">Importação de Dados CSV</div>
+                        <div className="text-xs text-muted-foreground">
+                          Importe quadras e lotes em massa para o sistema REURB
+                        </div>
+                      </div>
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start h-auto p-4"
+                      asChild
+                    >
+                      <Link to="/configuracoes/coordenadas">
+                        <MapPin className="w-4 h-4 mr-3" />
+                        <div className="text-left">
+                          <div className="font-medium">Coordenadas Salvas</div>
+                          <div className="text-xs text-muted-foreground">
+                            Gerencie locais e pontos de referência
+                          </div>
+                        </div>
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        )}
+        </Tabs>
+      </div>
+    )
+  }

@@ -124,6 +124,7 @@ export interface Survey {
 
   observations?: string
   surveyor_name?: string
+  surveyor_signature?: string
 }
 
 export interface User {
@@ -143,13 +144,15 @@ export interface User {
   groupIds: string[]
   groupNames?: string[]
   active: boolean // Legacy boolean, mapped from status
+  role?: string // Adicionado para compatibilidade
+  grupo_acesso?: string // Grupo de acesso do REURB
 }
 
 export interface UserGroup {
   id: string
   name: string
   description?: string
-  role?: 'admin' | 'manager' | 'viewer' // kept for compatibility
+  role?: 'admin' | 'manager' | 'viewer' | 'Administrador' | 'Administradores' | 'tecnico' | 'gestor' | 'SEHAB' | 'Técnicos Amapá Terra' | 'Next Ambiente' | 'Externo' | 'Externo Editar' // kept for compatibility
   permissions: string[]
   created_at?: string
 }
@@ -218,6 +221,7 @@ export interface MapKey {
   id: string
   name: string
   key: string
+  mapId?: string
   isActive: boolean
   createdAt: number
 }
@@ -259,7 +263,7 @@ export type MarkerIconType = NonNullable<DrawingStyle['markerIcon']>
 
 export interface MapDrawing {
   id: string
-  type: 'point' | 'line' | 'polygon' | 'circle' | 'rectangle' | 'marker'
+  type: 'point' | 'line' | 'polyline' | 'polygon' | 'circle' | 'rectangle' | 'marker'
   coordinates: any // GeoJSON coordinates or specific format
   style?: DrawingStyle
   properties?: {

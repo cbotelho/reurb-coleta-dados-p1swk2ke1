@@ -95,9 +95,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         // 1. Push pending changes
         const { successCount, failCount } = await syncService.pushPendingItems()
-        if (successCount > 0)
-          toast.success(`${successCount} itens enviados com sucesso.`)
-        if (failCount > 0) toast.error(`${failCount} falhas no envio.`)
+        if (failCount === 0 && successCount > 0) {
+          toast.success('Dados sincronizados com o servidor')
+        } else {
+          if (successCount > 0)
+            toast.success(`${successCount} itens enviados com sucesso.`)
+          if (failCount > 0) toast.error(`${failCount} falhas no envio.`)
+        }
 
         // 2. Pull remote data (Full download if requested)
         if (fullDownload) {
