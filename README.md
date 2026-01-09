@@ -1,6 +1,14 @@
-# Projeto Criado com o Skip e Windsurf
+# Projeto Criado com o Windsurf
 
-Este projeto foi criado de com o [Skip](https://goskip.dev) e WindSurf.
+Este projeto foi criado Inicialmente com o Skip. Com algumas limitações do Skip(free) passei a desenvolver com o WindSurf e VSCode.
+
+Outra Limitação do projeto está no uso do Supabase(free), há limitações como por exemplo a execução de Backup da base do Postgre,
+
+mas já há levantamento para converter toda a Base do Supabase para Postgre/PostGis puro.
+
+Esta Verção 1.4.4 já está operacional e pronta para produção.
+
+as Próximas Versões estarei colocando os Agentes de IA par analise e classificação das REURB(E/S) conforme a Lei 13.465/2017
 
 ## 🚀 Stack Tecnológica
 
@@ -36,7 +44,7 @@ npm start
 npm run dev
 ```
 
-Abre a aplicação em modo de desenvolvimento em [http://localhost:5173](http://localhost:5173).
+Abre a aplicação em modo de desenvolvimento em [http://localhost:](http://localhost:5173)8080.
 
 ### Build
 
