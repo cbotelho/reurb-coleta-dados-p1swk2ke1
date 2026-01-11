@@ -409,13 +409,25 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   useEffect(() => {
     const loadData = async () => {
       try {
+        console.log('📥 Carregando dados do lote:', propertyId)
+        
         const [surveyData, loteData] = await Promise.all([
           api.getSurveyByPropertyId(propertyId),
           api.getLote(propertyId),
         ])
 
+        console.log('📊 Dados carregados:', { surveyData, loteData })
+
         if (loteData) {
           setLote(loteData)
+          console.log('🏠 Lote carregado:', {
+            name: loteData.name,
+            address: loteData.address,
+            latitude: loteData.latitude,
+            longitude: loteData.longitude,
+            status: loteData.status,
+          })
+          
           form.setValue('address', loteData.address || '')
           form.setValue('latitude', loteData.latitude || '')
           form.setValue('longitude', loteData.longitude || '')
@@ -429,6 +441,13 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             ? await api.getProject(quadra.parent_item_id)
             : null
           setProjectName(project?.name || '')
+          
+          console.log('📍 Contexto carregado:', {
+            quadra: quadra?.name,
+            project: project?.name,
+          })
+        } else {
+          console.warn('⚠️ Nenhum lote encontrado para ID:', propertyId)
         }
 
         if (surveyData) {
@@ -653,16 +672,34 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       })
       setSurveyId(savedSurvey.id)
 
+      // Atualizar lote com coordenadas e status
       if (lote) {
-        await api.saveLote({
-          ...lote,
+        console.log('📍 Atualizando lote com coordenadas:', {
           address: values.address,
           latitude: values.latitude,
           longitude: values.longitude,
-          status: 'surveyed', // Auto update status to surveyed
-          sync_status: isOnline ? 'synchronized' : 'pending',
-          quadra_id: lote.parent_item_id,
         })
+        
+        // Se temos latitude/longitude, atualizar via updateLote para garantir que salve
+        if (values.latitude || values.longitude || values.address) {
+          await api.updateLote(propertyId, {
+            address: values.address || lote.address,
+            latitude: values.latitude || lote.latitude,
+            longitude: values.longitude || lote.longitude,
+            status: 'surveyed',
+          })
+          console.log('✅ Lote atualizado com coordenadas via updateLote')
+        } else {
+          // Fallback: usar saveLote se não tem coordenadas
+          await api.saveLote({
+            ...lote,
+            address: values.address || lote.address,
+            status: 'surveyed',
+            sync_status: isOnline ? 'synchronized' : 'pending',
+            quadra_id: lote.parent_item_id,
+          })
+          console.log('✅ Lote atualizado sem coordenadas via saveLote')
+        }
       }
 
       refreshStats()

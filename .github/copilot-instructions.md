@@ -346,6 +346,8 @@ COMMIT;
 - [FORMULARIOS-MAPEAMENTO-COMPLETO.md](FORMULARIOS-MAPEAMENTO-COMPLETO.md) - **ESSENCIAL** - mapeamento 1:1 BD ↔ UI
 - [CSV-IMPORT-README.md](CSV-IMPORT-README.md) - Sistema de importação CSV
 - [CSV-EXAMPLES.md](CSV-EXAMPLES.md) - Exemplos de CSV válidos
+- [IMAGE-UPLOAD-FIX.md](IMAGE-UPLOAD-FIX.md) - Solução para QuotaExceededError em uploads
+- [COORDINATES-FIX.md](COORDINATES-FIX.md) - 🆕 Fix de latitude/longitude não salvando
 
 ### Scripts SQL de Diagnóstico (root)
 - `analyze_*.sql` - Análise de estrutura/dados

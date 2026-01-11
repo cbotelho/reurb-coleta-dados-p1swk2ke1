@@ -691,22 +691,59 @@ export const api = {
   },
 
   async getLote(id: string): Promise<Lote | null> {
-    if (!isOnline()) return db.getLote(id) || null
+    console.log('🔍 getLote chamado para ID:', id)
+    
+    // Tentar buscar do Supabase primeiro (online)
+    if (isOnline()) {
+      try {
+        console.log('🌐 Buscando lote online do Supabase...')
+        const { data, error } = await supabase
+          .from('reurb_properties')
+          .select('*')
+          .eq('id', id)
+          .single()
 
-    try {
-      const { data, error } = await supabase
-        .from('reurb_properties')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-      if (error) throw error
-      const lote = mapLote(data)
-      if (lote.parent_item_id) db.saveLote(lote, lote.parent_item_id)
-      return lote
-    } catch {
-      return db.getLote(id) || null
+        if (error) {
+          console.warn('⚠️ Erro ao buscar do Supabase:', error)
+          throw error
+        }
+        
+        if (data) {
+          console.log('✅ Lote encontrado no Supabase:', {
+            name: data.name,
+            address: data.address,
+            latitude: data.latitude,
+            longitude: data.longitude,
+          })
+          
+          const lote = mapLote(data)
+          // Salvar no cache local
+          if (lote.parent_item_id) {
+            db.saveLote(lote, lote.parent_item_id)
+          }
+          return lote
+        }
+      } catch (error) {
+        console.error('❌ Falha ao buscar do Supabase, tentando LocalStorage:', error)
+      }
     }
+    
+    // Fallback: buscar do LocalStorage
+    console.log('💾 Buscando lote do LocalStorage...')
+    const localLote = db.getLote(id)
+    
+    if (localLote) {
+      console.log('✅ Lote encontrado no LocalStorage:', {
+        name: localLote.name,
+        address: localLote.address,
+        latitude: localLote.latitude,
+        longitude: localLote.longitude,
+      })
+    } else {
+      console.warn('⚠️ Lote não encontrado nem no Supabase nem no LocalStorage')
+    }
+    
+    return localLote || null
   },
 
   async saveLote(lote: Partial<Lote> & { quadra_id?: string }): Promise<Lote> {
@@ -869,6 +906,29 @@ export const api = {
         
       if (statusError) {
         console.error('Status update error:', statusError)
+      }
+    }
+    
+    // Update latitude/longitude if provided
+    if (updates.latitude !== undefined || updates.longitude !== undefined) {
+      const geoUpdate: any = {}
+      if (updates.latitude !== undefined) {
+        geoUpdate.latitude = updates.latitude ? parseFloat(String(updates.latitude)) : null
+      }
+      if (updates.longitude !== undefined) {
+        geoUpdate.longitude = updates.longitude ? parseFloat(String(updates.longitude)) : null
+      }
+      
+      const { data: geoData, error: geoError } = await supabase
+        .from('reurb_properties')
+        .update(geoUpdate)
+        .eq('id', id)
+        .select()
+        
+      if (geoError) {
+        console.error('Geo coordinates update error:', geoError)
+      } else {
+        console.log('✅ Geo coordinates updated:', geoUpdate)
       }
     }
     
