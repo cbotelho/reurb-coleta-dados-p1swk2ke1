@@ -416,16 +416,35 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
           api.getLote(propertyId),
         ])
 
-        console.log('📊 Dados carregados:', { surveyData, loteData })
-
-        if (loteData) {
-          setLote(loteData)
-          console.log('🏠 Lote carregado:', {
+        console.log('📊 Dados carregados:', { 
+          surveyData: surveyData ? {
+            id: surveyData.id,
+            applicant_name: (surveyData as any).applicant_name,
+            survey_date: (surveyData as any).survey_date,
+            form_number: (surveyData as any).form_number,
+          } : null,
+          loteData: loteData ? {
+            id: loteData.local_id,
             name: loteData.name,
             address: loteData.address,
             latitude: loteData.latitude,
             longitude: loteData.longitude,
+            sync_status: loteData.sync_status,
+            parent_item_id: loteData.parent_item_id,
+          } : null
+        })
+
+        if (loteData) {
+          setLote(loteData)
+          console.log('🏠 Lote carregado completo:', {
+            name: loteData.name,
+            address: loteData.address,
+            area: loteData.area,
+            latitude: loteData.latitude,
+            longitude: loteData.longitude,
             status: loteData.status,
+            sync_status: loteData.sync_status,
+            parent_item_id: loteData.parent_item_id,
           })
           
           form.setValue('address', loteData.address || '')
@@ -442,15 +461,26 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             : null
           setProjectName(project?.name || '')
           
-          console.log('📍 Contexto carregado:', {
-            quadra: quadra?.name,
-            project: project?.name,
+          console.log('📍 Contexto carregado completo:', {
+            lote_id: loteData.local_id,
+            lote_name: loteData.name,
+            quadra_id: loteData.parent_item_id,
+            quadra_name: quadra?.name,
+            project_id: quadra?.parent_item_id,
+            project_name: project?.name,
           })
         } else {
           console.warn('⚠️ Nenhum lote encontrado para ID:', propertyId)
         }
 
         if (surveyData) {
+          console.log('✅ Vistoria existente encontrada, carregando dados:', {
+            survey_id: surveyData.id,
+            applicant_name: (surveyData as any).applicant_name,
+            applicant_cpf: (surveyData as any).applicant_cpf,
+            form_number: (surveyData as any).form_number,
+            survey_date: (surveyData as any).survey_date,
+          })
           setSurveyId(surveyData.id)
           form.reset({
             form_number: (surveyData as any).form_number ?? '',
@@ -514,9 +544,13 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             analise_ia_proximo_passo: (surveyData as any).analise_ia_proximo_passo ?? '',
             analise_ia_gerada_em: (surveyData as any).analise_ia_gerada_em ?? '',
           } as any)
+          setPhotoList((surveyData as any).photos || [])
+          console.log('✅ Formulário preenchido com dados da vistoria existente')
+        } else {
+          console.log('ℹ️ Nenhuma vistoria existente, formulário vazio')
         }
       } catch (e) {
-        console.error('Error loading data', e)
+        console.error('❌ Erro ao carregar dados:', e)
       } finally {
         setFetching(false)
       }
