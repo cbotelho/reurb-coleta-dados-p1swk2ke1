@@ -1020,7 +1020,14 @@ export const api = {
       
       console.log('✅ Vistoria encontrada no Supabase, salvando no cache')
       const survey = mapSurvey(data)
-      db.saveSurvey({ ...survey, sync_status: 'synchronized' })
+      
+      // Tentar salvar no cache, mas retornar survey mesmo se falhar
+      try {
+        db.saveSurvey({ ...survey, sync_status: 'synchronized' })
+      } catch (cacheError) {
+        console.warn('⚠️ Não foi possível salvar vistoria no cache (quota excedida):', cacheError)
+      }
+      
       return survey
     } catch (err) {
       console.error('❌ Exceção ao buscar vistoria:', err)
