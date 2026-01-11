@@ -125,6 +125,24 @@ export interface Survey {
   observations?: string
   surveyor_name?: string
   surveyor_signature?: string
+  assinatura_requerente?: string
+  
+  // AI Analysis (SisReub Insight - Lei 13.465/2017)
+  analise_ia_classificacao?: string // 'REURB-S' | 'REURB-E'
+  analise_ia_parecer?: string
+  analise_ia_proximo_passo?: string
+  analise_ia_gerada_em?: string
+  
+  // Documents
+  documents?: Array<{
+    id: string
+    name: string
+    size: number
+    type: string
+    data?: string
+    url?: string
+    uploadedAt?: Date
+  }>
 }
 
 export interface User {
@@ -177,7 +195,12 @@ export interface DashboardStats {
   totalFamilies: number
   totalContracts: number
   totalQuadras: number
-}
+    totalProperties: number
+    totalSurveysCompleted: number
+    totalSurveysNotCompleted: number
+    totalAnalyzedByAI: number
+    totalPropertiesWithProcess: number
+  }
 
 // Analytics Types
 export interface ProductivityData {

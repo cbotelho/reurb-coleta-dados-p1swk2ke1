@@ -3,6 +3,7 @@ import { CSVImportService } from '@/services/csvImportService';
 import { TableColumn, ColumnMapping, ImportResult, CSVImportConfig, ParsedCSVData } from '@/types/csv-import.types';
 import { ProjectService, Project } from '@/services/projectService';
 import { QuadraService, Quadra } from '@/services/quadraService';
+import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,7 +25,7 @@ import {
 import { toast } from 'sonner';
 
 interface CSVImporterProps {
-  tableName: 'reurb_quadras' | 'reurb_properties';
+  tableName: 'reurb_quadras' | 'reurb_properties' | 'reurb_surveys';
   onImportComplete?: (result: ImportResult) => void;
   onCancel?: () => void;
 }
@@ -42,6 +43,8 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [quadras, setQuadras] = useState<Quadra[]>([]);
   const [selectedQuadra, setSelectedQuadra] = useState<string>('');
+  const [properties, setProperties] = useState<any[]>([]);
+  const [selectedProperty, setSelectedProperty] = useState<string>('');
 
   // Verificar permissões ao montar
   React.useEffect(() => {
@@ -75,9 +78,9 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
     loadColumns();
   }, [tableName]);
 
-  // Carregar projetos quando for importar quadras ou lotes
+  // Carregar projetos quando for importar quadras, lotes ou vistorias
   React.useEffect(() => {
-    if (tableName === 'reurb_quadras' || tableName === 'reurb_properties') {
+    if (tableName === 'reurb_quadras' || tableName === 'reurb_properties' || tableName === 'reurb_surveys') {
       const loadProjects = async () => {
         try {
           console.log('Carregando projetos para:', tableName);
@@ -93,9 +96,9 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
     }
   }, [tableName]);
 
-  // Carregar quadras quando projeto for selecionado (para lotes)
+  // Carregar quadras quando projeto for selecionado (para lotes e vistorias)
   React.useEffect(() => {
-    if (tableName === 'reurb_properties' && selectedProject) {
+    if ((tableName === 'reurb_properties' || tableName === 'reurb_surveys') && selectedProject) {
       const loadQuadras = async () => {
         try {
           console.log('Carregando quadras para o projeto:', selectedProject);
@@ -113,10 +116,41 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
 
   // Limpar quadra selecionada quando mudar o projeto
   React.useEffect(() => {
-    if (tableName === 'reurb_properties') {
+    if (tableName === 'reurb_properties' || tableName === 'reurb_surveys') {
       setSelectedQuadra('');
     }
   }, [selectedProject, tableName]);
+
+  // Carregar lotes quando quadra for selecionada (para vistorias)
+  React.useEffect(() => {
+    if (tableName === 'reurb_surveys' && selectedQuadra) {
+      const loadProperties = async () => {
+        try {
+          console.log('Carregando lotes para a quadra:', selectedQuadra);
+          const { data, error } = await supabase
+            .from('reurb_properties')
+            .select('id, name')
+            .eq('quadra_id', selectedQuadra)
+            .order('name');
+          
+          if (error) throw error;
+          console.log('Lotes carregados:', data);
+          setProperties(data || []);
+        } catch (error) {
+          toast.error('Erro ao carregar lotes da quadra');
+          console.error('Erro ao carregar lotes:', error);
+        }
+      };
+      loadProperties();
+    }
+  }, [tableName, selectedQuadra]);
+
+  // Limpar lote selecionado quando mudar a quadra
+  React.useEffect(() => {
+    if (tableName === 'reurb_surveys') {
+      setSelectedProperty('');
+    }
+  }, [selectedQuadra, tableName]);
 
   // Handle file upload
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,17 +203,23 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
       return false;
     }
 
+    // Para vistorias, verificar se projeto, quadra e lote foram selecionados
+    if (tableName === 'reurb_surveys' && (!selectedProject || !selectedQuadra || !selectedProperty)) {
+      return false;
+    }
+
     // Colunas obrigatórias baseadas na estrutura real das tabelas
     const requiredColumns = {
       reurb_quadras: ['name'], // name é NOT NULL, project_id será adicionado automaticamente
-      reurb_properties: ['name'] // name é NOT NULL, quadra_id será adicionado automaticamente
+      reurb_properties: ['name'], // name é NOT NULL, quadra_id será adicionado automaticamente
+      reurb_surveys: [] // property_id será adicionado automaticamente
     };
 
     const required = requiredColumns[tableName] || [];
     const mapped = Object.values(mapping).filter(value => value && value !== '__skip__');
 
     return required.every(col => mapped.includes(col));
-  }, [csvData, mapping, tableName, selectedProject, selectedQuadra]);
+  }, [csvData, mapping, tableName, selectedProject, selectedQuadra, selectedProperty]);
 
   // Start import
   const handleImport = useCallback(async () => {
@@ -197,6 +237,12 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
     // Verificar se projeto e quadra foram selecionados para lotes
     if (tableName === 'reurb_properties' && (!selectedProject || !selectedQuadra)) {
       toast.error('Selecione um projeto e uma quadra para importar os lotes');
+      return;
+    }
+
+    // Verificar se projeto, quadra e lote foram selecionados para vistorias
+    if (tableName === 'reurb_surveys' && (!selectedProject || !selectedQuadra || !selectedProperty)) {
+      toast.error('Selecione um projeto, uma quadra e um lote para importar as vistorias');
       return;
     }
 
@@ -218,6 +264,11 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
           return {
             ...row,
             quadra_id: selectedQuadra
+          };
+        } else if (tableName === 'reurb_surveys') {
+          return {
+            ...row,
+            property_id: selectedProperty
           };
         }
         return row;
@@ -468,6 +519,92 @@ export function CSVImporter({ tableName, onImportComplete, onCancel }: CSVImport
                         {selectedQuadra && (
                           <p className="text-sm text-green-600">
                             ✓ Quadra selecionada: {quadras.find(q => q.id === selectedQuadra)?.name}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Seletores para Vistorias */}
+            {tableName === 'reurb_surveys' && (
+              <Alert>
+                <Map className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="font-medium">1. Selecione o projeto:</p>
+                      <Select
+                        value={selectedProject}
+                        onValueChange={setSelectedProject}
+                      >
+                        <SelectTrigger className="w-full max-w-md">
+                          <SelectValue placeholder="Selecione um projeto..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projects.map((project) => (
+                            <SelectItem key={project.id} value={project.id}>
+                              {project.name}
+                              {project.status && (
+                                <Badge variant="outline" className="ml-2">
+                                  {project.status}
+                                </Badge>
+                              )}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {selectedProject && (
+                      <div>
+                        <p className="font-medium">2. Selecione a quadra:</p>
+                        <Select
+                          value={selectedQuadra}
+                          onValueChange={setSelectedQuadra}
+                        >
+                          <SelectTrigger className="w-full max-w-md">
+                            <SelectValue placeholder="Selecione uma quadra..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {quadras.map((quadra) => (
+                              <SelectItem key={quadra.id} value={quadra.id}>
+                                {quadra.name}
+                                {quadra.area && (
+                                  <Badge variant="outline" className="ml-2">
+                                    {quadra.area}m²
+                                  </Badge>
+                                )}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {selectedQuadra && (
+                      <div>
+                        <p className="font-medium">3. Selecione o lote:</p>
+                        <Select
+                          value={selectedProperty}
+                          onValueChange={setSelectedProperty}
+                        >
+                          <SelectTrigger className="w-full max-w-md">
+                            <SelectValue placeholder="Selecione um lote..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {properties.map((property) => (
+                              <SelectItem key={property.id} value={property.id}>
+                                {property.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedProperty && (
+                          <p className="text-sm text-green-600">
+                            ✓ Lote selecionado: {properties.find(p => p.id === selectedProperty)?.name}
                           </p>
                         )}
                       </div>

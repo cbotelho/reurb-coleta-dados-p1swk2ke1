@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { api } from '@/services/api'
+import { analiseIAService } from '@/services/analiseIA'
 import { Survey, Lote } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,10 +39,12 @@ import {
   Trash2,
   PenLine,
   Upload,
+  Sparkles,
 } from 'lucide-react'
 import { useSync } from '@/contexts/SyncContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { DocumentUpload } from '@/components/DocumentUpload'
 import {
   Dialog,
   DialogContent,
@@ -76,6 +79,7 @@ const surveySchema = z.object({
   state: z.string().length(2, 'UF deve ter 2 caracteres').default('AP'),
   surveyor_name: z.string().optional(),
   surveyor_signature: z.string().optional(),
+  assinatura_requerente: z.string().optional(),
 
   // Location update fields
   address: z.string().optional(),
@@ -109,6 +113,7 @@ const surveySchema = z.object({
       if (!v) return true
       return /^\d{11}$/.test(v.replace(/\D/g, ''))
     }, 'CPF inválido'),
+  declaracao_requerente: z.boolean().default(false),
 
   residents_count: z.coerce
     .number()
@@ -139,6 +144,27 @@ const surveySchema = z.object({
   street_paving: z.string().optional(),
 
   observations: z.string().max(2000, 'Máximo 2000 caracteres').optional(),
+  // Documentos: aceitar strings ou Date no uploadedAt e campos opcionais para evitar bloqueio de validação
+  documents: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        size: z.number().optional(),
+        type: z.string().optional(),
+        data: z.string().optional(),
+        url: z.string().optional(),
+        uploadedAt: z.union([z.string(), z.date()]).optional(),
+      }),
+    )
+    .optional()
+    .default([]),
+  
+  // AI Analysis fields
+  analise_ia_classificacao: z.string().optional(),
+  analise_ia_parecer: z.string().optional(),
+  analise_ia_proximo_passo: z.string().optional(),
+  analise_ia_gerada_em: z.string().optional(),
 })
 
 type SurveyFormValues = z.infer<typeof surveySchema>
@@ -149,6 +175,7 @@ interface SurveyFormProps {
 }
 
 export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
+  const [generatingIA, setGeneratingIA] = useState(false)
   const { toast } = useToast()
   const { isOnline, refreshStats } = useSync()
   const navigate = useNavigate()
@@ -159,8 +186,10 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const [quadraName, setQuadraName] = useState<string>('')
   const [projectName, setProjectName] = useState<string>('')
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
+  const [requerenteSignatureDialogOpen, setRequerenteSignatureDialogOpen] = useState(false)
   const [isDrawingSignature, setIsDrawingSignature] = useState(false)
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const requerenteCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const signatureLastPointRef = useRef<{ x: number; y: number } | null>(null)
 
   const form = useForm<SurveyFormValues>({
@@ -172,6 +201,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       survey_date: '',
       surveyor_name: '',
       surveyor_signature: '',
+      assinatura_requerente: '',
 
       address: '',
       latitude: '',
@@ -190,6 +220,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       residents_count: 0,
       rooms_count: 0,
       has_children: false,
+      declaracao_requerente: false,
 
       occupation_time: '',
       acquisition_mode: '',
@@ -204,6 +235,11 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       sanitation: '',
       street_paving: '',
       observations: '',
+      documents: [],
+      analise_ia_classificacao: '',
+      analise_ia_parecer: '',
+      analise_ia_proximo_passo: '',
+      analise_ia_gerada_em: '',
     },
   })
 
@@ -304,6 +340,62 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
     reader.readAsDataURL(file)
   }
 
+  const resizeRequerenteCanvas = () => {
+    const canvas = requerenteCanvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const ratio = window.devicePixelRatio || 1
+
+    canvas.width = Math.max(1, Math.floor(rect.width * ratio))
+    canvas.height = Math.max(1, Math.floor(rect.height * ratio))
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#111827'
+  }
+
+  const clearRequerenteCanvas = () => {
+    const canvas = requerenteCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+  }
+
+  const saveRequerenteSignatureFromCanvas = () => {
+    const canvas = requerenteCanvasRef.current
+    if (!canvas) return
+
+    const tmp = document.createElement('canvas')
+    tmp.width = canvas.width
+    tmp.height = canvas.height
+    const tctx = tmp.getContext('2d')
+    if (!tctx) return
+    tctx.fillStyle = '#FFFFFF'
+    tctx.fillRect(0, 0, tmp.width, tmp.height)
+    tctx.drawImage(canvas, 0, 0)
+
+    const dataUrl = tmp.toDataURL('image/png')
+    form.setValue('assinatura_requerente', dataUrl, { shouldDirty: true })
+    setRequerenteSignatureDialogOpen(false)
+  }
+
+  const handleRequerenteSignatureFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        form.setValue('assinatura_requerente', reader.result, { shouldDirty: true })
+        setRequerenteSignatureDialogOpen(false)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
   const civilStatus = form.watch('applicant_civil_status')
 
   useEffect(() => {
@@ -396,6 +488,12 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             street_paving: (surveyData as any).street_paving ?? '',
 
             observations: (surveyData as any).observations ?? '',
+            assinatura_requerente: (surveyData as any).assinatura_requerente ?? '',
+            documents: (surveyData as any).documents ?? [],
+            analise_ia_classificacao: (surveyData as any).analise_ia_classificacao ?? '',
+            analise_ia_parecer: (surveyData as any).analise_ia_parecer ?? '',
+            analise_ia_proximo_passo: (surveyData as any).analise_ia_proximo_passo ?? '',
+            analise_ia_gerada_em: (surveyData as any).analise_ia_gerada_em ?? '',
           } as any)
         }
       } catch (e) {
@@ -436,6 +534,63 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
     }
   }
 
+  const handleGenerateAnaliseIA = async () => {
+    console.log('🎯 CHAMOU handleGenerateAnaliseIA - canEdit:', canEdit)
+    if (!canEdit) {
+      console.log('⚠️ BLOQUEADO - canEdit é false')
+      return
+    }
+
+    setGeneratingIA(true)
+    console.log('🔄 generatingIA = true')
+    try {
+      const currentData = form.getValues()
+      console.log('🤖 Gerando análise IA com dados:', currentData)
+      
+      const analise = await analiseIAService.gerarAnalise(currentData as any)
+      console.log('✅ Análise gerada:', analise)
+
+      // Forçar atualização do formulário com flags
+      form.setValue('analise_ia_classificacao', analise.classificacao, { 
+        shouldDirty: true, 
+        shouldTouch: true,
+        shouldValidate: true 
+      })
+      form.setValue('analise_ia_parecer', analise.parecer_tecnico, { 
+        shouldDirty: true, 
+        shouldTouch: true 
+      })
+      form.setValue('analise_ia_proximo_passo', analise.proximo_passo, { 
+        shouldDirty: true, 
+        shouldTouch: true 
+      })
+      form.setValue('analise_ia_gerada_em', analise.gerada_em, { 
+        shouldDirty: true, 
+        shouldTouch: true 
+      })
+
+      console.log('📝 Campos atualizados no formulário')
+      console.log('🔄 Verificando: ', {
+        classificacao: form.getValues('analise_ia_classificacao'),
+        parecer: form.getValues('analise_ia_parecer'),
+      })
+
+      toast({
+        title: 'Análise Gerada',
+        description: `Classificação: ${analise.classificacao}`,
+      })
+    } catch (error) {
+      console.error('❌ Erro ao gerar análise IA:', error)
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível gerar a análise.',
+        variant: 'destructive',
+      })
+    } finally {
+      setGeneratingIA(false)
+    }
+  }
+
   const getCurrentLocation = () => {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -461,6 +616,8 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const onSubmit = async (values: SurveyFormValues) => {
     if (!canEdit) return
 
+    console.log('🚀 onSubmit disparado com valores:', values)
+    
     setLoading(true)
     try {
       const surveyData: any = {
@@ -469,9 +626,21 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         spouse_cpf: values.spouse_cpf?.replace(/\D/g, ''),
       }
 
+      // Remove campos vazios, EXCETO os campos de análise IA
+      const camposIAParaPreservar = [
+        'analise_ia_classificacao',
+        'analise_ia_parecer',
+        'analise_ia_proximo_passo',
+        'analise_ia_gerada_em',
+      ]
+      
       Object.keys(surveyData).forEach((k) => {
-        if (surveyData[k] === '') delete surveyData[k]
+        if (surveyData[k] === '' && !camposIAParaPreservar.includes(k)) {
+          delete surveyData[k]
+        }
       })
+
+      console.log('📊 Dados sendo salvos (com IA):', surveyData)
 
       delete surveyData.address
       delete surveyData.latitude
@@ -500,8 +669,8 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
       if (savedSurvey.sync_status === 'pending' || !isOnline) {
         toast({
-          title: 'Salvo Localmente',
-          description: 'Vistoria e atualizações do imóvel salvas na fila.',
+          title: 'Documentos Salvos Localmente',
+          description: 'Aguardando na fila para sincronizar quando online.',
           className: 'bg-orange-50 border-orange-200 text-orange-800',
         })
       } else {
@@ -512,14 +681,25 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       }
     } catch (error) {
       console.error(error)
+      // Se chegou aqui, estávamos online e a sincronização falhou no Supabase.
+      // Os dados já foram salvos localmente na fila pelo api.saveSurvey().
       toast({
-        title: 'Erro',
-        description: 'Erro ao salvar vistoria.',
+        title: 'Falha ao sincronizar',
+        description: 'Dados salvos localmente e colocados na fila para nova tentativa.',
         variant: 'destructive',
       })
     } finally {
       setLoading(false)
     }
+  }
+
+  const onSubmitInvalid = (errors: FieldErrors<SurveyFormValues>) => {
+    console.log('❌ onSubmit inválido:', errors)
+    toast({
+      title: 'Campos obrigatórios faltando',
+      description: 'Revise os campos destacados antes de salvar.',
+      variant: 'destructive',
+    })
   }
 
   if (fetching)
@@ -538,7 +718,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         </div>
       )}
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, onSubmitInvalid)} className="space-y-6">
         <Tabs defaultValue="geral" className="w-full">
           <ScrollArea className="w-full whitespace-nowrap">
             <TabsList className="w-full justify-start mb-4 bg-transparent p-0 gap-2">
@@ -565,6 +745,12 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                 className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
               >
                 Infraestrutura
+              </TabsTrigger>
+              <TabsTrigger
+                value="documentos"
+                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+              >
+                Documentos
               </TabsTrigger>
               <TabsTrigger
                 value="observacoes"
@@ -965,8 +1151,8 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                   <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                     <FormControl>
                       <Checkbox
-                        checked={field.value}
-                        onCheckedChange={(checked) => field.onChange(checked === true)}
+                        checked={Boolean(field.value)}
+                        onCheckedChange={field.onChange}
                         disabled={!canEdit}
                       />
                     </FormControl>
@@ -992,6 +1178,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                         <FormControl>
                           <Input {...field} disabled={!canEdit} />
                         </FormControl>
+                        <FormMessage />
                       </FormItem>
                     )}
                   />
@@ -1011,6 +1198,83 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                 </div>
               </div>
             )}
+
+            <div className="border-t pt-4 mt-4 bg-green-100 p-4 rounded-lg">
+              <FormField
+                control={form.control}
+                name="declaracao_requerente"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md mb-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={!canEdit}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-base">
+                        Declaro, para os devidos fins, que foi realizada a vistoria do lote urbano acima descrita nesta data. *
+                      </FormLabel>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex items-center gap-2 mb-4">
+                <PenLine className="h-4 w-4 text-blue-600" />
+                <h4 className="font-semibold text-sm">Assinatura do Requerente</h4>
+              </div>
+              <FormField
+                control={form.control}
+                name="assinatura_requerente"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="bg-green-100 p-4 rounded-lg">
+                      <div className="flex gap-2 flex-wrap mb-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setRequerenteSignatureDialogOpen(true)
+                            setTimeout(() => resizeRequerenteCanvas(), 0)
+                          }}
+                          disabled={!canEdit}
+                        >
+                          <PenLine className="h-4 w-4 mr-2" /> Assinar
+                        </Button>
+                        <label className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3">
+                          <span className="flex items-center">
+                            <Upload className="h-4 w-4 mr-2" /> Enviar Imagem
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) handleRequerenteSignatureFile(file)
+                              }}
+                              disabled={!canEdit}
+                            />
+                          </span>
+                        </label>
+                      </div>
+                      {field.value && (
+                        <div className="mt-4 relative inline-block">
+                          <img
+                            src={field.value}
+                            alt="Assinatura do Requerente"
+                            className="max-h-32 border rounded"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="imovel" className="space-y-4">
@@ -1348,25 +1612,207 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
           </TabsContent>
 
+          <TabsContent value="documentos" className="space-y-4">
+            <div className="bg-white p-6 rounded-lg border">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Documentos da Vistoria</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Anexe documentos relevantes para a vistoria (RG, CPF, comprovantes, fotos, etc.)
+                </p>
+              </div>
+              
+              <DocumentUpload
+                initialDocuments={form.watch('documents') || []}
+                onDocumentsChange={(docs) => {
+                  form.setValue('documents', docs, { shouldDirty: true })
+                  console.log('📎 documentos atualizados:', docs)
+                }}
+                maxFiles={20}
+                maxSizeMB={10}
+                disabled={!canEdit}
+              />
+            </div>
+          </TabsContent>
+
           <TabsContent value="observacoes" className="space-y-4">
-            <FormField
-              control={form.control}
-              name="observations"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Observações</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      disabled={!canEdit}
-                      placeholder="Observações adicionais..."
-                      className="min-h-[120px]"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Layout em 2 colunas: Observação Vistoriador + Análise IA */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Coluna 1: Observação do Vistoriador */}
+              <div className="bg-white p-6 rounded-lg border">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Observações do Vistoriador
+                </h3>
+                <FormField
+                  control={form.control}
+                  name="observations"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          disabled={!canEdit}
+                          placeholder="Observações técnicas sobre a vistoria, condições do imóvel, particularidades encontradas..."
+                          className="min-h-[200px]"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Coluna 2: Análise Jurídica IA */}
+              <div>
+                {form.watch('analise_ia_classificacao') ? (
+                  // Card com análise gerada
+                  <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white rounded-lg p-6 shadow-lg">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="bg-purple-400/30 p-2 rounded-lg">
+                        <Sparkles className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-sm uppercase tracking-wide">
+                          Análise Jurídica
+                        </h3>
+                        <p className="text-purple-200 text-xs">SisReub Insight</p>
+                      </div>
+                    </div>
+
+                    {/* Classificação */}
+                    <div className="bg-purple-400/20 rounded-lg p-4 mb-4">
+                      <p className="text-purple-200 text-xs uppercase mb-1">
+                        Classificação Sugerida
+                      </p>
+                      <FormField
+                        control={form.control}
+                        name="analise_ia_classificacao"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                disabled={!canEdit}
+                                className="text-2xl font-bold bg-transparent border-none text-white placeholder:text-purple-200 p-0 h-auto"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Parecer Técnico */}
+                    <div className="mb-4">
+                      <p className="text-purple-200 text-xs uppercase mb-2">
+                        Parecer Técnico
+                      </p>
+                      <FormField
+                        control={form.control}
+                        name="analise_ia_parecer"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                disabled={!canEdit}
+                                className="text-sm bg-purple-700/30 border-purple-500/30 text-white placeholder:text-purple-200 min-h-[120px]"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Próximo Passo */}
+                    <div className="bg-purple-700/40 rounded-lg p-4">
+                      <p className="text-purple-200 text-xs uppercase mb-2">
+                        Próximo Passo
+                      </p>
+                      <FormField
+                        control={form.control}
+                        name="analise_ia_proximo_passo"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Textarea
+                                {...field}
+                                disabled={!canEdit}
+                                className="text-sm bg-purple-600/20 border-purple-400/30 text-white placeholder:text-purple-200 min-h-[80px]"
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Data/hora geração */}
+                    {form.watch('analise_ia_gerada_em') && (
+                      <p className="text-purple-300 text-xs mt-4">
+                        Gerada em:{' '}
+                        {new Date(form.watch('analise_ia_gerada_em')!).toLocaleString('pt-BR')}
+                      </p>
+                    )}
+
+                    {/* Botão regenerar */}
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="w-full mt-4"
+                        onClick={handleGenerateAnaliseIA}
+                        disabled={generatingIA}
+                      >
+                        {generatingIA ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Regenerando...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Regenerar Análise
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  // Card vazio - gerar análise
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-8 border-2 border-dashed border-purple-300 text-center">
+                    <div className="bg-purple-200 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                      <Sparkles className="h-8 w-8 text-purple-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-purple-900 mb-2">
+                      Análise Jurídica Automática
+                    </h3>
+                    <p className="text-sm text-purple-700 mb-6">
+                      Gere uma análise baseada na Lei 13.465/2017 para classificar entre
+                      REURB-S (Social) ou REURB-E (Específico)
+                    </p>
+                    {canEdit && (
+                      <Button
+                        type="button"
+                        onClick={handleGenerateAnaliseIA}
+                        disabled={generatingIA}
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
+                        {generatingIA ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Gerando análise...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Gerar Análise Inteligente
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -1376,6 +1822,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
               type="submit"
               className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
               disabled={loading}
+              onClick={() => console.log('🖱️ BOTÃO SALVAR CLICADO - loading:', loading)}
             >
               {loading ? (
                 <>
@@ -1425,6 +1872,46 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                 Limpar
               </Button>
               <Button type="button" onClick={saveSignatureFromCanvas}>
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={requerenteSignatureDialogOpen}
+          onOpenChange={(open) => {
+            setRequerenteSignatureDialogOpen(open)
+            if (open) {
+              requestAnimationFrame(() => {
+                resizeRequerenteCanvas()
+                clearRequerenteCanvas()
+              })
+            }
+          }}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Assinatura do Requerente</DialogTitle>
+            </DialogHeader>
+
+            <div className="border rounded-md bg-white">
+              <canvas
+                ref={requerenteCanvasRef}
+                className="w-full h-64 touch-none"
+                onPointerDown={startSignatureDraw}
+                onPointerMove={moveSignatureDraw}
+                onPointerUp={endSignatureDraw}
+                onPointerCancel={endSignatureDraw}
+                onPointerLeave={endSignatureDraw}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={clearRequerenteCanvas}>
+                Limpar
+              </Button>
+              <Button type="button" onClick={saveRequerenteSignatureFromCanvas}>
                 Salvar
               </Button>
             </DialogFooter>

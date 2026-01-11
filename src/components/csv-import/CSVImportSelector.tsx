@@ -9,12 +9,18 @@ interface CSVImportSelectorProps {
 }
 
 export function CSVImportSelector({ onCancel }: CSVImportSelectorProps) {
-  const [importType, setImportType] = React.useState<'quadras' | 'properties' | null>(null);
+  const [importType, setImportType] = React.useState<'quadras' | 'properties' | 'surveys' | null>(null);
 
   if (importType) {
     return (
       <CSVImporter
-        tableName={importType === 'quadras' ? 'reurb_quadras' : 'reurb_properties'}
+        tableName={
+          importType === 'quadras' 
+            ? 'reurb_quadras' 
+            : importType === 'surveys'
+            ? 'reurb_surveys'
+            : 'reurb_properties'
+        }
         onImportComplete={(result) => {
           console.log('Importação concluída:', result);
           setImportType(null);
@@ -39,7 +45,7 @@ export function CSVImportSelector({ onCancel }: CSVImportSelectorProps) {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         <Card className="cursor-pointer hover:shadow-md transition-shadow" 
               onClick={() => setImportType('quadras')}>
           <CardHeader>
@@ -112,6 +118,47 @@ export function CSVImportSelector({ onCancel }: CSVImportSelectorProps) {
               <Button className="w-full">
                 <Upload className="w-4 h-4 mr-2" />
                 Importar Lotes
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" 
+              onClick={() => setImportType('surveys')}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              Importar Vistorias
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Importar dados de vistorias vinculadas a lotes específicos.
+              </p>
+              <div className="text-xs bg-purple-50 p-3 rounded">
+                <p className="font-medium mb-1">Campos esperados:</p>
+                <ul className="list-disc list-inside space-y-1 text-purple-700">
+                  <li>tipo_imovel</li>
+                  <li>situacao_ocupacao</li>
+                  <li>tempo_moradia</li>
+                  <li>possui_documento_posse</li>
+                  <li>tipo_uso</li>
+                  <li>area_construida_vistoria</li>
+                  <li>numero_comodos</li>
+                  <li>tipo_construcao</li>
+                  <li>possui_agua_encanada</li>
+                  <li>possui_energia_eletrica</li>
+                  <li>possui_esgoto</li>
+                  <li>observacoes</li>
+                </ul>
+                <p className="text-xs text-purple-600 mt-2 font-medium">
+                  ⚠️ Projeto, Quadra e Lote serão selecionados na próxima tela
+                </p>
+              </div>
+              <Button className="w-full">
+                <Upload className="w-4 h-4 mr-2" />
+                Importar Vistorias
               </Button>
             </div>
           </CardContent>

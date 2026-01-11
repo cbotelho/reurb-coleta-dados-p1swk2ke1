@@ -385,6 +385,12 @@ class DBService {
     const surveys = this.getSurveys()
     const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
     const projects = this.getProjects()
+    
+      // Contar surveys com análise IA
+      const surveysWithAI = surveys.filter(s => s.analise_ia_classificacao != null).length
+    
+      // Lotes não vistoriados = total de lotes - surveys
+      const notSurveyed = lotes.length - surveys.length
 
     return {
       collected: lotes.length,
@@ -405,6 +411,12 @@ class DBService {
       totalFamilies: surveys.length,
       totalQuadras: quadras.length,
       totalContracts: 0,
+        totalProperties: lotes.length,
+        totalSurveysCompleted: surveys.length,
+        totalSurveysNotCompleted: notSurveyed > 0 ? notSurveyed : 0,
+        totalAnalyzedByAI: surveysWithAI,
+        totalPropertiesWithProcess: 0,
+        lastSync: Date.now(),
     }
   }
 

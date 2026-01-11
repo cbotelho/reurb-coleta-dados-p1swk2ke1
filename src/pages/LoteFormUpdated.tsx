@@ -98,8 +98,13 @@ export default function LoteForm() {
   const [parentQuadraId, setParentQuadraId] = useState<string | undefined>(quadraId)
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentLote, setCurrentLote] = useState<Lote | undefined>()
-  const { hasPermission } = useAuth()
+  const [surveyData, setSurveyData] = useState<any>(null)
+  const { hasPermission, user } = useAuth()
   const canEdit = hasPermission('all') || hasPermission('edit_projects')
+  const isAdminOrAssistant = user?.grupo_acesso === 'Administrador' || user?.grupo_acesso === 'Administradores' || user?.grupo_acesso === 'Assistente Social'
+  
+  // Se tem análise IA e usuário não é admin/assistente social, desabilita edição
+  const canEditSurvey = canEdit && (isAdminOrAssistant || !surveyData?.analise_ia_classificacao)
 
   const form = useForm<LoteFormValues>({
     resolver: zodResolver(loteFormSchema),
@@ -130,6 +135,10 @@ export default function LoteForm() {
     try {
       const lote = await api.getLote(id)
       setCurrentLote(lote)
+      
+      // Carregar survey para verificar se tem análise IA
+      const survey = await api.getSurveyByPropertyId(id)
+      setSurveyData(survey)
       
       // Pre-fill com dados existentes
       form.reset({
@@ -620,10 +629,22 @@ export default function LoteForm() {
         {/* 📋 Aba 2: Vistoria */}
         <TabsContent value="vistoria">
           {currentLote && (
-            <SurveyForm 
-              propertyId={currentLote.local_id} 
-              canEdit={!!canEdit}
-            />
+            <>
+              {surveyData?.analise_ia_classificacao && !isAdminOrAssistant && (
+                <div className="mb-6 p-4 bg-orange-50 border border-orange-300 rounded-lg">
+                  <p className="text-orange-800 font-semibold">
+                    ⚠️ Vistoria Bloqueada para Edição
+                  </p>
+                  <p className="text-orange-700 text-sm mt-2">
+                    Esta vistoria já foi analisada pelo sistema de IA. Apenas usuários do grupo "Administrador" ou "Assistente Social" podem realizar edições.
+                  </p>
+                </div>
+              )}
+              <SurveyForm 
+                propertyId={currentLote.local_id} 
+                canEdit={canEditSurvey}
+              />
+            </>
           )}
         </TabsContent>
       </Tabs>

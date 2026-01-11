@@ -132,6 +132,7 @@ const mapSurvey = (row: any): Survey => ({
   rooms_count: row.rooms_count || 0,
   has_children: row.has_children ?? false,
   survey_date: row.survey_date?.split('T')[0],
+  documents: row.documents ? (typeof row.documents === 'string' ? JSON.parse(row.documents) : row.documents) : [],
 })
 
 const isOnline = () => navigator.onLine
@@ -952,6 +953,12 @@ export const api = {
       'observations',
       'surveyor_name',
       'surveyor_signature',
+      'assinatura_requerente',
+      'documents',
+      'analise_ia_classificacao',
+      'analise_ia_parecer',
+      'analise_ia_proximo_passo',
+      'analise_ia_gerada_em',
       'created_at',
       'updated_at',
     ]
@@ -963,8 +970,22 @@ export const api = {
       }
     })
 
+    // Enviar documents como JSON nativo para coluna JSONB
+    // Se vier como string (edge case), tenta parsear; caso falhe, mantém como está
+    if (typeof payload.documents === 'string') {
+      try {
+        payload.documents = JSON.parse(payload.documents)
+      } catch (_) {
+        // mantém valor original; PostgREST retornará erro útil se for inválido
+      }
+    }
+
     if (payload.surveyor_signature === '') {
       delete payload.surveyor_signature
+    }
+
+    if (payload.assinatura_requerente === '') {
+      delete payload.assinatura_requerente
     }
 
     payload.updated_at = new Date().toISOString()
@@ -984,13 +1005,32 @@ export const api = {
       }
 
       const { data, error } = await query
-      if (error) throw error
+      if (error) {
+        // Log MUITO detalhado para diagnosticar 400
+        const errorDetails = {
+          message: (error as any)?.message,
+          details: (error as any)?.details,
+          hint: (error as any)?.hint,
+          code: (error as any)?.code,
+          status: (error as any)?.status,
+          statusText: (error as any)?.statusText,
+        }
+        console.error('❌ SUPABASE ERROR in saveSurvey():', errorDetails)
+        console.error('Payload que foi enviado:', payload)
+        console.error('Survey ID:', survey.id)
+        throw error
+      }
       const saved = mapSurvey(data)
-      db.saveSurvey({ ...saved, sync_status: 'synchronized' })
-      return saved
+      const syncedSurvey = { ...saved, sync_status: 'synchronized' as const }
+      db.saveSurvey(syncedSurvey)
+      return syncedSurvey
     } catch (e) {
       console.warn('Save survey failed, saving locally', e)
-      return db.saveSurvey({ ...survey, sync_status: 'pending' })
+      // Salva localmente para não perder dados e RE-LEVA o erro quando online
+      const local = db.saveSurvey({ ...survey, sync_status: 'pending' })
+      // Se está offline, a função já teria retornado antes. Portanto, este catch indica falha online.
+      // Re-lançamos o erro para que a UI trate como falha de sincronização (não como offline).
+      throw e
     }
   },
 
@@ -1023,7 +1063,30 @@ export const api = {
         .from('reurb_contracts')
         .select('*', { count: 'exact', head: true })
 
-      const localStats = db.getDashboardStats()
+        // Buscar lotes com vistoria completa (surveys exists)
+        const { data: surveysData } = await supabase
+          .from('reurb_surveys')
+          .select('property_id')
+      
+        const surveysCompleted = surveysData?.length || 0
+      
+        // Total de lotes não vistoriados (sem survey)
+        const totalNotSurveyed = (totalLotes || 0) - surveysCompleted
+      
+        // Contar surveys com análise IA
+        const { count: totalAnalyzedByAI } = await supabase
+          .from('reurb_surveys')
+          .select('*', { count: 'exact', head: true })
+          .not('analise_ia_classificacao', 'is', null)
+      
+        // Contar lotes com processo (contratos)
+        const { data: contractsData } = await supabase
+          .from('reurb_contracts')
+          .select('property_id')
+      
+        const propertiesWithProcess = contractsData?.length || 0
+      
+        const localStats = db.getDashboardStats()
 
       return {
         collected: totalLotes || 0,
@@ -1037,6 +1100,11 @@ export const api = {
         totalFamilies: totalFamilies || 0,
         totalContracts: totalContracts || 0,
         totalQuadras: totalQuadras || 0,
+          totalProperties: totalLotes || 0,
+          totalSurveysCompleted: surveysCompleted,
+          totalSurveysNotCompleted: totalNotSurveyed,
+          totalAnalyzedByAI: totalAnalyzedByAI || 0,
+          totalPropertiesWithProcess: propertiesWithProcess,
       }
     } catch {
       return db.getDashboardStats()

@@ -77,7 +77,12 @@ Garantir 100% de paridade entre estrutura do banco de dados e interfaces de form
 | sanitation | VARCHAR(50) | Select | Enum | Não |
 | street_paving | VARCHAR(50) | Select | Enum | Não |
 
-#### 📝 **OBSERVAÇÕES**
+#### � **DOCUMENTOS**
+| Campo | Tipo | Componente | Validação | Obrigatório |
+|--------|------|------------|-----------|-------------|
+| documents | JSONB | DocumentUpload | Max 20 arquivos, 10MB cada | Não |
+
+#### �📝 **OBSERVAÇÕES**
 | Campo | Tipo | Componente | Validação | Obrigatório |
 |--------|------|------------|-----------|-------------|
 | observations | TEXT | Textarea | Max 2000 | Não |
@@ -163,7 +168,26 @@ Garantir 100% de paridade entre estrutura do banco de dados e interfaces de form
 └─────────────────────────────────────────┘
 ```
 
-### 📝 **ABA 6: OBSERVAÇÕES**
+### � **ABA 6: DOCUMENTOS**
+```
+┌─────────────────────────────────────────┐
+│ 📎 DOCUMENTOS DA VISTORIA               │
+├─────────────────────────────────────────┤
+│ Anexe documentos relevantes para a      │
+│ vistoria (RG, CPF, comprovantes, etc.)  │
+│                                         │
+│ ┌───────────────────────────────────┐   │
+│ │ 📤 Clique ou arraste documentos  │   │
+│ │    Máximo 20 arquivos, 10MB cada │   │
+│ │    PDF, Imagens, Word, Excel     │   │
+│ └───────────────────────────────────┘   │
+│                                         │
+│ 📄 documento1.pdf (2.3 MB)     [x]      │
+│ 🖼️ foto_rg.jpg (1.1 MB)       [x]      │
+└─────────────────────────────────────────┘
+```
+
+### 📝 **ABA 7: OBSERVAÇÕES**
 ```
 ┌─────────────────────────────────────────┐
 │ 📝 OBSERVAÇÕES                          │
@@ -326,6 +350,55 @@ const tabs = [
 ]
 ```
 
+### 📝 **ABA 7: OBSERVAÇÕES E ANÁLISE JURÍDICA**
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ 📝 OBSERVAÇÕES DO VISTORIADOR │ 🤖 ANÁLISE JURÍDICA IA    │
+├────────────────────────────────┼──────────────────────────┤
+│                                │                          │
+│ [Textarea de observações       │ 🟣 ANÁLISE JURÍDICA      │
+│  livres sobre a vistoria       │    SisReub Insight       │
+│  e condições do imóvel]        │                          │
+│                                │ CLASSIFICAÇÃO SUGERIDA:  │
+│                                │ [REURB-S / REURB-E]      │
+│                                │                          │
+│                                │ PARECER TÉCNICO:         │
+│                                │ [Fundamentação legal     │
+│                                │  Art. 13, Lei 13.465]    │
+│                                │                          │
+│                                │ PRÓXIMO PASSO:           │
+│                                │ [Ações administrativas]  │
+│                                │                          │
+│                                │ [🔄 Regenerar Análise]   │
+└────────────────────────────────┴──────────────────────────┘
+```
+
+#### 📄 **Campos:**
+
+| Campo do Banco | Tipo SQL | Componente | Obrigatório |
+|---|---|---|---|
+| observations | TEXT(2000) | Textarea | Não |
+| analise_ia_classificacao | VARCHAR(20) | Input Text (Read-only/Edit) | Não |
+| analise_ia_parecer | TEXT | Textarea (Edit) | Não |
+| analise_ia_proximo_passo | TEXT | Textarea (Edit) | Não |
+| analise_ia_gerada_em | TIMESTAMP | Display | Não |
+
+**Funcionalidade:**
+- Coluna 1: Observações livres do vistoriador
+- Coluna 2 (Mobile: full width): Card roxo com análise automática gerada por IA
+- Botão "Gerar Análise Inteligente" dispara `analiseIAService.gerarAnalise()`
+- Análise classifica entre **REURB-S** (Lei 13.465/2017 - Interesse Social) ou **REURB-E** (Interesse Específico)
+- Campos editáveis após geração para validação jurídica manual
+- Display da data/hora de geração
+
+**Integração IA:**
+- Service: `src/services/analiseIA.ts`
+- Prepara dados: renda, moradores, NIS, infraestrutura
+- Cálculo automático: renda per capita vs. limites REURB-S
+- Fallback: Lógica de regras enquanto IA externa não está integrada
+- TODO: Integração futura com Supabase Edge Function ou API de IA externa
+
 ---
 
 ## ✅ **CHECKLIST FINAL**
@@ -361,7 +434,6 @@ const tabs = [
 6. **Implementar feedback visual**
 7. **Otimizar performance**
 8. **Documentar API endpoints**
-
----
-
+9. **Integrar com API de IA externa** (OpenAI, Claude, etc.)
+10. **Configurar Supabase Edge Function para análise em tempo real**
 **📌 NOTA:** Este documento serve como guia completo para garantir 100% de paridade entre banco e formulários. Todos os campos devem seguir exatamente esta especificação.

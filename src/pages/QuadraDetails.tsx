@@ -13,18 +13,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/contexts/AuthContext'
+import { Survey } from '@/types'
 import { toast } from 'sonner'
-import { Plus, ArrowLeft, Loader2, Home, MoreHorizontal, Edit, Trash2, MapPin, FileText } from 'lucide-react'
+import { Plus, ArrowLeft, Loader2, Home, MoreHorizontal, Edit, Trash2, MapPin, FileText, Lock } from 'lucide-react'
 
 export default function QuadraDetails() {
   const { quadraId } = useParams<{ quadraId: string }>()
-  const { hasPermission } = useAuth()
+  const { hasPermission, user } = useAuth()
   const [quadra, setQuadra] = useState<Quadra | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [lotes, setLotes] = useState<Lote[]>([])
+  const [surveys, setSurveys] = useState<Map<string, Survey>>(new Map())
   const [loading, setLoading] = useState(true)
 
   const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
+  const isAdminOrAssistant = user?.grupo_acesso === 'Administrador' || user?.grupo_acesso === 'Administradores' || user?.grupo_acesso === 'Assistente Social'
 
   useEffect(() => {
     const loadData = async () => {
@@ -39,6 +42,20 @@ export default function QuadraDetails() {
           ])
           setProject(p)
           setLotes(l)
+
+          // Carregar surveys para cada lote
+          const surveysMap = new Map<string, Survey>()
+          for (const lote of l) {
+            try {
+              const survey = await api.getSurveyByPropertyId(lote.local_id)
+              if (survey) {
+                surveysMap.set(lote.local_id, survey)
+              }
+            } catch (e) {
+              console.error(`Erro ao carregar survey do lote ${lote.local_id}:`, e)
+            }
+          }
+          setSurveys(surveysMap)
         }
       } catch (e) {
         console.error(e)
@@ -105,18 +122,32 @@ export default function QuadraDetails() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {lotes.map((lote) => (
+        {lotes.map((lote) => {
+          const survey = surveys.get(lote.local_id)
+          const hasAnaliseIA = survey?.analise_ia_classificacao
+          const isBlocked = hasAnaliseIA && !isAdminOrAssistant
+
+          return (
           <Card
             key={lote.local_id}
-            className="overflow-hidden flex flex-col hover:shadow-lg transition-shadow"
+            className={`overflow-hidden flex flex-col transition-all ${
+              isBlocked 
+                ? 'opacity-60 hover:shadow-none border-orange-300 bg-orange-50/30' 
+                : 'hover:shadow-lg'
+            }`}
           >
             <div className="aspect-video w-full overflow-hidden bg-muted relative">
               <img
                 src={`https://img.usecurling.com/p/400/250?q=house%20map&color=blue`}
                 alt={`Imagem do lote ${lote.name}`}
-                className="w-full h-full object-cover transition-transform hover:scale-105 duration-500"
+                className={`w-full h-full object-cover transition-transform ${!isBlocked ? 'hover:scale-105' : ''} duration-500`}
               />
-              <div className="absolute top-2 right-2">
+              <div className="absolute top-2 right-2 flex gap-2">
+                {hasAnaliseIA && (
+                  <Badge className="px-2.5 py-0.5 text-xs font-semibold bg-purple-600 text-white border-purple-600">
+                    IA Analisado
+                  </Badge>
+                )}
                 <Badge
                   variant="outline"
                   className="px-2.5 py-0.5 text-xs font-semibold"
@@ -153,6 +184,13 @@ export default function QuadraDetails() {
                           : 'Pendente'}
                 </Badge>
               </div>
+              {isBlocked && (
+                <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                  <div className="bg-white/90 rounded-full p-3">
+                    <Lock className="w-6 h-6 text-orange-600" />
+                  </div>
+                </div>
+              )}
             </div>
             <CardHeader className="pb-2">
               <div className="flex justify-between items-start">
@@ -160,7 +198,14 @@ export default function QuadraDetails() {
                   <CardTitle className="text-xl">
                     Lote {lote.name}
                   </CardTitle>
+                  {isBlocked && (
+                    <p className="text-xs text-orange-600 mt-1 font-semibold flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      Bloqueado para edição (Análise IA concluída)
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1">
+
                     <Home className="w-3 h-3" /> Área:{' '}
                     {lote.area || 'Não informada'}
                   </p>
@@ -185,13 +230,13 @@ export default function QuadraDetails() {
             </CardContent>
             <CardFooter className="pt-4 border-t bg-muted/20">
               <div className="flex gap-2 w-full">
-                <Button asChild className="flex-1">
+                <Button asChild className="flex-1" disabled={isBlocked}>
                   <Link to={`/lotes/${lote.local_id}`}>
                     <Home className="w-4 h-4 mr-2" />
                     Ver Detalhes
                   </Link>
                 </Button>
-                {canEditProjects && (
+                {canEditProjects && !isBlocked && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline" size="sm">
@@ -219,7 +264,8 @@ export default function QuadraDetails() {
               </div>
             </CardFooter>
           </Card>
-        ))}
+          )
+        })}
         {lotes.length === 0 && (
           <div className="col-span-full text-center py-12 text-muted-foreground">
             <Home className="w-12 h-12 mx-auto mb-4 opacity-50" />
