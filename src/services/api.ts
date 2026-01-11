@@ -900,9 +900,9 @@ export const api = {
         .eq('property_id', propertyId)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (error) return db.getSurveyByPropertyId(propertyId) || null
+      if (error || !data) return db.getSurveyByPropertyId(propertyId) || null
       const survey = mapSurvey(data)
       db.saveSurvey({ ...survey, sync_status: 'synchronized' })
       return survey

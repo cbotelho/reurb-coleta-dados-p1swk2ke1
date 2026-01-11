@@ -267,7 +267,7 @@ export default function LoteForm() {
         </div>
       </div>
 
-      <Tabs defaultValue="survey" className="w-full">
+      <Tabs defaultValue={isEditMode ? "survey" : "lote"} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger
             value="survey"
