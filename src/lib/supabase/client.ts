@@ -18,11 +18,8 @@ export const supabase = createClient<Database>(
       persistSession: true,
       autoRefreshToken: true,
     },
-    global: {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-    },
+    // ❌ REMOVIDO: global headers forçavam application/json em TODOS os requests
+    // Incluindo uploads de Storage que precisam de multipart/form-data ou image/*
+    // O SDK do Supabase define Content-Type automaticamente baseado no tipo de operação
   },
 )
