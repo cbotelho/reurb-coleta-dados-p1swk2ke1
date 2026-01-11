@@ -129,16 +129,17 @@ export const imageService = {
         isBlob: fileToUpload instanceof Blob,
       })
 
-      // Converter para ArrayBuffer para evitar serialização JSON pelo SDK
-      const arrayBuffer = await fileToUpload.arrayBuffer()
-      console.log('🔄 Convertido para ArrayBuffer:', {
-        byteLength: arrayBuffer.byteLength,
+      // Converter para Blob com tipo explícito para garantir MIME type correto
+      const blob = new Blob([fileToUpload], { type: 'image/jpeg' })
+      console.log('🔄 Convertido para Blob:', {
+        type: blob.type,
+        size: blob.size,
       })
 
       // Upload para o Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('reurb-images')
-        .upload(filePath, arrayBuffer, {
+        .upload(filePath, blob, {
           cacheControl: '3600',
           upsert: false,
           contentType: 'image/jpeg', // Especificar MIME type explicitamente
