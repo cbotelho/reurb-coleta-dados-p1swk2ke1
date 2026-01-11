@@ -183,6 +183,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const [fetching, setFetching] = useState(true)
   const [surveyId, setSurveyId] = useState<string | undefined>()
   const [lote, setLote] = useState<Lote | null>(null)
+  const [photoList, setPhotoList] = useState<string[]>([])
   const [quadraName, setQuadraName] = useState<string>('')
   const [projectName, setProjectName] = useState<string>('')
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
