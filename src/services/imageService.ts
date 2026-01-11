@@ -88,7 +88,12 @@ export const imageService = {
       // Comprimir imagem se necessário
       let fileToUpload: File | Blob = file
       if (compress && file.type.startsWith('image/')) {
-        fileToUpload = await this.compressImage(file)
+        const compressedBlob = await this.compressImage(file)
+        // Converter Blob em File com tipo correto
+        fileToUpload = new File([compressedBlob], file.name, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        })
       }
 
       // Gerar nome único para o arquivo
