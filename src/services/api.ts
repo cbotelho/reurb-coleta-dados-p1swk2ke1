@@ -983,9 +983,15 @@ export const api = {
 
   // Surveys
   async getSurveyByPropertyId(propertyId: string): Promise<Survey | null> {
-    if (!isOnline()) return db.getSurveyByPropertyId(propertyId) || null
+    console.log('🔍 getSurveyByPropertyId chamado para:', propertyId)
+    
+    if (!isOnline()) {
+      console.log('💾 Offline, buscando vistoria do LocalStorage')
+      return db.getSurveyByPropertyId(propertyId) || null
+    }
 
     try {
+      console.log('🌐 Buscando vistoria no Supabase...')
       const { data, error } = await supabase
         .from('reurb_surveys')
         .select('*')
@@ -994,11 +1000,30 @@ export const api = {
         .limit(1)
         .maybeSingle()
 
-      if (error || !data) return db.getSurveyByPropertyId(propertyId) || null
+      console.log('📊 Resposta Supabase:', { 
+        encontrou: !!data, 
+        erro: error?.message,
+        vistoria_id: data?.id,
+        applicant_name: data?.applicant_name,
+        created_at: data?.created_at
+      })
+
+      if (error) {
+        console.warn('⚠️ Erro ao buscar vistoria:', error)
+        return db.getSurveyByPropertyId(propertyId) || null
+      }
+      
+      if (!data) {
+        console.log('ℹ️ Nenhuma vistoria encontrada no Supabase')
+        return db.getSurveyByPropertyId(propertyId) || null
+      }
+      
+      console.log('✅ Vistoria encontrada no Supabase, salvando no cache')
       const survey = mapSurvey(data)
       db.saveSurvey({ ...survey, sync_status: 'synchronized' })
       return survey
-    } catch {
+    } catch (err) {
+      console.error('❌ Exceção ao buscar vistoria:', err)
       return db.getSurveyByPropertyId(propertyId) || null
     }
   },
