@@ -386,6 +386,7 @@ export default function LoteForm() {
                         <PhotoCapture
                           initialPhotos={field.value || []}
                           onPhotosChange={(photos) => field.onChange(photos)}
+                          propertyId={loteId || 'temp'}
                         />
                       ) : (
                         <div className="grid grid-cols-3 gap-2">
@@ -393,7 +394,9 @@ export default function LoteForm() {
                             <img
                               key={i}
                               src={photo}
+                              alt={`Foto ${i + 1}`}
                               className="aspect-square w-full object-cover rounded border"
+                              loading="lazy"
                             />
                           ))}
                         </div>

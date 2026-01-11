@@ -183,6 +183,7 @@ import { toast } from 'sonner'
 - `geocoding.ts` - conversão endereço ↔ coordenadas
 - `report.ts` - geração de relatórios
 - `documentService.ts` - upload/gerenciamento de documentos
+- **`imageService.ts`** - 🆕 upload de imagens para Supabase Storage (compressão automática)
 - `analiseIA.ts` - análise de REURB-E/S via IA (futuro)
 - `notification.ts` - notificações push/email
 
@@ -200,10 +201,14 @@ import { toast } from 'sonner'
 - **Referência obrigatória**: [FORMULARIOS-MAPEAMENTO-COMPLETO.md](FORMULARIOS-MAPEAMENTO-COMPLETO.md) - mapeamento 1:1 BD ↔ UI
 - **Campos de IA** (futuros): `analise_ia_classificacao`, `analise_ia_parecer`, `analise_ia_proximo_passo`
 
-### GoogleMap.tsx
-- Google Maps integrado com marcadores customizáveis
-- API key carregada de `reurb_app_config` no Supabase (não .env)
-- `LayerManager.tsx`, `MarkerCustomizer.tsx` - controles de mapa
+### PhotoCapture
+- Upload direto para **Supabase Storage** (`reurb-images` bucket)
+- **Compressão automática** de imagens (max 1200x1200px, 80% quality)
+- Armazena apenas **URLs** no LocalStorage (não base64!)
+- Modo offline com URLs temporárias (blob:)
+- Fix do erro `setState() during render`
+- Uso: `<PhotoCapture initialPhotos={[]} onPhotosChange={fn} propertyId="lote-id" />`
+- **CRÍTICO**: Sempre passar `propertyId` para organizar uploads
 
 ### CSVImporter
 - Mapeamento dinâmico de colunas CSV → campos do banco
@@ -316,7 +321,19 @@ COMMIT;
 6. **❌ Ignorar `sync_status` na UI** → Não mostra itens pendentes
    - Sempre renderizar badge/indicador para itens com `sync_status='pending'` ou `'failed'`
 
-7. **❌ Modificar `src/lib/supabase/client.ts`** → É gerado automaticamente
+7. **❌ Modificar `src/lib/supabase/client.ts`** →
+
+9. **❌ Salvar imagens como base64 no LocalStorage** → Excede cota (QuotaExceededError)
+   ```typescript
+   // ❌ NUNCA armazene base64 de imagens
+   lote.images = ['data:image/jpeg;base64,/9j/4AAQ...'] // ERRADO!
+   
+   // ✅ Use imageService para upload
+   const urls = await imageService.uploadImages(files, loteId)
+- [IMAGE-UPLOAD-FIX.md](IMAGE-UPLOAD-FIX.md) - 🆕 Solução para QuotaExceededError em uploads
+   lote.images = urls // URLs do Supabase Storage
+   ```
+   - Ver [IMAGE-UPLOAD-FIX.md](IMAGE-UPLOAD-FIX.md) para detalhes É gerado automaticamente
    - Comentário no topo: `// AVOID UPDATING THIS FILE DIRECTLY`
 
 8. **❌ Usar porta 5173 (padrão Vite)** → Configurado para 8080
@@ -332,6 +349,7 @@ COMMIT;
 
 ### Scripts SQL de Diagnóstico (root)
 - `analyze_*.sql` - Análise de estrutura/dados
+- `20260111120000_create_storage_bucket_images.sql` - 🆕 Bucket de imagens no Storage
 - `check_*.sql` - Verificação de integridade
 - `debug_*.sql` - Debug de RLS/permissões
 - `fix_*.sql` - Correções de dados
