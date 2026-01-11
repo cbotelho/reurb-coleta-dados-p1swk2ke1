@@ -121,7 +121,28 @@ async getLote(id: string): Promise<Lote | null> {
 - ✅ Estatísticas de uso de coordenadas
 - ✅ Verificação de RLS policies
 
+### 4. Fix de Políticas RLS (CRÍTICO)
+- ✅ Criado `fix_rls_coordinates.sql` para corrigir políticas conflitantes
+- ✅ Remove políticas redundantes/conflitantes
+- ✅ Mantém apenas política simples e permissiva
+- ✅ Testa políticas após aplicação
+
 ## 🧪 Como Testar
+
+### Teste 0: **PRIMEIRO - Corrigir Políticas RLS** ⚠️ CRÍTICO
+
+**Execute este script ANTES de testar**:
+
+1. Abra **SQL Editor** no Supabase
+2. Cole e execute `fix_rls_coordinates.sql`
+3. Verifique políticas após execução:
+   ```sql
+   SELECT policyname, cmd 
+   FROM pg_policies 
+   WHERE tablename = 'reurb_properties'
+   ORDER BY cmd;
+   ```
+4. Deve mostrar apenas políticas simples e não-conflitantes
 
 ### Teste 1: Desenvolvimento/LocalStorage
 
@@ -163,7 +184,17 @@ async getLote(id: string): Promise<Lote | null> {
 
 ### Teste 3: Verificação no Banco (Supabase)
 
-Execute o script `debug_coordinates.sql` no SQL Editor do Supabase:
+Execu⚠️ PRIMEIRO: Verificar políticas RLS**:
+   ```sql
+   -- Execute fix_rls_coordinates.sql
+   -- Depois verifique:
+   SELECT policyname, cmd, qual, with_check
+   FROM pg_policies 
+   WHERE tablename = 'reurb_properties' AND cmd = 'UPDATE';
+   ```
+   - D   - Se houver múltiplas políticas UPDATE, execute `fix_rls_coordinates.sql`   - Não deve haver políticas com `has_permission()` que possam falhar
+
+2. **te o script `debug_coordinates.sql` no SQL Editor do Supabase:
 
 ```sql
 -- Ver últimos lotes atualizados com coordenadas
@@ -175,6 +206,87 @@ LIMIT 10;
 ```
 
 ## 🔧 Resolução de Problemas
+
+### Problema 5 (CRÍTICO): Offline-First Pattern Quebrado em Produção
+
+#### Sintoma
+- **Produção**: 10 lotes pendentes de sincronização, mas vistorias não carregam dados do lote
+- **Dev**: 0 lotes pendentes, tudo funciona
+- Vistoria em produção só mostra latitude/longitude + fotos, mas não mostra nome, número, quadra
+
+#### Causa Raiz
+```typescript
+// ❌ CÓDIGO ANTIGO - api.ts getLote() (ERRADO)
+async getLote(id: string): Promise<Lote | null> {
+  // 1. Busca Supabase PRIMEIRO (online)
+  if (isOnline()) {
+    const { data } = await supabase.from('reurb_properties')...
+    if (data) return mapLote(data) // ✅ Se encontra, retorna
+  }
+  // 2. Fallback para LocalStorage
+  return db.getLote(id) || null // ❌ Só chega aqui se Supabase falhar
+}
+```
+
+**Problema**: Em produção, os 10 lotes estavam **apenas no LocalStorage** (não sincronizados ainda), mas como `isOnline() === true`, o código buscava do Supabase vazio e retornava `null`.
+
+**Por que dev funcionava?** No dev, os lotes já estavam sincronizados no Supabase ou o dev estava offline.
+
+#### Solução: Offline-First Pattern Correto
+```typescript
+// ✅ CÓDIGO NOVO - api.ts getLote() (CORRETO)
+async getLote(id: string): Promise<Lote | null> {
+  // 1. SEMPRE busca LocalStorage PRIMEIRO (offline-first)
+  const localLote = db.getLote(id)
+  
+  if (localLote) {
+    // Se está pendente/failed, retorna dados locais (não busca Supabase)
+    if (localLote.sync_status === 'pending' || localLote.sync_status === 'failed') {
+      console.log('📌 Lote com sync pendente, usando dados locais')
+      return localLote
+    }
+    
+    // Se já sincronizado, atualiza do Supabase em background
+    if (isOnline()) {
+      const { data } = await supabase.from('reurb_properties')...
+      if (data) return mapLote(data)
+    }
+    
+    return localLote // Fallback para dados locais
+  }
+  
+  // 2. Só busca Supabase se não existe local (novo lote)
+  if (isOnline()) {
+    const { data } = await supabase.from('reurb_properties')...
+  }
+  return null
+}
+```
+
+#### Teste
+1. **Verificar com lotes pendentes em produção**:
+   ```bash
+   # Console do navegador (F12):
+   # - "💾 Buscando lote do LocalStorage (offline-first)..."
+   # - "✅ Lote encontrado no LocalStorage"
+   # - "📌 Lote com sync pendente, usando dados locais"
+   ```
+
+2. **Sincronizar lotes pendentes**:
+   - Clicar no botão de sincronização
+   - Aguardar "Dados sincronizados com o servidor"
+   - Stats devem mostrar 0 lotes pendentes
+
+3. **Verificar lotes no Supabase**:
+   ```bash
+   # Executar debug_production_lotes.sql
+   ```
+
+#### Arquivos Modificados
+- ✅ [src/services/api.ts](src/services/api.ts#L693) - `getLote()` refatorado
+- ✅ [debug_production_lotes.sql](debug_production_lotes.sql) - Script diagnóstico
+
+---
 
 ### Se latitude/longitude ainda não salvam:
 
@@ -235,7 +347,11 @@ FROM reurb_properties;
 ## 📝 Arquivos Modificados
 
 1. ✅ `src/services/api.ts`
-   - Função `updateLote()` - adiciona update de latitude/longitude
+   - Ffix_rls_coordinates.sql` (novo) ⚠️ **CRÍTICO**
+   - Remove políticas RLS conflitantes
+   - Simplifica permissões
+
+5. ✅ `unção `updateLote()` - adiciona update de latitude/longitude
    - Função `getLote()` - adiciona logs de diagnóstico
 
 2. ✅ `src/components/SurveyForm.tsx`

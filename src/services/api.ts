@@ -693,10 +693,55 @@ export const api = {
   async getLote(id: string): Promise<Lote | null> {
     console.log('🔍 getLote chamado para ID:', id)
     
-    // Tentar buscar do Supabase primeiro (online)
+    // 1. SEMPRE buscar do LocalStorage PRIMEIRO (offline-first pattern)
+    console.log('💾 Buscando lote do LocalStorage (offline-first)...')
+    const localLote = db.getLote(id)
+    
+    if (localLote) {
+      console.log('✅ Lote encontrado no LocalStorage:', {
+        name: localLote.name,
+        address: localLote.address,
+        latitude: localLote.latitude,
+        longitude: localLote.longitude,
+        sync_status: localLote.sync_status,
+      })
+      
+      // Se está pendente de sync, retorna dados locais
+      if (localLote.sync_status === 'pending' || localLote.sync_status === 'failed') {
+        console.log('📌 Lote com sync pendente, usando dados locais')
+        return localLote
+      }
+      
+      // Se já está sincronizado, tenta atualizar do Supabase em background
+      if (isOnline()) {
+        try {
+          console.log('🔄 Atualizando lote do Supabase em background...')
+          const { data } = await supabase
+            .from('reurb_properties')
+            .select('*')
+            .eq('id', id)
+            .single()
+          
+          if (data) {
+            const updatedLote = mapLote(data)
+            if (updatedLote.parent_item_id) {
+              db.saveLote(updatedLote, updatedLote.parent_item_id)
+            }
+            return updatedLote
+          }
+        } catch (error) {
+          console.warn('⚠️ Falha ao atualizar do Supabase, usando cache local:', error)
+        }
+      }
+      
+      // Retorna dados locais se Supabase falhou ou offline
+      return localLote
+    }
+    
+    // 2. Se não existe local, buscar do Supabase (novo lote)
     if (isOnline()) {
       try {
-        console.log('🌐 Buscando lote online do Supabase...')
+        console.log('🌐 Lote não encontrado localmente, buscando no Supabase...')
         const { data, error } = await supabase
           .from('reurb_properties')
           .select('*')
@@ -724,26 +769,13 @@ export const api = {
           return lote
         }
       } catch (error) {
-        console.error('❌ Falha ao buscar do Supabase, tentando LocalStorage:', error)
+        console.error('❌ Falha ao buscar do Supabase:', error)
       }
     }
     
-    // Fallback: buscar do LocalStorage
-    console.log('💾 Buscando lote do LocalStorage...')
-    const localLote = db.getLote(id)
-    
-    if (localLote) {
-      console.log('✅ Lote encontrado no LocalStorage:', {
-        name: localLote.name,
-        address: localLote.address,
-        latitude: localLote.latitude,
-        longitude: localLote.longitude,
-      })
-    } else {
-      console.warn('⚠️ Lote não encontrado nem no Supabase nem no LocalStorage')
-    }
-    
-    return localLote || null
+    // 3. Lote não encontrado em nenhum lugar
+    console.warn('⚠️ Lote não encontrado nem no LocalStorage nem no Supabase')
+    return null
   },
 
   async saveLote(lote: Partial<Lote> & { quadra_id?: string }): Promise<Lote> {
