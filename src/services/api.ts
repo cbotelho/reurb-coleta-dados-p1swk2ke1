@@ -1146,12 +1146,23 @@ export const api = {
       }
       const saved = mapSurvey(data)
       const syncedSurvey = { ...saved, sync_status: 'synchronized' as const }
-      db.saveSurvey(syncedSurvey)
+      
+      // Tentar salvar no cache, mas retornar survey mesmo se falhar
+      try {
+        db.saveSurvey(syncedSurvey)
+      } catch (cacheError) {
+        console.warn('⚠️ Vistoria salva no Supabase, mas cache local falhou (quota excedida):', cacheError)
+      }
+      
       return syncedSurvey
     } catch (e) {
       console.warn('Save survey failed, saving locally', e)
       // Salva localmente para não perder dados e RE-LEVA o erro quando online
-      const local = db.saveSurvey({ ...survey, sync_status: 'pending' })
+      try {
+        db.saveSurvey({ ...survey, sync_status: 'pending' })
+      } catch (cacheError) {
+        console.error('❌ CRÍTICO: Falhou Supabase E LocalStorage:', cacheError)
+      }
       // Se está offline, a função já teria retornado antes. Portanto, este catch indica falha online.
       // Re-lançamos o erro para que a UI trate como falha de sincronização (não como offline).
       throw e
