@@ -102,6 +102,7 @@ export const imageService = {
         .upload(filePath, fileToUpload, {
           cacheControl: '3600',
           upsert: false,
+          contentType: 'image/jpeg', // Especificar MIME type explicitamente
         })
 
       if (uploadError) {
