@@ -85,14 +85,34 @@ export const imageService = {
     compress: boolean = true,
   ): Promise<string> {
     try {
+      console.log('📤 Upload iniciado:', {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        propertyId,
+        compress,
+      })
+
       // Comprimir imagem se necessário
       let fileToUpload: File | Blob = file
       if (compress && file.type.startsWith('image/')) {
         const compressedBlob = await this.compressImage(file)
+        console.log('✂️ Imagem comprimida:', {
+          originalSize: file.size,
+          compressedSize: compressedBlob.size,
+          blobType: compressedBlob.type,
+        })
+        
         // Converter Blob em File com tipo correto
         fileToUpload = new File([compressedBlob], file.name, {
           type: 'image/jpeg',
           lastModified: Date.now(),
+        })
+        
+        console.log('📦 File criado:', {
+          name: fileToUpload.name,
+          type: fileToUpload.type,
+          size: fileToUpload.size,
         })
       }
 
@@ -100,6 +120,14 @@ export const imageService = {
       const fileExt = file.name.split('.').pop() || 'jpg'
       const fileName = `${propertyId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
       const filePath = `property-images/${fileName}`
+
+      console.log('🚀 Enviando para Supabase:', {
+        filePath,
+        fileToUploadType: fileToUpload.type,
+        fileToUploadSize: fileToUpload.size,
+        isFile: fileToUpload instanceof File,
+        isBlob: fileToUpload instanceof Blob,
+      })
 
       // Upload para o Supabase Storage
       const { error: uploadError } = await supabase.storage
