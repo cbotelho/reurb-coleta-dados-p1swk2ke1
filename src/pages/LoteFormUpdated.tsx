@@ -376,10 +376,10 @@ export default function LoteForm() {
 
       {/* 📋 Abas do Formulário */}
       <Tabs defaultValue="dados-gerais" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="dados-gerais">Dados Gerais</TabsTrigger>
-          <TabsTrigger value="vistoria">Vistoria</TabsTrigger>
-          <TabsTrigger value="parecer">Parecer Conclusivo</TabsTrigger>
+        <TabsList className="flex flex-col h-auto sm:grid sm:h-10 sm:grid-cols-3 w-full bg-muted p-1 rounded-md">
+          <TabsTrigger value="dados-gerais" className="w-full">Dados Gerais</TabsTrigger>
+          <TabsTrigger value="vistoria" className="w-full">Vistoria</TabsTrigger>
+          <TabsTrigger value="parecer" className="w-full">Parecer Conclusivo</TabsTrigger>
         </TabsList>
 
         {/* 📄 Aba 1: Dados Gerais */}
