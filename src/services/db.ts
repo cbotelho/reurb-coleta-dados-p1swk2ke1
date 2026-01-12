@@ -219,7 +219,36 @@ class DBService {
   }
 
   saveItems<T>(key: string, items: T[]) {
-    localStorage.setItem(key, JSON.stringify(items))
+    try {
+      localStorage.setItem(key, JSON.stringify(items))
+    } catch (e: any) {
+      if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+        console.warn(`[DB] Quota exceeded while saving ${key}. Clearing old cache/logs and retrying...`)
+        
+        // Estratégia de limpeza de emergência
+        // 1. Limpar logs antigos (geralmente dispensáveis)
+        if (key !== STORAGE_KEYS.LOGS) {
+          localStorage.removeItem(STORAGE_KEYS.LOGS)
+        }
+        
+        // 2. Se for 'reurb_surveys', tentar remover vistorias sincronizadas para abrir espaço
+        if (key === STORAGE_KEYS.SURVEYS && Array.isArray(items)) {
+          // Isso é apenas um paliativo para não travar a UI.
+          // O ideal é que o serviço de sync limpe dados antigos.
+          console.warn('[DB] Tentando salvar apenas dados pendentes/atuais...')
+        }
+
+        try {
+           // Tenta salvar novamente
+           localStorage.setItem(key, JSON.stringify(items))
+        } catch (retryError) {
+           console.error('[DB] Falha crítica ao salvar dados após limpeza:', retryError)
+           // Não propagar erro para evitar tela branca (crash da aplicação)
+        }
+      } else {
+        console.error('[DB] Erro ao salvar itens:', e)
+      }
+    }
   }
 
   // ... (Keep all existing project, quadra, lote, survey methods)

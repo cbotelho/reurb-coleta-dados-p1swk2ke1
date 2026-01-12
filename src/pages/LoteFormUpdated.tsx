@@ -414,7 +414,7 @@ export default function LoteForm() {
                       <FormLabel>Quadra *</FormLabel>
                       <Select 
                         onValueChange={field.onChange} 
-                        defaultValue={field.value}
+                        value={field.value || undefined}
                         disabled={!canEdit || !!quadraId}
                       >
                         <FormControl>
@@ -424,9 +424,15 @@ export default function LoteForm() {
                         </FormControl>
                         <SelectContent>
                           {/* Carregar quadras dinamicamente */}
-                          <SelectItem value={quadraId || ''}>
-                            Quadra Atual
-                          </SelectItem>
+                          {(quadraId || field.value) ? (
+                            <SelectItem value={quadraId || field.value}>
+                              Quadra Atual
+                            </SelectItem>
+                          ) : (
+                            <SelectItem value="aguardando_selecao" disabled>
+                              Carregando quadra...
+                            </SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
