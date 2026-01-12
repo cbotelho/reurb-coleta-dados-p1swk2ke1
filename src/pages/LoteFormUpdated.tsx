@@ -104,6 +104,7 @@ export default function LoteForm() {
   const [currentLote, setCurrentLote] = useState<Lote | undefined>()
   const [surveyData, setSurveyData] = useState<any>(null)
   const [socialReport, setSocialReport] = useState<SocialReport | null>(null)
+  const [projectId, setProjectId] = useState<string>('')
   const [isReportFormOpen, setIsReportFormOpen] = useState(false)
   const { hasPermission, user } = useAuth()
   const canEdit = hasPermission('all') || hasPermission('edit_projects')
@@ -127,6 +128,23 @@ export default function LoteForm() {
       sync_status: 'pending',
     },
   })
+
+  // Carregar ID do projeto quando houver quadra selecionada
+  useEffect(() => {
+    const fetchProject = async () => {
+      if (parentQuadraId) {
+        try {
+          const quadra = await api.getQuadra(parentQuadraId)
+          if (quadra && quadra.project_id) {
+            setProjectId(quadra.project_id)
+          }
+        } catch (err) {
+          console.error('Erro ao buscar projeto da quadra:', err)
+        }
+      }
+    }
+    fetchProject()
+  }, [parentQuadraId])
 
   // 🔄 Carregar dados em modo de edição
   useEffect(() => {
@@ -801,7 +819,7 @@ export default function LoteForm() {
           onClose={() => setIsReportFormOpen(false)}
           propertyId={currentLote.local_id}
           quadraId={parentQuadraId || ''}
-          projectId={''} // TODO: Adicionar project_id no contexto do lote
+          projectId={projectId}
           existingReport={socialReport}
           onSuccess={() => {
             if (currentLote?.local_id) {

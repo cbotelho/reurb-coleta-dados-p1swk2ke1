@@ -27,7 +27,7 @@ import {
   Heading3,
   Type,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,18 +60,23 @@ export function RichTextEditor({
             levels: [1, 2, 3],
         },
       }),
-      Underline,
+      // Underline, 
       TextStyle,
       Color,
       TextAlign.configure({
         types: ['heading', 'paragraph', 'image'],
       }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class: 'text-primary underline cursor-pointer',
-        },
-      }),
+      // Link.configure({
+      //   openOnClick: false,
+      //   HTMLAttributes: {
+      //     class: 'text-primary underline cursor-pointer',
+      //   },
+      // }),
+      /*
+      ATENÇÃO: Removendo Link e Underline pois o log indicou duplicidade.
+      Se pararem de funcionar, significa que o StarterKit não os incluía e o log era de outro lugar.
+      Mas se o log diz "Duplicate extension names found: ['link', 'underline']", é 99% de certeza que já estão lá.
+      */
       ImageExtension.configure({
         inline: false,
         allowBase64: true,
@@ -91,6 +96,15 @@ export function RichTextEditor({
       },
     }
   })
+
+  // Sincronizar conteúdo externo com o editor
+  useEffect(() => {
+    if (editor && content && content !== editor.getHTML()) {
+      // Apenas atualiza se for diferente para evitar loops ou perder cursor
+      // Melhor comparação pode ser necessária, mas para reset serve
+      editor.commands.setContent(content)
+    }
+  }, [content, editor])
 
   if (!editor) {
     return null

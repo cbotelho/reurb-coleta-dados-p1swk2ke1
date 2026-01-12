@@ -149,13 +149,28 @@ export const socialReportService = {
         report.numero_registro = await this.generateReportNumber()
       }
 
+      // LIMPEZA DE DADOS: Garantir que UUIDs vazios sejam nulos ou removidos
+      const cleanData: any = {
+        ...report,
+        // Converter strings vazias para null para campos UUID e EMAIL (evita erro de sintaxe)
+        property_id: report.property_id || null,
+        quadra_id: report.quadra_id || null,
+        project_id: report.project_id || null,
+        email_assistente_social: report.email_assistente_social || null,
+        versao: 1,
+        status: report.status || 'rascunho',
+      }
+
+      // Remover chaves nulas para deixar o banco usar DEFAULT (se houver) ou gravar NULL
+      Object.keys(cleanData).forEach((key) => {
+        if (cleanData[key] === null) {
+          delete cleanData[key]
+        }
+      })
+
       const { data, error } = await supabase
         .from('reurb_social_reports')
-        .insert({
-          ...report,
-          versao: 1,
-          status: report.status || 'rascunho',
-        })
+        .insert(cleanData)
         .select()
         .single()
 
@@ -176,6 +191,18 @@ export const socialReportService = {
     updates: Partial<SocialReport>,
   ): Promise<SocialReport> {
     try {
+      const cleanUpdates: any = { ...updates }
+      
+      // Limpeza similar para updates
+      if (typeof cleanUpdates.property_id !== 'undefined') cleanUpdates.property_id = cleanUpdates.property_id || null
+      if (typeof cleanUpdates.quadra_id !== 'undefined') cleanUpdates.quadra_id = cleanUpdates.quadra_id || null
+      if (typeof cleanUpdates.project_id !== 'undefined') cleanUpdates.project_id = cleanUpdates.project_id || null
+      if (typeof cleanUpdates.email_assistente_social !== 'undefined') cleanUpdates.email_assistente_social = cleanUpdates.email_assistente_social || null
+
+      // Remover nulos se desejar que não sejam enviados (mas em update, enviar null pode ser intencional para limpar o campo)
+      // Nesse caso, o problema é "", então converter "" para null é o correto.
+      // Se o campo for obrigatório, null vai dar erro, mas "" dá erro de sintaxe.
+      
       const { data, error } = await supabase
         .from('reurb_social_reports')
         .update(updates)
