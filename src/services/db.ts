@@ -236,10 +236,28 @@ class DBService {
           // Isso é apenas um paliativo para não travar a UI.
           // O ideal é que o serviço de sync limpe dados antigos.
           console.warn('[DB] Tentando salvar apenas dados pendentes/atuais...')
+          
+          // CRITICAL FIX: Filtrar itens para manter apenas o necessário
+          // Mantém itens não sincronizados (pending/failed) ou rascunhos em progresso
+          const essentialItems = (items as any[]).filter(i => 
+            i.sync_status === 'pending' || 
+            i.sync_status === 'failed' || 
+            i.status === 'rascunho'
+          )
+          
+          if (essentialItems.length < items.length) {
+            try {
+              localStorage.setItem(key, JSON.stringify(essentialItems))
+              console.log(`[DB] Recuperei da falha de cota removendo ${items.length - essentialItems.length} vistorias sincronizadas.`)
+              return // Sucesso
+            } catch (e2) {
+              console.error('[DB] Ainda falhando após filtrar vistorias:', e2)
+            }
+          }
         }
 
         try {
-           // Tenta salvar novamente
+           // Tenta salvar novamente (se não foi surveys ou se filtro não ajudou)
            localStorage.setItem(key, JSON.stringify(items))
         } catch (retryError) {
            console.error('[DB] Falha crítica ao salvar dados após limpeza:', retryError)
