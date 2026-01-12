@@ -43,7 +43,7 @@ import {
 } from 'lucide-react'
 import { useSync } from '@/contexts/SyncContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { DocumentUpload } from '@/components/DocumentUpload'
 import {
   Dialog,
@@ -792,8 +792,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
       <form onSubmit={form.handleSubmit(onSubmit, onSubmitInvalid)} className="space-y-6">
         <Tabs defaultValue="geral" className="w-full">
-          <ScrollArea className="w-full whitespace-nowrap">
-            <TabsList className="w-full justify-start mb-4 bg-transparent p-0 gap-2">
+            <TabsList className="flex flex-col h-auto sm:grid sm:h-10 sm:grid-cols-6 w-full bg-muted p-1 rounded-md mb-4">
               <TabsTrigger
                 value="geral"
                 className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
@@ -831,7 +830,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                 Observações
               </TabsTrigger>
             </TabsList>
-          </ScrollArea>
 
           <TabsContent value="geral" className="space-y-4">
             <div className="rounded-lg border bg-emerald-50 p-4">
