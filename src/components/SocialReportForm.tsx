@@ -258,7 +258,7 @@ export function SocialReportForm({
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
               <Select
-                value={form.watch('status')}
+                value={form.watch('status') || 'rascunho'}
                 onValueChange={(value: any) => form.setValue('status', value)}
               >
                 <SelectTrigger>
