@@ -49,8 +49,12 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SurveyForm } from '@/components/SurveyForm'
+import { SocialReportForm } from '@/components/SocialReportForm'
 import { useSync } from '@/contexts/SyncContext'
 import { reportService } from '@/services/report'
+import { socialReportService } from '@/services/socialReportService'
+import type { SocialReport } from '@/types'
+import type { SocialReport } from '@/types'
 
 // 🎯 Schema completo baseado no mapeamento do banco
 const loteFormSchema = z.object({
@@ -99,6 +103,8 @@ export default function LoteForm() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentLote, setCurrentLote] = useState<Lote | undefined>()
   const [surveyData, setSurveyData] = useState<any>(null)
+  const [socialReport, setSocialReport] = useState<SocialReport | null>(null)
+  const [isReportFormOpen, setIsReportFormOpen] = useState(false)
   const { hasPermission, user } = useAuth()
   const canEdit = hasPermission('all') || hasPermission('edit_projects')
   const isAdminOrAssistant = user?.grupo_acesso === 'Administrador' || user?.grupo_acesso === 'Administradores' || user?.grupo_acesso === 'Assistente Social'
@@ -140,6 +146,9 @@ export default function LoteForm() {
       const survey = await api.getSurveyByPropertyId(id)
       setSurveyData(survey)
       
+      // Carregar parecer social
+      loadSocialReport(id)
+      
       // Pre-fill com dados existentes
       form.reset({
         id: lote.local_id,
@@ -166,6 +175,16 @@ export default function LoteForm() {
       console.error('Error loading lote:', error)
     } finally {
       setFetching(false)
+    }
+  }
+
+  // Carregar parecer social do lote
+  const loadSocialReport = async (propertyId: string) => {
+    try {
+      const report = await socialReportService.getByPropertyId(propertyId)
+      setSocialReport(report)
+    } catch (error) {
+      console.error('Erro ao carregar parecer social:', error)
     }
   }
 
@@ -323,9 +342,10 @@ export default function LoteForm() {
 
       {/* 📋 Abas do Formulário */}
       <Tabs defaultValue="dados-gerais" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="dados-gerais">Dados Gerais</TabsTrigger>
           <TabsTrigger value="vistoria">Vistoria</TabsTrigger>
+          <TabsTrigger value="parecer">Parecer Conclusivo</TabsTrigger>
         </TabsList>
 
         {/* 📄 Aba 1: Dados Gerais */}
@@ -647,7 +667,144 @@ export default function LoteForm() {
             </>
           )}
         </TabsContent>
+
+        {/* 📋 Aba 3: Parecer Conclusivo */}
+        <TabsContent value="parecer">
+          {currentLote ? (
+            <div className="space-y-4">
+              {/* Informações do lote */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h3 className="font-semibold text-blue-900 mb-2">Informações do Lote</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <span className="text-blue-700 font-medium">Lote:</span> {currentLote.name}
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Área:</span> {currentLote.area} m²
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Status:</span>{' '}
+                    <span className="capitalize">{currentLote.status?.replace('_', ' ')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status do parecer */}
+              {socialReport ? (
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-green-900">✓ Parecer Existente</h3>
+                      <p className="text-sm text-green-700 mt-1">
+                        <strong>Registro:</strong> {socialReport.numero_registro || 'N/A'} •{' '}
+                        <strong>Status:</strong>{' '}
+                        <span className="capitalize">{socialReport.status}</span> •{' '}
+                        <strong>Assistente Social:</strong> {socialReport.nome_assistente_social}
+                      </p>
+                      <p className="text-sm text-green-600 mt-1">
+                        Última atualização: {new Date(socialReport.updated_at || '').toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    {isAdminOrAssistant && (
+                      <Button
+                        onClick={() => setIsReportFormOpen(true)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Editar Parecer
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-amber-900">⚠ Nenhum Parecer Cadastrado</h3>
+                      <p className="text-sm text-amber-700 mt-1">
+                        Este lote ainda não possui parecer conclusivo do assistente social.
+                      </p>
+                    </div>
+                    {isAdminOrAssistant && (
+                      <Button
+                        onClick={() => setIsReportFormOpen(true)}
+                        variant="default"
+                        size="sm"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Criar Parecer
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Visualização do parecer existente */}
+              {socialReport && (
+                <div className="p-6 bg-white border rounded-lg">
+                  <h3 className="font-semibold text-lg mb-4">Conteúdo do Parecer</h3>
+                  <div 
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: socialReport.parecer }}
+                  />
+                  
+                  <div className="mt-6 pt-6 border-t">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      {socialReport.cress_assistente_social && (
+                        <div>
+                          <span className="font-medium">CRESS:</span> {socialReport.cress_assistente_social}
+                        </div>
+                      )}
+                      {socialReport.email_assistente_social && (
+                        <div>
+                          <span className="font-medium">E-mail:</span> {socialReport.email_assistente_social}
+                        </div>
+                      )}
+                      {socialReport.assinatura_eletronica && (
+                        <div className="col-span-2">
+                          <span className="font-medium">Assinatura Eletrônica:</span>{' '}
+                          <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                            {socialReport.assinatura_eletronica}
+                          </code>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!isAdminOrAssistant && !socialReport && (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Apenas Administradores e Assistentes Sociais podem criar pareceres.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Carregue um lote para visualizar/criar o parecer conclusivo.</p>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* Modal de Parecer */}
+      {currentLote && isReportFormOpen && (
+        <SocialReportForm
+          open={isReportFormOpen}
+          onClose={() => setIsReportFormOpen(false)}
+          propertyId={currentLote.local_id}
+          quadraId={parentQuadraId || ''}
+          projectId={''} // TODO: Adicionar project_id no contexto do lote
+          existingReport={socialReport}
+          onSuccess={() => {
+            if (currentLote?.local_id) {
+              loadSocialReport(currentLote.local_id)
+            }
+          }}
+          propertyName={currentLote.name}
+        />
+      )}
     </div>
   )
 }
