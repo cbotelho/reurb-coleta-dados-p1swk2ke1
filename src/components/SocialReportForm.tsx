@@ -4,7 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
 import { socialReportService } from '@/services/socialReportService'
+import { imageService } from '@/services/imageService'
 import { RichTextEditor } from './RichTextEditor'
+import { SignaturePad } from './SignaturePad'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -24,11 +26,11 @@ import {
   DialogTitle,
 } from './ui/dialog'
 import { Badge } from './ui/badge'
-import { FileText, Download, Save, Clock, CheckCircle2 } from 'lucide-react'
+import { FileText, Download, Save, Clock, CheckCircle2, PenTool, Image as ImageIcon } from 'lucide-react'
 import type { SocialReport } from '@/types'
 
 const socialReportSchema = z.object({
-  parecer: z.string().min(50, 'Parecer deve ter no mínimo 50 caracteres'),
+  parecer: z.string().min(600, 'Parecer deve ter no mínimo 600 caracteres. É necessário um laudo detalhado.'),
   numero_registro: z.string().optional(),
   assinatura_eletronica: z.string().optional(),
   nome_assistente_social: z.string().min(3, 'Nome obrigatório'),
@@ -104,6 +106,39 @@ export function SocialReportForm({
     }
   }, [existingReport, form.reset])
 
+  const [showSignaturePad, setShowSignaturePad] = useState(false)
+
+  const handleEditorImageUpload = async (file: File): Promise<string> => {
+    try {
+      const urls = await imageService.uploadImages([file], propertyId)
+      if (urls && urls.length > 0) {
+        return urls[0]
+      }
+      throw new Error('Falha ao obter URL da imagem')
+    } catch (error) {
+      console.error('Erro no upload de imagem do editor:', error)
+      toast.error('Erro ao enviar imagem. Verifique se o arquivo é válido.')
+      return ''
+    }
+  }
+
+  const handleSignatureSave = async (signatureDataUrl: string) => {
+    try {
+      const res = await fetch(signatureDataUrl)
+      const blob = await res.blob()
+      const file = new File([blob], `signature_${Date.now()}.png`, { type: 'image/png' })
+
+      const urls = await imageService.uploadImages([file], propertyId)
+      if (urls && urls.length > 0) {
+        form.setValue('assinatura_eletronica', urls[0], { shouldDirty: true, shouldTouch: true })
+        toast.success('Assinatura anexada com sucesso!')
+      }
+    } catch (error) {
+      console.error('Erro ao salvar assinatura:', error)
+      toast.error('Erro ao salvar assinatura')
+    }
+  }
+
   const onSubmit = async (data: SocialReportFormData) => {
     try {
       setIsLoading(true)
@@ -171,7 +206,8 @@ export function SocialReportForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -247,6 +283,7 @@ export function SocialReportForm({
             <RichTextEditor
               content={parecerContent}
               onChange={setParecerContent}
+              onImageUpload={handleEditorImageUpload}
               placeholder="Digite o parecer técnico conclusivo..."
             />
             {form.formState.errors.parecer && (
@@ -285,11 +322,35 @@ export function SocialReportForm({
 
             <div className="space-y-2">
               <Label htmlFor="assinatura_eletronica">Assinatura Eletrônica</Label>
-              <Input
-                id="assinatura_eletronica"
-                {...form.register('assinatura_eletronica')}
-                placeholder="Hash ou código de assinatura"
-              />
+              <div className="flex gap-2 items-start">
+                <div className="flex-1">
+                  <Input
+                    id="assinatura_eletronica"
+                    {...form.register('assinatura_eletronica')}
+                    placeholder="Clique no ícone para assinar"
+                    readOnly
+                  />
+                  {form.watch('assinatura_eletronica') && (
+                    <div className="mt-2 border rounded-lg p-2 bg-muted/20 flex justify-center">
+                      <img 
+                        src={form.watch('assinatura_eletronica')} 
+                        alt="Assinatura" 
+                        className="max-h-24 object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => setShowSignaturePad(true)}
+                  title="Coletar Assinatura"
+                  className="h-10 w-10 flex-shrink-0"
+                >
+                  <PenTool className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -324,5 +385,15 @@ export function SocialReportForm({
         </form>
       </DialogContent>
     </Dialog>
+
+    <SignaturePad
+      open={showSignaturePad}
+      onClose={() => setShowSignaturePad(false)}
+      onSave={async (dataUrl) => {
+        await handleSignatureSave(dataUrl)
+        setShowSignaturePad(false)
+      }}
+    />
+    </>
   )
 }
