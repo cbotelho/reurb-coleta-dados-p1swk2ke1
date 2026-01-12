@@ -68,17 +68,19 @@ export function SocialReportForm({
   const [isLoading, setIsLoading] = useState(false)
   const [parecerContent, setParecerContent] = useState('')
 
+  const defaultFormValues: SocialReportFormData = {
+    parecer: '',
+    numero_registro: '',
+    assinatura_eletronica: '',
+    nome_assistente_social: '',
+    cress_assistente_social: '',
+    email_assistente_social: '',
+    status: 'rascunho',
+  }
+
   const form = useForm<SocialReportFormData>({
     resolver: zodResolver(socialReportSchema),
-    defaultValues: {
-      parecer: '',
-      numero_registro: '',
-      assinatura_eletronica: '',
-      nome_assistente_social: '',
-      cress_assistente_social: '',
-      email_assistente_social: '',
-      status: 'rascunho',
-    },
+    defaultValues: defaultFormValues,
   })
 
   // Carregar dados do parecer existente
@@ -95,11 +97,11 @@ export function SocialReportForm({
       })
       setParecerContent(existingReport.parecer)
     } else {
-      // Limpar formulário para novo parecer
-      form.reset()
+      // Limpar formulário para novo parecer, garantindo os padrões
+      form.reset(defaultFormValues)
       setParecerContent('')
     }
-  }, [existingReport, form])
+  }, [existingReport, form.reset])
 
   const onSubmit = async (data: SocialReportFormData) => {
     try {
