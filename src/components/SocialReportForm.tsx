@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { toast } from 'sonner'
@@ -86,15 +86,16 @@ export function SocialReportForm({
   // Carregar dados do parecer existente
   useEffect(() => {
     if (existingReport) {
-      form.reset({
+      const valuesToReset = {
         parecer: existingReport.parecer,
         numero_registro: existingReport.numero_registro || '',
         assinatura_eletronica: existingReport.assinatura_eletronica || '',
         nome_assistente_social: existingReport.nome_assistente_social,
         cress_assistente_social: existingReport.cress_assistente_social || '',
         email_assistente_social: existingReport.email_assistente_social || '',
-        status: existingReport.status,
-      })
+        status: existingReport.status || 'rascunho',
+      }
+      form.reset(valuesToReset)
       setParecerContent(existingReport.parecer)
     } else {
       // Limpar formulário para novo parecer, garantindo os padrões
@@ -259,20 +260,27 @@ export function SocialReportForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="status">Status</Label>
-              <Select
-                value={form.watch('status') || 'rascunho'}
-                onValueChange={(value: any) => form.setValue('status', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="rascunho">Rascunho</SelectItem>
-                  <SelectItem value="finalizado">Finalizado</SelectItem>
-                  <SelectItem value="revisado">Revisado</SelectItem>
-                  <SelectItem value="aprovado">Aprovado</SelectItem>
-                </SelectContent>
-              </Select>
+              <Controller
+                name="status"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rascunho">Rascunho</SelectItem>
+                      <SelectItem value="finalizado">Finalizado</SelectItem>
+                      <SelectItem value="revisado">Revisado</SelectItem>
+                      <SelectItem value="aprovado">Aprovado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </div>
 
             <div className="space-y-2">
