@@ -105,6 +105,8 @@ export default function LoteForm() {
   const [surveyData, setSurveyData] = useState<any>(null)
   const [socialReport, setSocialReport] = useState<SocialReport | null>(null)
   const [projectId, setProjectId] = useState<string>('')
+  const [projectName, setProjectName] = useState<string>('')
+  const [quadraName, setQuadraName] = useState<string>('')
   const [isReportFormOpen, setIsReportFormOpen] = useState(false)
   const { hasPermission, user } = useAuth()
   const canEdit = hasPermission('all') || hasPermission('edit_projects')
@@ -129,21 +131,36 @@ export default function LoteForm() {
     },
   })
 
-  // Carregar ID do projeto quando houver quadra selecionada
+  // Carregar ID do projeto e Nomes (Projeto/Quadra) quando houver quadra selecionada
   useEffect(() => {
-    const fetchProject = async () => {
+    const fetchProjectAndNames = async () => {
       if (parentQuadraId) {
         try {
-          const quadra = await api.getQuadra(parentQuadraId)
-          if (quadra && quadra.project_id) {
-            setProjectId(quadra.project_id)
+          // 1. Buscar Quadra
+          const quadra: any = await api.getQuadra(parentQuadraId)
+          if (quadra) {
+            setQuadraName(quadra.name || '')
+            
+            // 2. Identificar ID do Projeto (parent_item_id ou project_id)
+            // A interface Quadra em types/index.ts usa parent_item_id para o ID do projeto
+            const pId = quadra.parent_item_id || quadra.project_id
+            
+            if (pId) {
+              setProjectId(pId)
+              
+              // 3. Buscar Projeto
+              const project = await api.getProject(pId)
+              if (project) {
+                setProjectName(project.name || '')
+              }
+            }
           }
         } catch (err) {
-          console.error('Erro ao buscar projeto da quadra:', err)
+          console.error('Erro ao buscar projeto/quadra:', err)
         }
       }
     }
-    fetchProject()
+    fetchProjectAndNames()
   }, [parentQuadraId])
 
   // 🔄 Carregar dados em modo de edição
@@ -827,6 +844,8 @@ export default function LoteForm() {
             }
           }}
           propertyName={currentLote.name}
+          quadraName={quadraName}
+          projectName={projectName}
         />
       )}
     </div>
