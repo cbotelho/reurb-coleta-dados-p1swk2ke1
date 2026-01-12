@@ -341,3 +341,44 @@ export interface AppSettings {
   pushNotifications: boolean
   googleMapsApiKey: string
 }
+
+// Social Report (Parecer Conclusivo do Assistente Social)
+export interface SocialReport {
+  id: string
+  
+  // Referências (cascata obrigatória)
+  project_id: string
+  quadra_id: string
+  property_id: string
+  
+  // Conteúdo do parecer (HTML do editor WYSIWYG)
+  parecer: string
+  
+  // Identificação e registro
+  numero_registro?: string // Ex: "2026/001-REURB-AP"
+  
+  // Assinatura eletrônica
+  assinatura_eletronica?: string
+  
+  // Informações do assistente social
+  nome_assistente_social: string
+  cress_assistente_social?: string // Registro CRESS
+  email_assistente_social?: string
+  
+  // Metadados
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+  
+  // Status
+  status: 'rascunho' | 'finalizado' | 'revisado' | 'aprovado'
+  
+  // Versionamento
+  versao: number
+  parecer_anterior_id?: string
+  
+  // Relacionamentos (populados via JOIN)
+  project_name?: string
+  quadra_name?: string
+  property_name?: string
+}

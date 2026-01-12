@@ -27,6 +27,7 @@ import Users from './pages/Users'
 import UserGroups from './pages/UserGroups'
 import ReportConfig from './pages/ReportConfig'
 import SavedCoordinates from './pages/SavedCoordinates'
+import SocialReports from './pages/SocialReports'
 import React from 'react'
 
 const LoadingSpinner = () => (
@@ -113,6 +114,7 @@ const App = () => (
               />
               <Route path="/users" element={<Users />} />
               <Route path="/groups" element={<UserGroups />} />
+              <Route path="/pareceres" element={<SocialReports />} />
               <Route path="/relatorios/:projectId" element={<ReportConfig />} />
               <Route path="/importar-csv" element={<CSVImport />} />
             </Route>
