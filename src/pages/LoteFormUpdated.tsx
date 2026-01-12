@@ -54,7 +54,6 @@ import { useSync } from '@/contexts/SyncContext'
 import { reportService } from '@/services/report'
 import { socialReportService } from '@/services/socialReportService'
 import type { SocialReport } from '@/types'
-import type { SocialReport } from '@/types'
 
 // 🎯 Schema completo baseado no mapeamento do banco
 const loteFormSchema = z.object({

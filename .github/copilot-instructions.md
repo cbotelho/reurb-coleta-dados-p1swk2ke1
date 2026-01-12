@@ -184,6 +184,7 @@ import { toast } from 'sonner'
 - `report.ts` - geração de relatórios
 - `documentService.ts` - upload/gerenciamento de documentos
 - **`imageService.ts`** - 🆕 upload de imagens para Supabase Storage (compressão automática)
+- **`socialReportService.ts`** - 🆕 pareceres conclusivos do assistente social
 - `analiseIA.ts` - análise de REURB-E/S via IA (futuro)
 - `notification.ts` - notificações push/email
 
@@ -215,6 +216,14 @@ import { toast } from 'sonner'
 - 4 passos: Upload → Mapeamento → Importação → Resultado
 - RPC `can_import_csv()`, `get_table_columns()`
 - Docs: [CSV-IMPORT-README.md](CSV-IMPORT-README.md), [CSV-EXAMPLES.md](CSV-EXAMPLES.md)
+
+### SocialReports
+- Editor WYSIWYG (TipTap) para pareceres conclusivos do assistente social
+- Vínculo obrigatório: projeto → quadra → lote
+- Campos: parecer (HTML), número registro, assinatura eletrônica, CRESS
+- Status: rascunho → finalizado → revisado → aprovado
+- Versionamento: histórico de versões anteriores
+- Docs: [SOCIAL-REPORTS-README.md](SOCIAL-REPORTS-README.md)
 
 ### Layout & Navegação
 - `Layout.tsx` - estrutura base da aplicação
@@ -321,7 +330,11 @@ COMMIT;
 6. **❌ Ignorar `sync_status` na UI** → Não mostra itens pendentes
    - Sempre renderizar badge/indicador para itens com `sync_status='pending'` ou `'failed'`
 
-7. **❌ Modificar `src/lib/supabase/client.ts`** →
+7. **❌ Modificar `src/lib/supabase/client.ts`** → É gerado automaticamente
+   - Comentário no topo: `// AVOID UPDATING THIS FILE DIRECTLY`
+
+8. **❌ Usar porta 5173 (padrão Vite)** → Configurado para 8080
+   - Sempre `npm start` → `http://localhost:8080`
 
 9. **❌ Salvar imagens como base64 no LocalStorage** → Excede cota (QuotaExceededError)
    ```typescript
@@ -330,14 +343,9 @@ COMMIT;
    
    // ✅ Use imageService para upload
    const urls = await imageService.uploadImages(files, loteId)
-- [IMAGE-UPLOAD-FIX.md](IMAGE-UPLOAD-FIX.md) - 🆕 Solução para QuotaExceededError em uploads
    lote.images = urls // URLs do Supabase Storage
    ```
-   - Ver [IMAGE-UPLOAD-FIX.md](IMAGE-UPLOAD-FIX.md) para detalhes É gerado automaticamente
-   - Comentário no topo: `// AVOID UPDATING THIS FILE DIRECTLY`
-
-8. **❌ Usar porta 5173 (padrão Vite)** → Configurado para 8080
-   - Sempre `npm start` → `http://localhost:8080`
+   - Ver [IMAGE-UPLOAD-FIX.md](IMAGE-UPLOAD-FIX.md) para detalhes
 
 ## 📚 Documentação de Referência
 
@@ -364,6 +372,7 @@ COMMIT;
 - `20260108160000_implement_rbac_security.sql` - RBAC + RLS
 - `20260108220000_add_csv_import_functions.sql` - Funções de importação
 - `20260109150000_add_analise_ia_to_surveys.sql` - Campos de análise IA (futuros)
+- `20260111200000_create_social_reports.sql` - 🆕 Schema de pareceres sociais
 
 ## 🚀 Próximas Funcionalidades
 

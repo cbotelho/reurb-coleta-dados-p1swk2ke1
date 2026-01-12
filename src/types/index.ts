@@ -198,6 +198,8 @@ export interface DashboardStats {
     totalProperties: number
     totalSurveysCompleted: number
     totalSurveysNotCompleted: number
+    totalReurbS: number
+    totalReurbE: number
     totalAnalyzedByAI: number
     totalPropertiesWithProcess: number
   }

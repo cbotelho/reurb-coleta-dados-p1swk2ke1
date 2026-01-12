@@ -1244,6 +1244,18 @@ export const api = {
           .select('property_id')
       
         const propertiesWithProcess = contractsData?.length || 0
+
+        // Contar surveys REURB-S (via IA)
+        const { count: countReurbS } = await supabase
+          .from('reurb_surveys')
+          .select('*', { count: 'exact', head: true })
+          .ilike('analise_ia_classificacao', '%REURB-S%')
+
+        // Contar surveys REURB-E (via IA)
+        const { count: countReurbE } = await supabase
+          .from('reurb_surveys')
+          .select('*', { count: 'exact', head: true })
+          .ilike('analise_ia_classificacao', '%REURB-E%')
       
         const localStats = db.getDashboardStats()
 
@@ -1264,6 +1276,8 @@ export const api = {
           totalSurveysNotCompleted: totalNotSurveyed,
           totalAnalyzedByAI: totalAnalyzedByAI || 0,
           totalPropertiesWithProcess: propertiesWithProcess,
+          totalReurbS: countReurbS || 0,
+          totalReurbE: countReurbE || 0,
       }
     } catch {
       return db.getDashboardStats()

@@ -439,6 +439,10 @@ class DBService {
       // Lotes não vistoriados = total de lotes - surveys
       const notSurveyed = lotes.length - surveys.length
 
+      // Contar surveys REURB-S e REURB-E
+      const countReurbS = surveys.filter(s => s.analise_ia_classificacao?.includes('REURB-S')).length
+      const countReurbE = surveys.filter(s => s.analise_ia_classificacao?.includes('REURB-E')).length
+
     return {
       collected: lotes.length,
       synced: lotes.filter((l) => l.sync_status === 'synchronized').length,
@@ -463,6 +467,8 @@ class DBService {
         totalSurveysNotCompleted: notSurveyed > 0 ? notSurveyed : 0,
         totalAnalyzedByAI: surveysWithAI,
         totalPropertiesWithProcess: 0,
+        totalReurbS: countReurbS,
+        totalReurbE: countReurbE,
         lastSync: Date.now(),
     }
   }
