@@ -100,9 +100,9 @@ export const socialReportService = {
         .eq('property_id', propertyId)
         .order('versao', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows
+      if (error) throw error
 
       if (!data) return null
 
