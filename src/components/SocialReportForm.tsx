@@ -30,7 +30,7 @@ import { FileText, Download, Save, Clock, CheckCircle2, PenTool, Image as ImageI
 import type { SocialReport } from '@/types'
 
 const socialReportSchema = z.object({
-  parecer: z.string().min(600, 'Parecer deve ter no mínimo 600 caracteres. É necessário um laudo detalhado.'),
+  parecer: z.string().min(10, 'O parecer deve conter informações relevantes.'),
   numero_registro: z.string().optional(),
   assinatura_eletronica: z.string().optional(),
   nome_assistente_social: z.string().min(3, 'Nome obrigatório'),
@@ -327,8 +327,7 @@ export function SocialReportForm({
                   <Input
                     id="assinatura_eletronica"
                     {...form.register('assinatura_eletronica')}
-                    placeholder="Clique no ícone para assinar"
-                    readOnly
+                    placeholder="Cole a URL ou assine digitalmente"
                   />
                   {form.watch('assinatura_eletronica') && (
                     <div className="mt-2 border rounded-lg p-2 bg-muted/20 flex justify-center">
@@ -340,16 +339,44 @@ export function SocialReportForm({
                     </div>
                   )}
                 </div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="icon" 
-                  onClick={() => setShowSignaturePad(true)}
-                  title="Coletar Assinatura"
-                  className="h-10 w-10 flex-shrink-0"
-                >
-                  <PenTool className="h-4 w-4" />
-                </Button>
+                
+                {/* Botão de upload de assinatura */}
+                <div className="flex flex-col gap-2">
+                   <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => {
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/*'
+                        input.onchange = async (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0]
+                            if (file) {
+                                await handleEditorImageUpload(file).then(url => {
+                                    if(url) form.setValue('assinatura_eletronica', url, { shouldDirty: true, shouldTouch: true })
+                                })
+                            }
+                        }
+                        input.click()
+                    }}
+                    title="Upload Assinatura"
+                    className="h-10 w-10 flex-shrink-0"
+                   >
+                     <ImageIcon className="h-4 w-4" />
+                   </Button>
+
+                   <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={() => setShowSignaturePad(true)}
+                    title="Assinar na Tela"
+                    className="h-10 w-10 flex-shrink-0"
+                   >
+                    <PenTool className="h-4 w-4" />
+                   </Button>
+                </div>
               </div>
             </div>
           </div>

@@ -4,6 +4,8 @@ import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import Link from '@tiptap/extension-link'
 import ImageExtension from '@tiptap/extension-image'
+import TextStyle from '@tiptap/extension-text-style'
+import { Color } from '@tiptap/extension-color'
 import { Button } from '@/components/ui/button'
 import {
   Bold,
@@ -20,8 +22,19 @@ import {
   Redo,
   Image as ImageIcon,
   Loader2,
+  Heading1,
+  Heading2,
+  Heading3,
+  Type,
 } from 'lucide-react'
 import { useState } from 'react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
 interface RichTextEditorProps {
   content: string
   onChange: (html: string) => void
@@ -41,21 +54,42 @@ export function RichTextEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // Disable extensions that we configure manually or don't want redundant
+        heading: {
+            levels: [1, 2, 3],
+        },
+      }),
       Underline,
+      TextStyle,
+      Color,
       TextAlign.configure({
-        types: ['heading', 'paragraph'],
+        types: ['heading', 'paragraph', 'image'],
       }),
       Link.configure({
         openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-primary underline cursor-pointer',
+        },
       }),
-      ImageExtension,
+      ImageExtension.configure({
+        inline: true,
+        allowBase64: true,
+        HTMLAttributes: {
+            class: 'max-w-full h-auto rounded-md my-4',
+        },
+      }),
     ],
     content,
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm max-w-none p-4 min-h-[300px] focus:outline-none focus-visible:ring-0',
+      },
+    }
   })
 
   if (!editor) {
@@ -140,6 +174,31 @@ export function RichTextEditor({
           >
             <UnderlineIcon className="h-4 w-4" />
           </Button>
+
+          <div className="w-px h-6 bg-border mx-1 self-center" />
+
+          {/* Formatação de Títulos */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Títulos">
+                <Type className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
+                <Heading1 className="mr-2 h-4 w-4" /> Título 1
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+                <Heading2 className="mr-2 h-4 w-4" /> Título 2
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+                <Heading3 className="mr-2 h-4 w-4" /> Título 3
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => editor.chain().focus().setParagraph().run()}>
+                <Type className="mr-2 h-4 w-4" /> Parágrafo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <div className="w-px h-6 bg-border mx-1 self-center" />
 
@@ -267,9 +326,7 @@ export function RichTextEditor({
 
       <EditorContent
         editor={editor}
-        className={`prose prose-sm max-w-none p-4 min-h-[300px] focus:outline-none ${
-          readOnly ? 'bg-muted/20' : ''
-        }`}
+        className={`bg-white ${readOnly ? 'bg-muted/20' : ''}`}
       />
     </div>
   )
