@@ -73,7 +73,7 @@ export function RichTextEditor({
         },
       }),
       ImageExtension.configure({
-        inline: true,
+        inline: false,
         allowBase64: true,
         HTMLAttributes: {
             class: 'max-w-full h-auto rounded-md my-4',

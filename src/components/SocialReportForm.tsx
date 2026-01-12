@@ -98,11 +98,16 @@ export function SocialReportForm({
         status: existingReport.status || 'rascunho',
       }
       form.reset(valuesToReset)
+      
+      // Sincronizar estado local com react-hook-form
+      form.setValue('parecer', existingReport.parecer)
       setParecerContent(existingReport.parecer)
     } else {
       // Limpar formulário para novo parecer, garantindo os padrões
       form.reset(defaultFormValues)
       setParecerContent('')
+      // Garantir que o formulário saiba que está vazio
+      form.setValue('parecer', '')
     }
   }, [existingReport, form.reset])
 
@@ -282,7 +287,10 @@ export function SocialReportForm({
             <Label>Parecer Conclusivo *</Label>
             <RichTextEditor
               content={parecerContent}
-              onChange={setParecerContent}
+              onChange={(html) => {
+                setParecerContent(html)
+                form.setValue('parecer', html, { shouldValidate: true, shouldDirty: true })
+              }}
               onImageUpload={handleEditorImageUpload}
               placeholder="Digite o parecer técnico conclusivo..."
             />
