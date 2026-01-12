@@ -17,9 +17,11 @@ import { Edit } from 'lucide-react'
 
 interface ProjectCardProps {
   project: Project
+  quadrasCount?: number
+  lotesCount?: number
 }
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectCard({ project, quadrasCount = 0, lotesCount = 0 }: ProjectCardProps) {
   const getStatusColor = (status: string | undefined) => {
     const s = (status || '').toLowerCase()
     if (s.includes('aprovado'))
@@ -98,6 +100,18 @@ export function ProjectCard({ project }: ProjectCardProps) {
               #GERAL
             </span>
           )}
+        </div>
+
+        {/* Estatísticas do Projeto (Quadras e Lotes) */}
+        <div className="grid grid-cols-2 gap-4 mb-6 pt-4 border-t border-gray-100">
+           <div className="text-center">
+              <span className="block text-xl font-bold text-gray-800">{quadrasCount}</span>
+              <span className="text-[10px] text-gray-500 uppercase font-semibold">Quadras</span>
+           </div>
+           <div className="text-center border-l border-gray-100">
+              <span className="block text-xl font-bold text-gray-800">{lotesCount}</span>
+              <span className="text-[10px] text-gray-500 uppercase font-semibold">Lotes</span>
+           </div>
         </div>
 
         <div className="flex justify-between items-center pt-4 border-t border-slate-100">

@@ -24,6 +24,7 @@ import { Link } from 'react-router-dom'
 export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [projectStats, setProjectStats] = useState<Record<string, { quadras: number; lotes: number }>>({})
 
   // New State for Analytics
   const [productivityData, setProductivityData] = useState<ProductivityData[]>(
@@ -57,6 +58,20 @@ export default function Dashboard() {
       setModalitiesData(mods)
       setRecentActivities(acts)
       setTitlingGoal(goal)
+      
+      // Carregar estatísticas individuais de cada projeto
+      if (p && p.length > 0) {
+        const statsMap: Record<string, { quadras: number; lotes: number }> = {}
+        await Promise.all(
+          p.map(async (project) => {
+            if (project.local_id) {
+               const s = await api.getProjectStats(project.local_id)
+               statsMap[project.local_id] = s
+            }
+          })
+        )
+        setProjectStats(statsMap)
+      }
     } catch (e) {
       console.error(e)
       toast.error('Erro ao carregar dados do painel.')
@@ -115,7 +130,12 @@ export default function Dashboard() {
                   (
                     project, // Show only first 4 projects to save space
                   ) => (
-                    <ProjectCard key={project.local_id} project={project} />
+                    <ProjectCard 
+                        key={project.local_id} 
+                        project={project} 
+                        quadrasCount={projectStats[project.local_id]?.quadras || 0}
+                        lotesCount={projectStats[project.local_id]?.lotes || 0}
+                    />
                   ),
                 )}
               </div>

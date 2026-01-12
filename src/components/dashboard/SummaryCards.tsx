@@ -84,6 +84,15 @@ export function SummaryCards({ stats }: SummaryCardsProps) {
       badgeColor: 'bg-green-100 text-green-700',
     },
     {
+      label: 'PROCESSOS REURB-E',
+      value: stats.totalQuadras || 0,
+      icon: MapPin,
+      iconBg: 'bg-rose-50',
+      iconColor: 'text-rose-600',
+      badgeText: 'Quadras',
+      badgeColor: 'bg-rose-100 text-rose-700',
+    },
+    {
       label: 'LOTES TITULADOS',
       value: stats.totalContracts || 0,
       icon: FileText,
@@ -92,12 +101,6 @@ export function SummaryCards({ stats }: SummaryCardsProps) {
       badgeText: 'Contratos',
       badgeColor: 'bg-orange-100 text-orange-700',
     },
-    {
-      label: 'ÁREAS MAPEADAS',
-      value: stats.totalQuadras || 0,
-      icon: MapPin,
-      iconBg: 'bg-rose-50',
-      iconColor: 'text-rose-600',
       badgeText: 'Quadras',
       badgeColor: 'bg-rose-100 text-rose-700',
     },

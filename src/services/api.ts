@@ -193,6 +193,30 @@ export const api = {
   },
 
   // Projects
+  async getProjectStats(projectId: string): Promise<{ quadras: number; lotes: number }> {
+    if (!isOnline()) return { quadras: 0, lotes: 0 } // TODO: Implement offline stats count if needed
+
+    try {
+      const { count: quadras } = await supabase
+        .from('reurb_quadras')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+
+      const { count: lotes } = await supabase
+        .from('reurb_properties')
+        .select('*, reurb_quadras!inner(project_id)', { count: 'exact', head: true })
+        .eq('reurb_quadras.project_id', projectId)
+
+      return {
+        quadras: quadras || 0,
+        lotes: lotes || 0
+      }
+    } catch (e) {
+      console.error('Error fetching project stats:', e)
+      return { quadras: 0, lotes: 0 }
+    }
+  },
+
   async getProjects(): Promise<Project[]> {
     if (!isOnline()) return db.getProjects()
 
