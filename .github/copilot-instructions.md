@@ -1,75 +1,57 @@
 # Coleta de Dados REURB - Instruções para Agente de IA
 
-## ⚡ Contexto & Stack
-- **Core**: React 19 + TypeScript + Vite (Porta 8080) + Shadcn UI + Tailwind CSS.
-- **Backend**: Supabase (Auth, Database, Storage).
-- **Arquitetura**: **Offline-first** PWA.
-- **Linting**: Use `npm run lint` (oxlint). NÃO use eslint padrão.
+## ⚡ Stack Tecnológica & Contexto
+- **Frontend**: React 19 + Vite + TypeScript.
+- **UI**: Shadcn UI + Tailwind CSS.
+- **Backend/BaaS**: Supabase (Auth, Database, Storage).
+- **Linter**: `oxlint` (Use `npm run lint`). **NÃO** use eslint padrão.
+- **Tipo de App**: PWA Offline-First para coleta de dados em campo.
 
-## 🏗️ Arquitetura Offline-First (Crítico)
-O sistema opera desconectado e sincroniza quando online. Siga estritamente este fluxo:
+## 🏗️ Arquitetura Offline-First
+O sistema deve operar 100% funcional sem internet. A sincronização ocorre quando a conexão é restabelecida.
 
 ### 1. Camadas de Dados (`src/services/`)
-- **`api.ts`**: Gateway para o Supabase. Usado para *leituras online* e *sincronização*.
-- **`db.ts`**: Wrapper do `LocalStorage` para dados relacionais (`Projects`, `Quadras`, `Lotes`).
-- **`offlineService.ts`**: Wrapper do `LocalForage` para dados pesados (Vistorias/Surveys, Blobs de Imagem).
-- **`syncService.ts`**: Orquestrador. Move dados entre `db/offline` ↔ `api`.
+- **`api.ts`**: Cliente HTTP para o Supabase. Usado apenas para *sincronização* (envio) ou *leitura online*.
+- **`db.ts`**: Gerenciador do `LocalStorage`. É a **fonte da verdade** para a UI offline. Armazena Projetos, Quadras, Lotes e Vistorias (`reurb_surveys`).
+- **`syncService.ts`**: Serviço principal de sincronização. Lê itens com status `pending` do `db.ts` e envia via `api.ts`.
+- **`offlineService.ts`** & **`syncManager.ts`**: (Experimental) Uso de `LocalForage` para persistência de dados pesados e blobs que não cabem no LocalStorage. Cuidado ao usar, pois o fluxo principal atual é via `db.ts`.
 
-### 2. Fluxo de Leitura
-1.  Tente ler do **Cache Local** (`db` ou `offlineService`) primeiro para UI responsiva.
-2.  Se `navigator.onLine`, chame `api` em background para atualizar o cache.
+### 2. Fluxo de Leitura (Read-Flow)
+*   **Primário**: A UI deve ler do `db.ts` (`db.getProjects()`, `db.getLotes()`, etc.) para garantir funcionamento offline.
+*   **Background**: Se houver conexão, o `syncService.pullBaseData()` busca atualizações do servidor e atualiza o `db.ts`.
 
-### 3. Fluxo de Escrita (MUITO IMPORTANTE)
-**NUNCA** escreva diretamente no Supabase (`api.ts` ou client) de dentro de componentes de UI.
-1.  **Componente**: Chama Service (ex: `saveSurvey`).
-2.  **Service**: Salva no `db` ou `offlineService` com status `pending`.
-3.  **SyncContext**: Detecta conectividade e chama `syncService.pushPendingItems()`.
-4.  **SyncService**: Envia para `api.ts` → Supabase.
+### 3. Fluxo de Escrita (Write-Flow)
+**MUITO IMPORTANTE**: NUNCA escreva diretamente no Supabase a partir de componentes React.
+1.  **Ação do Usuário**: Componente chama um método do Service (ex: `saveSurvey`).
+2.  **Persistência Local**: O Service salva no `db.ts` gerando um ID temporário (`crypto.randomUUID`) e marcando `sync_status: 'pending'`.
+3.  **UI Feedback**: A interface atualiza imediatamente refletindo o estado local.
+4.  **Sync**: O `SyncContext` detecta a mudança e, se online, invoca `syncService.pushPendingItems()`.
+5.  **Confirmação**: Após sucesso na API, o registro local é atualizado para `sync_status: 'synchronized'`.
 
-## 🛡️ Regras de Negócio & Dados
-1.  **Hierarquia**: `Project` → `Quadra` → `Lote` (`reurb_properties`) → `Survey` (Vistoria).
-    -   Deleções devem ser em cascata. Não deixe filhos órfãos.
-2.  **Autenticação**:
-    -   `AuthContext` gerencia o usuário.
-    -   **ReurbProfile** (`reurb_profiles`) é a fonte da verdade para dados do usuário, NÃO `auth.users`.
-    -   Cheque permissões com `user.grupo_acesso` ou validadores no service.
-3.  **Imagens**:
-    -   Armazenamento local temporário: `Blob` via `offlineService`.
-    -   Upload: `ImageService` envia para Supabase Storage. Salve apenas a URL pública no banco.
+## 🛡️ Regras de Negócio & Modelagem
+1.  **Hierarquia**: `Project` -> `Quadra` -> `Lote` (`reurb_properties`) -> `Survey` (`reurb_surveys`).
+2.  **Identificadores**:
+    -   `local_id`: UUID gerado no cliente para novos itens offline.
+    -   `id`: ID do banco de dados (pode ser numérico ou UUID dependendo da tabela legada).
+    -   Ao sincronizar, o backend deve ser idempotente ou retornar o ID final para atualização local.
+3.  **Contextos**:
+    -   `AuthContext`: Gerencia sessão e perfil (`reurb_profiles`). Use `useAuth()` para acesso.
+    -   `SyncContext`: Controla estado de rede e gatilhos de sincronização. Use `useSync()` para forçar sync.
 
-## 🚀 Desenvolvimento & Padrões
--   **Comandos**: `npm start` (Dev @ 8080), `npm run build`.
--   **Componentes**: Use Shadcn UI (`@/components/ui`). Valide formulários com `zod`.
--   **Rotas**: `react-router-dom`.
--   **Supabase Client**: `src/lib/supabase/client.ts`. NÃO altere (gerado).
+## 🚀 Padrões de Desenvolvimento
+-   **Linting**: Sempre execute `npm run lint` antes de considerar uma tarefa concluída.
+-   **Componentes**: Novos componentes visuais devem seguir o padrão Shadcn UI em `@/components/ui`.
+-   **Validação**: Use `zod` para validar formulários de vistorias antes de salvar no `db.ts`.
+-   **Datas**: Armazene datas como `string` (ISO) ou `number` (timestamp) no `db.ts` para facilitar serialização JSON.
 
-## 💡 Exemplo de Implementação de Service (Write-Flow)
-```typescript
-import { db } from './db';
-// NÃO importe supabase aqui para operações de escrita direta
-
-export const myEntityService = {
-  async saveEntity(data: MyType) {
-    // 1. Adicione metadados de sincronização
-    const record = {
-      ...data,
-      id: data.id || crypto.randomUUID(), // ID local temporário
-      sync_status: 'pending',
-      updated_at: new Date().toISOString()
-    };
-
-    // 2. Salve no Banco Local (LocalStorage ou LocalForage)
-    // A UI deve reagir a esta mudança local imediatamente
-    await db.saveLocal('my_entities', record); 
-    
-    return record;
-  }
-}
-// O SyncService (src/services/syncService.ts) pegará este item 'pending' 
-// e o enviará para a API quando houver internet.
-```
+## 📂 Arquivos Chave (Ponto de Partida)
+-   `src/services/db.ts`: Lógica central do banco offline (CRUD Local e LocalStorage wrapper).
+-   `src/services/api.ts`: Mapeamento de entidades para o Supabase.
+-   `src/contexts/SyncContext.tsx`: Orquestrador da sincronização React-State.
+-   `src/types/index.ts`: Definições de tipos centrais (Project, Lote, Survey).
 
 ## ⚠️ Armadilhas Comuns
--   Esquecer de armazenar arquivos grandes no `offlineService` (LocalForage) e tentar por no LocalStorage (estoura cota).
--   Importar `supabase` diretamente em componentes de página (viola arquitetura offline).
--   Confundir `id` (UUID do Supabase) com `local_id` (ID temporário ou mapeado localmente).
+-   **Importar `supabase` na UI**: Proibido. Use os services.
+-   **Upload de Imagens**: Atualmente `imageService.ts` faz upload direto (online-only). Suporte offline completo para imagens é complexo devido aos limites do LocalStorage; use com cautela.
+-   **Confusão de IDs**: Sempre trate IDs como `string` no frontend quando possível. O backend pode usar `int` para tabelas antigas, faça o cast apenas na fronteira (`api.ts`).
+
