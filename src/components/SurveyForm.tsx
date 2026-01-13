@@ -186,6 +186,10 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const [photoList, setPhotoList] = useState<string[]>([])
   const [quadraName, setQuadraName] = useState<string>('')
   const [projectName, setProjectName] = useState<string>('')
+  
+  // Tab state control
+  const [activeTab, setActiveTab] = useState('geral')
+
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
   const [requerenteSignatureDialogOpen, setRequerenteSignatureDialogOpen] = useState(false)
   const [isDrawingSignature, setIsDrawingSignature] = useState(false)
@@ -791,7 +795,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       )}
 
       <form onSubmit={form.handleSubmit(onSubmit, onSubmitInvalid)} className="space-y-6">
-        <Tabs defaultValue="geral" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex flex-col h-auto sm:grid sm:h-10 sm:grid-cols-6 w-full bg-muted p-1 rounded-md mb-4">
               <TabsTrigger
                 value="geral"
@@ -1886,7 +1890,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
           </TabsContent>
         </Tabs>
 
-        {canEdit && (
+        {canEdit && activeTab === 'observacoes' && (
           <div className="flex justify-end pt-4 bg-white sticky bottom-0 border-t p-4 z-10">
             <Button
               type="submit"
