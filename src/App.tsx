@@ -30,6 +30,7 @@ import ReportConfig from './pages/ReportConfig'
 import SavedCoordinates from './pages/SavedCoordinates'
 import SocialReports from './pages/SocialReports'
 import React from 'react'
+import { StatusConexao } from './components/StatusConexao'
 
 const LoadingSpinner = () => (
   <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -73,6 +74,7 @@ const App = () => (
         <SyncProvider>
           <Toaster />
           <Sonner />
+          <StatusConexao />
           <Routes>
             <Route
               path="/login"
