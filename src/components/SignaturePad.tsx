@@ -35,12 +35,10 @@ export function SignaturePad({
     if (!canvas) return
 
     const rect = canvas.getBoundingClientRect()
-    // Aumentar a resolução para telas de alta densidade (Retina)
+    // Se o rect for zero, o elemento ainda não está visível/layoutado
+    if (rect.width === 0 || rect.height === 0) return
+
     const dpr = window.devicePixelRatio || 1
-    
-    // Armazenar o conteúdo atual se existir (para não perder ao redimensionar)
-    // Nota: Em um fluxo real de resize, seria complexo redesenhar.
-    // Aqui assumimos que o resize acontece no mount ou abertura.
     
     canvas.width = rect.width * dpr
     canvas.height = rect.height * dpr
@@ -56,13 +54,41 @@ export function SignaturePad({
   }
 
   useEffect(() => {
-    if (open) {
-      // Pequeno delay para garantir que o dialog renderizou e o canvas tem dimensões
-      setTimeout(resizeCanvas, 100)
+    let resizeObserver: ResizeObserver | null = null;
+    let fallbackTimer: NodeJS.Timeout | null = null;
+    let animationFrame: number | null = null;
+
+    if (open && canvasRef.current) {
+      // 1. Tentar redimensionar imediatamente
+      resizeCanvas()
+
+      // 2. Usar ResizeObserver para detectar quando o dialog estabilizar
+      resizeObserver = new ResizeObserver(() => {
+        // Debounce ou requestAnimationFrame para evitar loops
+        if (animationFrame) cancelAnimationFrame(animationFrame);
+        animationFrame = requestAnimationFrame(resizeCanvas);
+      })
+      resizeObserver.observe(canvasRef.current);
+      
+      // 3. Fallback: Forçar redimensionamento após animação do Dialog (geralmente 300ms)
+      fallbackTimer = setTimeout(resizeCanvas, 350)
+    }
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect()
+      if (fallbackTimer) clearTimeout(fallbackTimer)
+      if (animationFrame) cancelAnimationFrame(animationFrame)
     }
   }, [open])
 
-  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement> | any) => {
+  const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    // Evitar scroll e comportamento padrão
+    e.preventDefault();
+    e.stopPropagation(); // Importante para evitar que eventos subam
+    
+    // Capturar ponteiro para garantir que o 'up' dispare mesmo fora do canvas
+    e.currentTarget.setPointerCapture(e.pointerId);
+
     isDrawingRef.current = true
     setIsEmpty(false)
     const canvas = canvasRef.current
@@ -70,25 +96,23 @@ export function SignaturePad({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Recalcular rect para garantir precisão caso tenha havido scroll ou resize
     const rect = canvas.getBoundingClientRect()
     
-    // Suporte a mouse e touch
-    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX
-    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY
-    
-    // Coordenadas relativas ao canvas visual
-    const x = clientX - rect.left
-    const y = clientY - rect.top
+    // PointerEvent já normaliza coords, não precisamos de e.touches
+    // Mas precisamos considerar scroll da página se não for touch-none/fixed
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
 
     ctx.beginPath()
     ctx.moveTo(x, y)
-    // Pequeno ponto para cliques simples
-    ctx.lineTo(x, y)
+    ctx.lineTo(x, y) // Ponto inicial
     ctx.stroke()
   }
 
-  const draw = (e: React.PointerEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement> | any) => {
+  const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     if (!isDrawingRef.current) return
     const canvas = canvasRef.current
     if (!canvas) return
@@ -96,18 +120,18 @@ export function SignaturePad({
     if (!ctx) return
 
     const rect = canvas.getBoundingClientRect()
-    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX
-    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY
-
-    const x = clientX - rect.left
-    const y = clientY - rect.top
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
 
     ctx.lineTo(x, y)
     ctx.stroke()
   }
 
-  const stopDrawing = () => {
+  const stopDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     isDrawingRef.current = false
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
@@ -167,15 +191,12 @@ export function SignaturePad({
         <div className="border rounded-md bg-white touch-none select-none overflow-hidden h-64 relative cursor-crosshair">
            <canvas
              ref={canvasRef}
-             className="w-full h-full block"
+             className="w-full h-full block touch-none"
              onPointerDown={startDrawing}
              onPointerMove={draw}
              onPointerUp={stopDrawing}
              onPointerLeave={stopDrawing}
-             // Eventos touch explícitos para garantir mobile
-             onTouchStart={startDrawing}
-             onTouchMove={draw}
-             onTouchEnd={stopDrawing}
+             onPointerCancel={stopDrawing}
            />
            {isEmpty && (
              <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-muted-foreground/30 text-xl font-handwriting">
