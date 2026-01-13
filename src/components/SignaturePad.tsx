@@ -188,10 +188,15 @@ export function SignaturePad({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         
-        <div className="border rounded-md bg-white touch-none select-none overflow-hidden h-64 relative cursor-crosshair">
+        <div className="border rounded-md bg-white touch-none select-none overflow-hidden relative cursor-crosshair">
            <canvas
              ref={canvasRef}
-             className="w-full h-full block touch-none"
+             style={{ 
+                width: '100%', 
+                height: '280px', // Aumentei um pouco para dar mais espaço
+                touchAction: 'none',
+             }}
+             className="block touch-none"
              onPointerDown={startDrawing}
              onPointerMove={draw}
              onPointerUp={stopDrawing}

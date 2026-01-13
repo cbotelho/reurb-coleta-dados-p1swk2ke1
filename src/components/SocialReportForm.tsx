@@ -338,11 +338,11 @@ export function SocialReportForm({
                     placeholder="Cole a URL ou assine digitalmente"
                   />
                   {form.watch('assinatura_eletronica') && (
-                    <div className="mt-2 border rounded-lg p-2 bg-muted/20 flex justify-center">
+                    <div className="mt-2 border rounded-lg p-2 bg-white flex justify-center items-center h-32">
                       <img 
                         src={form.watch('assinatura_eletronica')} 
                         alt="Assinatura" 
-                        className="max-h-24 object-contain"
+                        className="max-w-full max-h-full object-contain"
                       />
                     </div>
                   )}

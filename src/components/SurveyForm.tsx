@@ -1212,11 +1212,11 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
                         </label>
                       </div>
                       {field.value && (
-                        <div className="mt-4 relative inline-block">
+                        <div className="mt-4 border rounded-lg p-2 bg-white flex justify-center items-center h-32">
                           <img
                             src={field.value}
                             alt="Assinatura do Requerente"
-                            className="max-h-32 border rounded"
+                            className="max-h-full max-w-full object-contain"
                           />
                         </div>
                       )}
