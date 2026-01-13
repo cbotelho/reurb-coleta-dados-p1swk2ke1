@@ -3,6 +3,7 @@ import { Header } from './Header'
 import { BottomNav } from './BottomNav'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import { PainelSincronizacao } from './PainelSincronizacao'
 
 export default function Layout() {
   const isMobile = useIsMobile()
@@ -19,6 +20,7 @@ export default function Layout() {
           isMobile ? 'pb-20' : 'pb-6', // Bottom padding for nav
         )}
       >
+        <PainelSincronizacao />
         <Outlet />
       </main>
 
