@@ -43,6 +43,7 @@ import {
 } from 'lucide-react'
 import { useSync } from '@/contexts/SyncContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SignaturePad } from '@/components/SignaturePad'
 
 import { DocumentUpload } from '@/components/DocumentUpload'
 import {
@@ -192,10 +193,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
   const [signatureDialogOpen, setSignatureDialogOpen] = useState(false)
   const [requerenteSignatureDialogOpen, setRequerenteSignatureDialogOpen] = useState(false)
-  const [isDrawingSignature, setIsDrawingSignature] = useState(false)
-  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const requerenteCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const signatureLastPointRef = useRef<{ x: number; y: number } | null>(null)
 
   const form = useForm<SurveyFormValues>({
     resolver: zodResolver(surveySchema),
@@ -248,91 +245,15 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
     },
   })
 
-  const resizeSignatureCanvas = () => {
-    const canvas = signatureCanvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const ratio = window.devicePixelRatio || 1
-
-    canvas.width = Math.max(1, Math.floor(rect.width * ratio))
-    canvas.height = Math.max(1, Math.floor(rect.height * ratio))
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#111827'
-  }
-
-  const clearSignatureCanvas = () => {
-    const canvas = signatureCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }
-
-  const getCanvasPoint = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    const canvas = signatureCanvasRef.current
-    if (!canvas) return { x: 0, y: 0 }
-    const rect = canvas.getBoundingClientRect()
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    }
-  }
-
-  const startSignatureDraw = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (!canEdit) return
-    const canvas = signatureCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    canvas.setPointerCapture(e.pointerId)
-    const p = getCanvasPoint(e)
-    signatureLastPointRef.current = p
-    ctx.beginPath()
-    ctx.moveTo(p.x, p.y)
-    setIsDrawingSignature(true)
-  }
-
-  const moveSignatureDraw = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawingSignature) return
-    const canvas = signatureCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    const p = getCanvasPoint(e)
-    ctx.lineTo(p.x, p.y)
-    ctx.stroke()
-    signatureLastPointRef.current = p
-  }
-
-  const endSignatureDraw = () => {
-    setIsDrawingSignature(false)
-    signatureLastPointRef.current = null
-  }
-
-  const saveSignatureFromCanvas = () => {
-    const canvas = signatureCanvasRef.current
-    if (!canvas) return
-
-    const tmp = document.createElement('canvas')
-    tmp.width = canvas.width
-    tmp.height = canvas.height
-    const tctx = tmp.getContext('2d')
-    if (!tctx) return
-    tctx.fillStyle = '#FFFFFF'
-    tctx.fillRect(0, 0, tmp.width, tmp.height)
-    tctx.drawImage(canvas, 0, 0)
-
-    const dataUrl = tmp.toDataURL('image/png')
+  // Funções de assinatura usando SignaturePad
+  const handleSaveVistoriadorSignature = (dataUrl: string) => {
     form.setValue('surveyor_signature', dataUrl, { shouldDirty: true })
     setSignatureDialogOpen(false)
+  }
+
+  const handleSaveRequerenteSignature = (dataUrl: string) => {
+    form.setValue('assinatura_requerente', dataUrl, { shouldDirty: true })
+    setRequerenteSignatureDialogOpen(false)
   }
 
   const handleSignatureFile = (file: File) => {
@@ -343,51 +264,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       }
     }
     reader.readAsDataURL(file)
-  }
-
-  const resizeRequerenteCanvas = () => {
-    const canvas = requerenteCanvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const ratio = window.devicePixelRatio || 1
-
-    canvas.width = Math.max(1, Math.floor(rect.width * ratio))
-    canvas.height = Math.max(1, Math.floor(rect.height * ratio))
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#111827'
-  }
-
-  const clearRequerenteCanvas = () => {
-    const canvas = requerenteCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }
-
-  const saveRequerenteSignatureFromCanvas = () => {
-    const canvas = requerenteCanvasRef.current
-    if (!canvas) return
-
-    const tmp = document.createElement('canvas')
-    tmp.width = canvas.width
-    tmp.height = canvas.height
-    const tctx = tmp.getContext('2d')
-    if (!tctx) return
-    tctx.fillStyle = '#FFFFFF'
-    tctx.fillRect(0, 0, tmp.width, tmp.height)
-    tctx.drawImage(canvas, 0, 0)
-
-    const dataUrl = tmp.toDataURL('image/png')
-    form.setValue('assinatura_requerente', dataUrl, { shouldDirty: true })
-    setRequerenteSignatureDialogOpen(false)
   }
 
   const handleRequerenteSignatureFile = (file: File) => {
@@ -1912,85 +1788,21 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
           </div>
         )}
 
-        <Dialog
+        <SignaturePad
           open={signatureDialogOpen}
-          onOpenChange={(open) => {
-            setSignatureDialogOpen(open)
-            if (open) {
-              requestAnimationFrame(() => {
-                resizeSignatureCanvas()
-                clearSignatureCanvas()
-              })
-            }
-          }}
-        >
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Assinatura do Vistoriador</DialogTitle>
-            </DialogHeader>
+          onClose={() => setSignatureDialogOpen(false)}
+          onSave={handleSaveVistoriadorSignature}
+          title="Assinatura do Vistoriador"
+          description="Assine no quadro abaixo"
+        />
 
-            <div className="border rounded-md bg-white">
-              <canvas
-                ref={signatureCanvasRef}
-                className="w-full h-64 touch-none"
-                onPointerDown={startSignatureDraw}
-                onPointerMove={moveSignatureDraw}
-                onPointerUp={endSignatureDraw}
-                onPointerCancel={endSignatureDraw}
-                onPointerLeave={endSignatureDraw}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={clearSignatureCanvas}>
-                Limpar
-              </Button>
-              <Button type="button" onClick={saveSignatureFromCanvas}>
-                Salvar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
+        <SignaturePad
           open={requerenteSignatureDialogOpen}
-          onOpenChange={(open) => {
-            setRequerenteSignatureDialogOpen(open)
-            if (open) {
-              requestAnimationFrame(() => {
-                resizeRequerenteCanvas()
-                clearRequerenteCanvas()
-              })
-            }
-          }}
-        >
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Assinatura do Requerente</DialogTitle>
-            </DialogHeader>
-
-            <div className="border rounded-md bg-white">
-              <canvas
-                ref={requerenteCanvasRef}
-                className="w-full h-64 touch-none"
-                onPointerDown={startSignatureDraw}
-                onPointerMove={moveSignatureDraw}
-                onPointerUp={endSignatureDraw}
-                onPointerCancel={endSignatureDraw}
-                onPointerLeave={endSignatureDraw}
-              />
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={clearRequerenteCanvas}>
-                Limpar
-              </Button>
-              <Button type="button" onClick={saveRequerenteSignatureFromCanvas}>
-                Salvar
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          onClose={() => setRequerenteSignatureDialogOpen(false)}
+          onSave={handleSaveRequerenteSignature}
+          title="Assinatura do Requerente"
+          description="Assine no quadro abaixo"
+        />
       </form>
     </Form>
   )

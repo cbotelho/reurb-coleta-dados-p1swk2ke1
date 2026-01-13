@@ -70,13 +70,22 @@ export function SignaturePad({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    // Recalcular rect para garantir precisão caso tenha havido scroll ou resize
     const rect = canvas.getBoundingClientRect()
-    // Suporte a mouse e touch
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY
     
+    // Suporte a mouse e touch
+    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY
+    
+    // Coordenadas relativas ao canvas visual
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+
     ctx.beginPath()
-    ctx.moveTo(clientX - rect.left, clientY - rect.top)
+    ctx.moveTo(x, y)
+    // Pequeno ponto para cliques simples
+    ctx.lineTo(x, y)
+    ctx.stroke()
   }
 
   const draw = (e: React.PointerEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement> | any) => {
@@ -87,10 +96,13 @@ export function SignaturePad({
     if (!ctx) return
 
     const rect = canvas.getBoundingClientRect()
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY
 
-    ctx.lineTo(clientX - rect.left, clientY - rect.top)
+    const x = clientX - rect.left
+    const y = clientY - rect.top
+
+    ctx.lineTo(x, y)
     ctx.stroke()
   }
 
