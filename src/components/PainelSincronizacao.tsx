@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { offlineService } from '@/services/offlineService';
 import { syncManager } from '@/services/syncManager';
 import { Button } from '@/components/ui/button';
-import { CloudUpload, Wifi } from 'lucide-react';
+import { CloudUpload, Wifi, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function PainelSincronizacao() {
@@ -72,8 +72,17 @@ export function PainelSincronizacao() {
         size="sm"
         className="w-full md:w-auto bg-blue-700 hover:bg-blue-800 text-white gap-2 font-semibold shadow-md"
       >
-        <Wifi className="h-4 w-4" />
-        {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora (Wi-Fi)'}
+        {isSyncing ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Sincronizando...
+          </>
+        ) : (
+          <>
+            <Wifi className="h-4 w-4" />
+            Sincronizar Agora (Wi-Fi)
+          </>
+        )}
       </Button>
     </div>
   );
