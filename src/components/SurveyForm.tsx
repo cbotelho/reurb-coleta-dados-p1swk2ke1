@@ -1,174 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm, type FieldErrors } from 'react-hook-form'
-import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { api } from '@/services/api'
 import { analiseIAService } from '@/services/analiseIA'
-import { Survey, Lote } from '@/types'
+import { db } from '@/services/db'
+import { Lote } from '@/types'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Form } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Save,
-  Loader2,
-  CloudOff,
-  MapPin,
-  User as UserIcon,
-  Home,
-  Zap,
-  Printer,
-  Trash2,
-  PenLine,
-  Upload,
-  Sparkles,
-} from 'lucide-react'
+import { Save, Loader2, CloudOff } from 'lucide-react'
 import { useSync } from '@/contexts/SyncContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SignaturePad } from '@/components/SignaturePad'
-
-import { DocumentUpload } from '@/components/DocumentUpload'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 import { reportService } from '@/services/report'
 
-const UF_OPTIONS = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
-  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE',
-  'TO',
-]
-
-const surveySchema = z.object({
-  // Geral
-  form_number: z.string().max(50, 'Máximo 50 caracteres').optional(),
-  survey_date: z.string().min(1, 'Data da vistoria é obrigatória'),
-  city: z.string().min(1, 'Cidade é obrigatória').max(100, 'Máximo 100 caracteres').default('Macapá'),
-  state: z.string().length(2, 'UF deve ter 2 caracteres').default('AP'),
-  surveyor_name: z.string().optional(),
-  surveyor_signature: z.string().optional(),
-  assinatura_requerente: z.string().optional(),
-
-  // Location update fields
-  address: z.string().optional(),
-  latitude: z.string().optional(),
-  longitude: z.string().optional(),
-
-  // Applicant
-  applicant_name: z.string().min(1, 'Nome do requerente é obrigatório').max(255, 'Máximo 255 caracteres'),
-  applicant_cpf: z
-    .string()
-    .min(1, 'CPF é obrigatório')
-    .refine((v) => /^\d{11}$/.test(v.replace(/\D/g, '')), 'CPF inválido'),
-  applicant_rg: z.string().max(20, 'Máximo 20 caracteres').optional(),
-  applicant_civil_status: z.string().optional(),
-  applicant_profession: z.string().max(100, 'Máximo 100 caracteres').optional(),
-  applicant_income: z
-    .string()
-    .optional()
-    .refine((v) => {
-      if (!v) return true
-      const normalized = v.replace(',', '.')
-      const n = Number(normalized)
-      return !Number.isNaN(n) && n >= 0 && n <= 999999.99
-    }, 'Renda inválida'),
-  applicant_nis: z.string().max(11, 'Máximo 11 caracteres').optional(),
-  spouse_name: z.string().max(255, 'Máximo 255 caracteres').optional(),
-  spouse_cpf: z
-    .string()
-    .optional()
-    .refine((v) => {
-      if (!v) return true
-      return /^\d{11}$/.test(v.replace(/\D/g, ''))
-    }, 'CPF inválido'),
-  declaracao_requerente: z.boolean().default(false),
-
-  residents_count: z.coerce
-    .number()
-    .int('Informe um número inteiro')
-    .min(0, 'Número de moradores não pode ser negativo')
-    .max(50, 'Máximo 50 moradores'),
-  has_children: z.boolean(),
-
-  // Occupation & Characteristics
-  occupation_time: z.string().optional(),
-  acquisition_mode: z.string().optional(),
-  property_use: z.string().optional(),
-  construction_type: z.string().optional(),
-  roof_type: z.string().optional(),
-  floor_type: z.string().optional(),
-  rooms_count: z.coerce
-    .number()
-    .int('Informe um número inteiro')
-    .min(0, 'Número de cômodos não pode ser negativo')
-    .max(20, 'Máximo 20 cômodos'),
-  conservation_state: z.string().optional(),
-  fencing: z.string().optional(),
-
-  // Infrastructure
-  water_supply: z.string().optional(),
-  energy_supply: z.string().optional(),
-  sanitation: z.string().optional(),
-  street_paving: z.string().optional(),
-
-  observations: z.string().max(2000, 'Máximo 2000 caracteres').optional(),
-  // Documentos: aceitar strings ou Date no uploadedAt e campos opcionais para evitar bloqueio de validação
-  documents: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        size: z.number().optional(),
-        type: z.string().optional(),
-        data: z.string().optional(),
-        url: z.string().optional(),
-        uploadedAt: z.union([z.string(), z.date()]).optional(),
-      }),
-    )
-    .optional()
-    .default([]),
-  
-  // AI Analysis fields
-  analise_ia_classificacao: z.string().optional(),
-  analise_ia_parecer: z.string().optional(),
-  analise_ia_proximo_passo: z.string().optional(),
-  analise_ia_gerada_em: z.string().optional(),
-})
-
-type SurveyFormValues = z.infer<typeof surveySchema>
+// Sub-components
+import { surveySchema, SurveyFormValues } from './survey/schema'
+import { SurveyGeneralTab } from './survey/SurveyGeneralTab'
+import { SurveyApplicantTab } from './survey/SurveyApplicantTab'
+import { SurveyPropertyTab } from './survey/SurveyPropertyTab'
+import { SurveyInfraTab } from './survey/SurveyInfraTab'
+import { SurveyDocsTab } from './survey/SurveyDocsTab'
+import { SurveyObservationsTab } from './survey/SurveyObservationsTab'
 
 interface SurveyFormProps {
   propertyId: string
@@ -184,10 +38,9 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const [fetching, setFetching] = useState(true)
   const [surveyId, setSurveyId] = useState<string | undefined>()
   const [lote, setLote] = useState<Lote | null>(null)
-  const [photoList, setPhotoList] = useState<string[]>([])
   const [quadraName, setQuadraName] = useState<string>('')
   const [projectName, setProjectName] = useState<string>('')
-  
+
   // Tab state control
   const [activeTab, setActiveTab] = useState('geral')
 
@@ -195,7 +48,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const [requerenteSignatureDialogOpen, setRequerenteSignatureDialogOpen] = useState(false)
 
   const form = useForm<SurveyFormValues>({
-    resolver: zodResolver(surveySchema),
+    resolver: zodResolver(surveySchema) as any,
     defaultValues: {
       form_number: '',
       city: 'Macapá',
@@ -254,6 +107,19 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   const handleSaveRequerenteSignature = (dataUrl: string) => {
     form.setValue('assinatura_requerente', dataUrl, { shouldDirty: true })
     setRequerenteSignatureDialogOpen(false)
+  }
+  
+  // Just a helper to force resize if needed, passed to sub-components
+  const resizeRequerenteCanvas = () => {
+    // This logic is now internal to SignaturePad, but we might keep it if button triggers something
+    // The previous code had setTimeout(() => resizeRequerenteCanvas(), 0). 
+    // Since SignaturePad now handles its own resize on open, we might not need this explicitly exposed,
+    // but the sub-component button calls it. We can pass a no-op or remove the requirement.
+    // Actually, let's keep it simple. The button inside SurveyApplicantTab calls it. 
+    // We can just pass a dummy function or remove it from the prop interface if not needed.
+    // Let's check SignaturePad usage in SurveyApplicantTab.
+    // It calls `onOpenRequerenteSignatureDialog` and `resizeRequerenteCanvas`.
+    // Since `SignaturePad` handles resize in useEffect, we might not need to manually call it anymore.
   }
 
   const handleSignatureFile = (file: File) => {
@@ -317,16 +183,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
         if (loteData) {
           setLote(loteData)
-          console.log('🏠 Lote carregado completo:', {
-            name: loteData.name,
-            address: loteData.address,
-            area: loteData.area,
-            latitude: loteData.latitude,
-            longitude: loteData.longitude,
-            status: loteData.status,
-            sync_status: loteData.sync_status,
-            parent_item_id: loteData.parent_item_id,
-          })
+          // ... (logs removed for brevity, kept consistent with logic)
           
           form.setValue('address', loteData.address || '')
           form.setValue('latitude', loteData.latitude || '')
@@ -341,27 +198,11 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             ? await api.getProject(quadra.parent_item_id)
             : null
           setProjectName(project?.name || '')
-          
-          console.log('📍 Contexto carregado completo:', {
-            lote_id: loteData.local_id,
-            lote_name: loteData.name,
-            quadra_id: loteData.parent_item_id,
-            quadra_name: quadra?.name,
-            project_id: quadra?.parent_item_id,
-            project_name: project?.name,
-          })
         } else {
           console.warn('⚠️ Nenhum lote encontrado para ID:', propertyId)
         }
 
         if (surveyData) {
-          console.log('✅ Vistoria existente encontrada, carregando dados:', {
-            survey_id: surveyData.id,
-            applicant_name: (surveyData as any).applicant_name,
-            applicant_cpf: (surveyData as any).applicant_cpf,
-            form_number: (surveyData as any).form_number,
-            survey_date: (surveyData as any).survey_date,
-          })
           setSurveyId(surveyData.id)
           form.reset({
             form_number: (surveyData as any).form_number ?? '',
@@ -425,10 +266,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             analise_ia_proximo_passo: (surveyData as any).analise_ia_proximo_passo ?? '',
             analise_ia_gerada_em: (surveyData as any).analise_ia_gerada_em ?? '',
           } as any)
-          setPhotoList((surveyData as any).photos || [])
           console.log('✅ Formulário preenchido com dados da vistoria existente')
-        } else {
-          console.log('ℹ️ Nenhuma vistoria existente, formulário vazio')
         }
       } catch (e) {
         console.error('❌ Erro ao carregar dados:', e)
@@ -455,58 +293,33 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
     if (!lote || !canEdit) return
     try {
       await api.deleteLote(lote.local_id)
-      toast({
-        title: 'Lote excluído com sucesso!',
-      })
+      toast({ title: 'Lote excluído com sucesso!' })
       navigate(`/quadras/${lote.parent_item_id}`)
     } catch (error) {
       console.error('Error deleting lote:', error)
-      toast({
-        title: 'Erro ao excluir lote',
-        variant: 'destructive',
-      })
+      toast({ title: 'Erro ao excluir lote', variant: 'destructive' })
     }
   }
 
   const handleGenerateAnaliseIA = async () => {
-    console.log('🎯 CHAMOU handleGenerateAnaliseIA - canEdit:', canEdit)
-    if (!canEdit) {
-      console.log('⚠️ BLOQUEADO - canEdit é false')
-      return
-    }
+    if (!canEdit) return
 
     setGeneratingIA(true)
-    console.log('🔄 generatingIA = true')
     try {
       const currentData = form.getValues()
-      console.log('🤖 Gerando análise IA com dados:', currentData)
-      
       const analise = await analiseIAService.gerarAnalise(currentData as any)
-      console.log('✅ Análise gerada:', analise)
 
-      // Forçar atualização do formulário com flags
       form.setValue('analise_ia_classificacao', analise.classificacao, { 
-        shouldDirty: true, 
-        shouldTouch: true,
-        shouldValidate: true 
+        shouldDirty: true, shouldTouch: true, shouldValidate: true 
       })
       form.setValue('analise_ia_parecer', analise.parecer_tecnico, { 
-        shouldDirty: true, 
-        shouldTouch: true 
+        shouldDirty: true, shouldTouch: true 
       })
       form.setValue('analise_ia_proximo_passo', analise.proximo_passo, { 
-        shouldDirty: true, 
-        shouldTouch: true 
+        shouldDirty: true, shouldTouch: true 
       })
       form.setValue('analise_ia_gerada_em', analise.gerada_em, { 
-        shouldDirty: true, 
-        shouldTouch: true 
-      })
-
-      console.log('📝 Campos atualizados no formulário')
-      console.log('🔄 Verificando: ', {
-        classificacao: form.getValues('analise_ia_classificacao'),
-        parecer: form.getValues('analise_ia_parecer'),
+        shouldDirty: true, shouldTouch: true 
       })
 
       toast({
@@ -515,11 +328,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       })
     } catch (error) {
       console.error('❌ Erro ao gerar análise IA:', error)
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível gerar a análise.',
-        variant: 'destructive',
-      })
+      toast({ title: 'Erro', description: 'Não foi possível gerar a análise.', variant: 'destructive' })
     } finally {
       setGeneratingIA(false)
     }
@@ -531,17 +340,10 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         (position) => {
           form.setValue('latitude', position.coords.latitude.toFixed(6))
           form.setValue('longitude', position.coords.longitude.toFixed(6))
-          toast({
-            title: 'Localização obtida',
-            description: 'Coordenadas atualizadas.',
-          })
+          toast({ title: 'Localização obtida', description: 'Coordenadas atualizadas.' })
         },
         (error) => {
-          toast({
-            title: 'Erro',
-            description: 'Não foi possível obter a localização.',
-            variant: 'destructive',
-          })
+          toast({ title: 'Erro', description: 'Não foi possível obter a localização.', variant: 'destructive' })
         },
       )
     }
@@ -549,8 +351,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
   const onSubmit = async (values: SurveyFormValues) => {
     if (!canEdit) return
-
-    console.log('🚀 onSubmit disparado com valores:', values)
     
     setLoading(true)
     try {
@@ -560,7 +360,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         spouse_cpf: values.spouse_cpf?.replace(/\D/g, ''),
       }
 
-      // Remove campos vazios, EXCETO os campos de análise IA
       const camposIAParaPreservar = [
         'analise_ia_classificacao',
         'analise_ia_parecer',
@@ -574,28 +373,46 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         }
       })
 
-      console.log('📊 Dados sendo salvos (com IA):', surveyData)
-
       delete surveyData.address
       delete surveyData.latitude
       delete surveyData.longitude
 
-      const savedSurvey = await api.saveSurvey({
+      // --- OFFLINE-FIRST FIX ---
+      const dataToSave = {
         id: surveyId,
         property_id: propertyId,
         ...surveyData,
-      })
-      setSurveyId(savedSurvey.id)
-
-      // Atualizar lote com coordenadas e status
-      if (lote) {
-        console.log('📍 Atualizando lote com coordenadas:', {
-          address: values.address,
-          latitude: values.latitude,
-          longitude: values.longitude,
+        sync_status: 'pending' as const
+      }
+      
+      const savedSurvey = db.saveSurvey(dataToSave)
+      setSurveyId(savedSurvey.id as string)
+      
+      if (isOnline) {
+        try {
+          await api.saveSurvey({
+            ...savedSurvey,
+            id: savedSurvey.id,
+            property_id: propertyId
+          })
+          toast({ title: 'Sucesso', description: 'Dados salvos e sincronizados com o servidor!' })
+        } catch (e) {
+          console.warn('⚠️ Falha no sync online, mantido offline:', e)
+          toast({
+            title: 'Salvo Localmente',
+            description: 'Salvo no dispositivo. Será sincronizado quando a conexão estabilizar.',
+            className: 'bg-orange-50 border-orange-200 text-orange-800',
+          })
+        }
+      } else {
+        toast({
+          title: 'Documentos Salvos Localmente',
+          description: 'Aguardando na fila para sincronizar quando online.',
+          className: 'bg-orange-50 border-orange-200 text-orange-800',
         })
-        
-        // Se temos latitude/longitude, atualizar via updateLote para garantir que salve
+      }
+
+      if (lote) {
         if (values.latitude || values.longitude || values.address) {
           await api.updateLote(propertyId, {
             address: values.address || lote.address,
@@ -603,9 +420,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             longitude: values.longitude || lote.longitude,
             status: 'surveyed',
           })
-          console.log('✅ Lote atualizado com coordenadas via updateLote')
         } else {
-          // Fallback: usar saveLote se não tem coordenadas
           await api.saveLote({
             ...lote,
             address: values.address || lote.address,
@@ -613,28 +428,12 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             sync_status: isOnline ? 'synchronized' : 'pending',
             quadra_id: lote.parent_item_id,
           })
-          console.log('✅ Lote atualizado sem coordenadas via saveLote')
         }
       }
 
       refreshStats()
-
-      if (savedSurvey.sync_status === 'pending' || !isOnline) {
-        toast({
-          title: 'Documentos Salvos Localmente',
-          description: 'Aguardando na fila para sincronizar quando online.',
-          className: 'bg-orange-50 border-orange-200 text-orange-800',
-        })
-      } else {
-        toast({
-          title: 'Sucesso',
-          description: 'Dados sincronizados com o servidor!',
-        })
-      }
     } catch (error) {
       console.error(error)
-      // Se chegou aqui, estávamos online e a sincronização falhou no Supabase.
-      // Os dados já foram salvos localmente na fila pelo api.saveSurvey().
       toast({
         title: 'Falha ao sincronizar',
         description: 'Dados salvos localmente e colocados na fila para nova tentativa.',
@@ -711,1058 +510,50 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
               </TabsTrigger>
             </TabsList>
 
-          <TabsContent value="geral" className="space-y-4">
-            <div className="rounded-lg border bg-emerald-50 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">Projeto:</span>
-                    <span className="font-medium">{projectName || '-'}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">Quadra:</span>
-                    <span className="font-medium">{quadraName || '-'}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">Lote:</span>
-                    <span className="font-medium">{lote?.name || '-'}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className="text-muted-foreground">Área do Lote:</span>
-                    <span className="font-medium">{lote?.area || '-'}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePrintLote}
-                    disabled={!lote}
-                  >
-                    <Printer className="h-4 w-4" />
-                  </Button>
-
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        disabled={!canEdit || !lote}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Tem certeza que deseja excluir este lote? Esta ação não pode ser desfeita.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteLote} className="bg-red-600">
-                          Excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
-              <div className="flex justify-between items-center border-b pb-2">
-                <h3 className="font-semibold text-sm">Localização GPS</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={getCurrentLocation}
-                  disabled={!canEdit}
-                >
-                  <MapPin className="w-3 h-3 mr-2" /> Capturar
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="latitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Latitude</FormLabel>
-                      <FormControl>
-                        <Input {...field} disabled={!canEdit} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="longitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Longitude</FormLabel>
-                      <FormControl>
-                        <Input {...field} disabled={!canEdit} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="form_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nº Formulário</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="survey_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data da Vistoria *</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} disabled={!canEdit} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="city"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Município *</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="state"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>UF *</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {UF_OPTIONS.map((uf) => (
-                          <SelectItem key={uf} value={uf}>
-                            {uf}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="surveyor_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Vistoriador</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="surveyor_signature"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Assinatura do Vistoriador</FormLabel>
-                    <FormControl>
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <label className="relative">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                              onChange={(e) => {
-                                const f = e.target.files?.[0]
-                                if (f) handleSignatureFile(f)
-                              }}
-                              disabled={!canEdit}
-                            />
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={!canEdit}
-                            >
-                              <Upload className="h-4 w-4 mr-2" /> Enviar
-                            </Button>
-                          </label>
-
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            disabled={!canEdit}
-                            onClick={() => setSignatureDialogOpen(true)}
-                          >
-                            <PenLine className="h-4 w-4 mr-2" /> Assinar
-                          </Button>
-
-                          {field.value ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={!canEdit}
-                              onClick={() => form.setValue('surveyor_signature', '', { shouldDirty: true })}
-                            >
-                              Limpar
-                            </Button>
-                          ) : null}
-                        </div>
-
-                        <div className="border rounded-md bg-white overflow-hidden">
-                          {field.value ? (
-                            <img
-                              src={field.value}
-                              alt="Assinatura do vistoriador"
-                              className="w-full h-24 object-contain"
-                            />
-                          ) : (
-                            <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
-                              Nenhuma assinatura
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="requerente" className="space-y-4">
-            <div className="flex items-center gap-2 mb-2 text-blue-600 font-medium">
-              <UserIcon className="h-4 w-4" /> Dados do Titular
-            </div>
-            <FormField
-              control={form.control}
-              name="applicant_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome Completo *</FormLabel>
-                  <FormControl>
-                    <Input {...field} disabled={!canEdit} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+          <TabsContent value="geral">
+            <SurveyGeneralTab 
+              form={form} 
+              canEdit={canEdit} 
+              lote={lote}
+              projectName={projectName}
+              quadraName={quadraName}
+              handlePrintLote={handlePrintLote}
+              handleDeleteLote={handleDeleteLote}
+              getCurrentLocation={getCurrentLocation}
+              handleSignatureFile={handleSignatureFile}
+              onOpenSignatureDialog={() => setSignatureDialogOpen(true)}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="applicant_cpf"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CPF *</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="applicant_rg"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>RG</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="applicant_profession"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Profissão</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="applicant_nis"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>NIS</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="applicant_income"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Renda Familiar</FormLabel>
-                    <FormControl>
-                      <Input {...field} disabled={!canEdit} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="applicant_civil_status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Estado Civil</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={!canEdit}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Solteiro">Solteiro(a)</SelectItem>
-                      <SelectItem value="Casado">Casado(a)</SelectItem>
-                      <SelectItem value="Divorciado">Divorciado(a)</SelectItem>
-                      <SelectItem value="Viuvo">Viúvo(a)</SelectItem>
-                      <SelectItem value="Uniao Estavel">
-                        União Estável
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
+          </TabsContent>
+
+          <TabsContent value="requerente">
+            <SurveyApplicantTab 
+              form={form} 
+              canEdit={canEdit}
+              handleRequerenteSignatureFile={handleRequerenteSignatureFile}
+              onOpenRequerenteSignatureDialog={() => setRequerenteSignatureDialogOpen(true)}
+              resizeRequerenteCanvas={resizeRequerenteCanvas}
             />
-
-            <div className="border rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="residents_count"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nº Moradores *</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} disabled={!canEdit} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="has_children"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox
-                        checked={Boolean(field.value)}
-                        onCheckedChange={field.onChange}
-                        disabled={!canEdit}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Filhos menores de 18 anos? *</FormLabel>
-                      <FormMessage />
-                    </div>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {civilStatus !== 'Solteiro' && (
-              <div className="border-t pt-4 mt-4">
-                <div className="font-medium mb-2">Cônjuge</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="spouse_name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome do Cônjuge</FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled={!canEdit} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="spouse_cpf"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>CPF do Cônjuge</FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled={!canEdit} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="border-t pt-4 mt-4 bg-green-100 p-4 rounded-lg">
-              <FormField
-                control={form.control}
-                name="declaracao_requerente"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md mb-4">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={!canEdit}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="text-base">
-                        Declaro, para os devidos fins, que foi realizada a vistoria do lote urbano acima descrita nesta data. *
-                      </FormLabel>
-                      <FormMessage />
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex items-center gap-2 mb-4">
-                <PenLine className="h-4 w-4 text-blue-600" />
-                <h4 className="font-semibold text-sm">Assinatura do Requerente</h4>
-              </div>
-              <FormField
-                control={form.control}
-                name="assinatura_requerente"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="bg-green-100 p-4 rounded-lg">
-                      <div className="flex gap-2 flex-wrap mb-4">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setRequerenteSignatureDialogOpen(true)
-                            setTimeout(() => resizeRequerenteCanvas(), 0)
-                          }}
-                          disabled={!canEdit}
-                        >
-                          <PenLine className="h-4 w-4 mr-2" /> Assinar
-                        </Button>
-                        <label className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3">
-                          <span className="flex items-center">
-                            <Upload className="h-4 w-4 mr-2" /> Enviar Imagem
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file) handleRequerenteSignatureFile(file)
-                              }}
-                              disabled={!canEdit}
-                            />
-                          </span>
-                        </label>
-                      </div>
-                      {field.value && (
-                        <div className="mt-4 border rounded-lg p-2 bg-white flex justify-center items-center h-32">
-                          <img
-                            src={field.value}
-                            alt="Assinatura do Requerente"
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </FormItem>
-                )}
-              />
-            </div>
           </TabsContent>
 
-          <TabsContent value="imovel" className="space-y-4">
-            <div className="flex items-center gap-2 mb-2 text-blue-600 font-medium">
-              <Home className="h-4 w-4" /> Características
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="occupation_time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tempo de Ocupação</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="1 a 5 anos">De 1 à 5 anos</SelectItem>
-                        <SelectItem value="5 a 10 anos">De 5 à 10 anos</SelectItem>
-                        <SelectItem value="Acima de 10 anos">Acima de 10 anos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="acquisition_mode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Modo de Aquisição</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Compra">Compra</SelectItem>
-                        <SelectItem value="Doacao">Doação</SelectItem>
-                        <SelectItem value="Heranca">Herança</SelectItem>
-                        <SelectItem value="Ocupacao">Ocupação mansa e pacífica</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="property_use"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Uso do Imóvel</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Residencial">Residencial</SelectItem>
-                        <SelectItem value="Comercial">Comercial</SelectItem>
-                        <SelectItem value="Misto">Misto</SelectItem>
-                        <SelectItem value="Religioso">Religioso</SelectItem>
-                        <SelectItem value="Terreno Baldio">
-                          Terreno Baldio
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="construction_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Construção</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Alvenaria">Alvenaria</SelectItem>
-                        <SelectItem value="Madeira">Madeira</SelectItem>
-                        <SelectItem value="Mista">Mista</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="roof_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cobertura</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Telha de Amianto">Telha de Amianto</SelectItem>
-                        <SelectItem value="Telha de Barro">Telha de Barro</SelectItem>
-                        <SelectItem value="Telha de Alumínio">Telha de Alumínio</SelectItem>
-                        <SelectItem value="Palha">Palha</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="floor_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Piso</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Cerâmica">Cerâmica</SelectItem>
-                        <SelectItem value="Granito">Granito</SelectItem>
-                        <SelectItem value="Madeira">Madeira</SelectItem>
-                        <SelectItem value="Cimento">Cimento</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="rooms_count"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nº Cômodos *</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} disabled={!canEdit} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+          <TabsContent value="imovel">
+            <SurveyPropertyTab form={form} canEdit={canEdit} />
           </TabsContent>
 
-          <TabsContent value="infra" className="space-y-4">
-            <div className="flex items-center gap-2 mb-2 text-blue-600 font-medium">
-              <Zap className="h-4 w-4" /> Infraestrutura e Serviços
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="water_supply"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Abastecimento de Água</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Rede Publica">
-                          Rede Pública
-                        </SelectItem>
-                        <SelectItem value="Poco Amazonas">
-                          Poço Amazonas
-                        </SelectItem>
-                        <SelectItem value="Poco Artesiano">
-                          Poço Artesiano
-                        </SelectItem>
-                        <SelectItem value="Caminhao Pipa">
-                          Caminhão Pipa
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="energy_supply"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Energia Elétrica</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Rede Publica com Medidor">
-                          Rede Pública (Com Medidor)
-                        </SelectItem>
-                        <SelectItem value="Rede Publica sem Medidor">
-                          Rede Pública (Sem Medidor)
-                        </SelectItem>
-                        <SelectItem value="Gato">
-                          Ligação Clandestina
-                        </SelectItem>
-                        <SelectItem value="Nao Possui">Não Possui</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="sanitation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Esgotamento Sanitário</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Fossa Septica">
-                          Fossa Séptica
-                        </SelectItem>
-                        <SelectItem value="Fossa Negra">Fossa Negra</SelectItem>
-                        <SelectItem value="Ceu Aberto">Céu Aberto</SelectItem>
-                        <SelectItem value="Rede de Esgoto">
-                          Rede de Esgoto
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="street_paving"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Pavimentação da Rua</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Asfalto">Asfalto</SelectItem>
-                        <SelectItem value="Bloquete">Bloquete</SelectItem>
-                        <SelectItem value="Piçarra">Piçarra</SelectItem>
-                        <SelectItem value="Terra">Terra</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="fencing"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Divisa</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      disabled={!canEdit}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Cerca">Cerca</SelectItem>
-                        <SelectItem value="Muro">Muro</SelectItem>
-                        <SelectItem value="Sem Divisa">Sem Divisa</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormItem>
-                )}
-              />
-            </div>
-
+          <TabsContent value="infra">
+            <SurveyInfraTab form={form} canEdit={canEdit} />
           </TabsContent>
 
-          <TabsContent value="documentos" className="space-y-4">
-            <div className="bg-white p-6 rounded-lg border">
-              <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Documentos da Vistoria</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  Anexe documentos relevantes para a vistoria (RG, CPF, comprovantes, fotos, etc.)
-                </p>
-              </div>
-              
-              <DocumentUpload
-                initialDocuments={form.watch('documents') || []}
-                onDocumentsChange={(docs) => {
-                  form.setValue('documents', docs, { shouldDirty: true })
-                  console.log('📎 documentos atualizados:', docs)
-                }}
-                maxFiles={20}
-                maxSizeMB={10}
-                disabled={!canEdit}
-              />
-            </div>
+          <TabsContent value="documentos">
+            <SurveyDocsTab form={form} canEdit={canEdit} />
           </TabsContent>
 
-          <TabsContent value="observacoes" className="space-y-4">
-            {/* Layout em 2 colunas: Observação Vistoriador + Análise IA */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Coluna 1: Observação do Vistoriador */}
-              <div className="bg-white p-6 rounded-lg border">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Observações do Vistoriador
-                </h3>
-                <FormField
-                  control={form.control}
-                  name="observations"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <Textarea
-                          {...field}
-                          disabled={!canEdit}
-                          placeholder="Observações técnicas sobre a vistoria, condições do imóvel, particularidades encontradas..."
-                          className="min-h-[200px]"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Coluna 2: Análise Jurídica IA */}
-              <div>
-                {form.watch('analise_ia_classificacao') ? (
-                  // Card com análise gerada
-                  <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white rounded-lg p-6 shadow-lg">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="bg-purple-400/30 p-2 rounded-lg">
-                        <Sparkles className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-sm uppercase tracking-wide">
-                          Análise Jurídica
-                        </h3>
-                        <p className="text-purple-200 text-xs">SisReub Insight</p>
-                      </div>
-                    </div>
-
-                    {/* Classificação */}
-                    <div className="bg-purple-400/20 rounded-lg p-4 mb-4">
-                      <p className="text-purple-200 text-xs uppercase mb-1">
-                        Classificação Sugerida
-                      </p>
-                      <FormField
-                        control={form.control}
-                        name="analise_ia_classificacao"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                disabled={!canEdit}
-                                className="text-2xl font-bold bg-transparent border-none text-white placeholder:text-purple-200 p-0 h-auto"
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    {/* Parecer Técnico */}
-                    <div className="mb-4">
-                      <p className="text-purple-200 text-xs uppercase mb-2">
-                        Parecer Técnico
-                      </p>
-                      <FormField
-                        control={form.control}
-                        name="analise_ia_parecer"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                disabled={!canEdit}
-                                className="text-sm bg-purple-700/30 border-purple-500/30 text-white placeholder:text-purple-200 min-h-[120px]"
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    {/* Próximo Passo */}
-                    <div className="bg-purple-700/40 rounded-lg p-4">
-                      <p className="text-purple-200 text-xs uppercase mb-2">
-                        Próximo Passo
-                      </p>
-                      <FormField
-                        control={form.control}
-                        name="analise_ia_proximo_passo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Textarea
-                                {...field}
-                                disabled={!canEdit}
-                                className="text-sm bg-purple-600/20 border-purple-400/30 text-white placeholder:text-purple-200 min-h-[80px]"
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    {/* Data/hora geração */}
-                    {form.watch('analise_ia_gerada_em') && (
-                      <p className="text-purple-300 text-xs mt-4">
-                        Gerada em:{' '}
-                        {new Date(form.watch('analise_ia_gerada_em')!).toLocaleString('pt-BR')}
-                      </p>
-                    )}
-
-                    {/* Botão regenerar */}
-                    {canEdit && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="w-full mt-4"
-                        onClick={handleGenerateAnaliseIA}
-                        disabled={generatingIA}
-                      >
-                        {generatingIA ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Regenerando...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Regenerar Análise
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  // Card vazio - gerar análise
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-8 border-2 border-dashed border-purple-300 text-center">
-                    <div className="bg-purple-200 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-                      <Sparkles className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-purple-900 mb-2">
-                      Análise Jurídica Automática
-                    </h3>
-                    <p className="text-sm text-purple-700 mb-6">
-                      Gere uma análise baseada na Lei 13.465/2017 para classificar entre
-                      REURB-S (Social) ou REURB-E (Específico)
-                    </p>
-                    {canEdit && (
-                      <Button
-                        type="button"
-                        onClick={handleGenerateAnaliseIA}
-                        disabled={generatingIA}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        {generatingIA ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Gerando análise...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Gerar Análise Inteligente
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+          <TabsContent value="observacoes">
+            <SurveyObservationsTab 
+              form={form} 
+              canEdit={canEdit} 
+              generatingIA={generatingIA}
+              handleGenerateAnaliseIA={handleGenerateAnaliseIA} 
+            />
           </TabsContent>
         </Tabs>
 
@@ -1792,6 +583,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
           open={signatureDialogOpen}
           onClose={() => setSignatureDialogOpen(false)}
           onSave={handleSaveVistoriadorSignature}
+          initialImage={form.watch('surveyor_signature')}
           title="Assinatura do Vistoriador"
           description="Assine no quadro abaixo"
         />
@@ -1800,6 +592,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
           open={requerenteSignatureDialogOpen}
           onClose={() => setRequerenteSignatureDialogOpen(false)}
           onSave={handleSaveRequerenteSignature}
+          initialImage={form.watch('assinatura_requerente')}
           title="Assinatura do Requerente"
           description="Assine no quadro abaixo"
         />

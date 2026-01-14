@@ -14,6 +14,7 @@ interface SignaturePadProps {
   open: boolean
   onClose: () => void
   onSave: (dataUrl: string) => void
+  initialImage?: string
   title?: string
   description?: string
 }
@@ -22,6 +23,7 @@ export function SignaturePad({
   open,
   onClose,
   onSave,
+  initialImage,
   title = 'Assinatura',
   description = 'Assine no quadro abaixo',
 }: SignaturePadProps) {
@@ -40,6 +42,15 @@ export function SignaturePad({
 
     const dpr = window.devicePixelRatio || 1
     
+    // Guardar conteúdo atual se existir
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx && canvas.width > 0) {
+        tempCtx.drawImage(canvas, 0, 0);
+    }
+    
     canvas.width = rect.width * dpr
     canvas.height = rect.height * dpr
     
@@ -50,6 +61,19 @@ export function SignaturePad({
       ctx.lineJoin = 'round'
       ctx.strokeStyle = '#000000'
       ctx.lineWidth = 2
+      
+      // Restaurar imagem
+      if (initialImage && isEmpty) {
+          const img = new Image();
+          img.src = initialImage;
+          img.onload = () => {
+             ctx.drawImage(img, 0, 0, rect.width, rect.height); // Ajustar para caber
+             setIsEmpty(false);
+          }
+      } else if (!isEmpty) {
+          // Se já desenhou, tentar restaurar do temp (complexo devido ao resize, melhor limpar ou manter via state externo)
+          // Simplificação: Se redimensionar, limpamos para evitar distorção, a menos que tenhamos initialImage
+      }
     }
   }
 
@@ -60,7 +84,7 @@ export function SignaturePad({
 
     if (open && canvasRef.current) {
       // 1. Tentar redimensionar imediatamente
-      resizeCanvas()
+      setTimeout(resizeCanvas, 50); // Small delay to ensure render
 
       // 2. Usar ResizeObserver para detectar quando o dialog estabilizar
       resizeObserver = new ResizeObserver(() => {
@@ -79,7 +103,7 @@ export function SignaturePad({
       if (fallbackTimer) clearTimeout(fallbackTimer)
       if (animationFrame) cancelAnimationFrame(animationFrame)
     }
-  }, [open])
+  }, [open, initialImage])
 
   const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
     // Evitar scroll e comportamento padrão

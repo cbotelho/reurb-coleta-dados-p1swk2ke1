@@ -22,7 +22,7 @@ interface DocumentItem {
   type: string
   url?: string
   data?: string // base64 para armazenamento offline
-  uploadedAt?: Date
+  uploadedAt?: Date | string
 }
 
 interface DocumentUploadProps {
