@@ -17,6 +17,18 @@ import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { decryptApiKey, encryptApiKey } from '@/utils/encryption'
 
+const base64ToBlob = (base64: string, mimeType: string = 'application/octet-stream') => {
+  const arr = base64.split(',')
+  const dataStr = arr.length > 1 ? arr[1] : base64
+  const bstr = atob(dataStr)
+  let n = bstr.length
+  const u8arr = new Uint8Array(n)
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n)
+  }
+  return new Blob([u8arr], { type: mimeType })
+}
+
 const mapProject = (row: any): Project => ({
   id: 0,
   local_id: row.id,
@@ -72,24 +84,37 @@ const mapLote = (row: any): Lote => ({
 
 const getPermissionsForGroup = (group: string): string[] => {
   switch (group) {
-    case 'Administradores':
     case 'Administrador':
+      return ['all']
+    case 'Assistente Social':
+      return [
+        'insert_survey', 'edit_survey', 'view_project', 'view_quadra', 'view_lote',
+        'create_social_report', 'edit_social_report', 'delete_social_report',
+        'print_reports', 'generate_ai_report'
+      ]
+    case 'Jurídico': // (Assumido similar a Assistente, mas focado em parecer legal, ajustado conforme necessidade)
+      return [
+        'view_project', 'view_quadra', 'view_lote', 'view_survey',
+        'create_legal_report', 'edit_legal_report', 'print_reports'
+      ]
+    case 'Técnico':
+    case 'Vistoriador':
+      return [
+        'insert_lote', 'edit_lote', 'insert_survey', 'edit_survey',
+        'view_social_report', 'generate_ai_report', 'print_reports'
+      ]
+    case 'Next':
+    case 'Next Ambiente': // Manter compatibilidade
+      return ['view_only']
+    // Legados para garantir compatibilidade
+    case 'Administradores':
     case 'super_admin':
       return ['all']
     case 'SEHAB':
     case 'admin':
       return ['manage_users', 'edit_projects', 'view_reports', 'manage_groups']
-    case 'Técnicos Amapá Terra':
-    case 'Vistoriador':
-    case 'operator':
-      return ['edit_projects', 'view_reports']
-    case 'Next Ambiente':
-    case 'Analista':
-    case 'manager':
-      return ['edit_projects', 'view_reports']
     case 'Externo':
     case 'viewer':
-      return ['view_only']
     default:
       return ['view_only']
   }
@@ -1065,6 +1090,68 @@ export const api = {
     if (!isOnline()) {
       return db.saveSurvey({ ...survey, sync_status: 'pending' })
     }
+
+    // --- FIX: Upload Base64 Documents to Storage before saving to Database ---
+    if (survey.documents && Array.isArray(survey.documents) && isOnline()) {
+      try {
+        const processedDocs = await Promise.all(
+          survey.documents.map(async (doc: any) => {
+            // Check if doc has Base64 data and implies it needs upload
+            if (
+              doc.data &&
+              typeof doc.data === 'string' &&
+              (doc.data.startsWith('data:') || doc.data.length > 1000) &&
+              (!doc.url || doc.url.startsWith('blob:'))
+            ) {
+              try {
+                const mimeType = doc.type || 'application/octet-stream'
+                const blob = base64ToBlob(doc.data, mimeType)
+                const fileExt = doc.name.split('.').pop() || 'bin'
+                // Use a dedicated folder in the bucket
+                const filePath = `documents/${survey.property_id}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+
+                // Upload to 'reurb-images' bucket (as it is the one we know exists and is public)
+                const { error: uploadError } = await supabase.storage
+                  .from('reurb-images')
+                  .upload(filePath, blob, {
+                    contentType: mimeType,
+                    upsert: false,
+                  })
+
+                if (uploadError) throw uploadError
+
+                // Get Public URL
+                const {
+                  data: { publicUrl },
+                } = supabase.storage.from('reurb-images').getPublicUrl(filePath)
+
+                console.log(`✅ Documento ${doc.name} convertido de Base64 para URL: ${publicUrl}`)
+
+                // Return clean object w/o Base64 data
+                return {
+                  id: doc.id,
+                  name: doc.name,
+                  size: doc.size,
+                  type: doc.type,
+                  url: publicUrl,
+                  uploadedAt: new Date().toISOString(),
+                }
+              } catch (e) {
+                console.error(`❌ Falha ao fazer upload do documento ${doc.name}`, e)
+                // In case of error, we KEEP the data so user doesn't lose it,
+                // but warn to try again later.
+                return doc
+              }
+            }
+            return doc
+          }),
+        )
+        survey.documents = processedDocs
+      } catch (err) {
+        console.error('Erro geral ao processar upload de documentos:', err)
+      }
+    }
+    // -----------------------------------------------------------------------
 
     // Campos válidos da tabela reurb_surveys
     const validFields = [
