@@ -1084,6 +1084,47 @@ export const api = {
     }
   },
 
+  async getSurveysByPropertyIds(propertyIds: string[]): Promise<Survey[]> {
+    if (!isOnline()) {
+      // Offline implementation: filter from local DB
+      const allSurveys = db.getSurveys()
+      return allSurveys.filter(s => propertyIds.includes(s.property_id))
+    }
+
+    if (propertyIds.length === 0) return []
+
+    try {
+      // Chunk requests if too many IDs (Supabase URL Limit)
+      const chunkSize = 50
+      let allSurveys: Survey[] = []
+
+      for (let i = 0; i < propertyIds.length; i += chunkSize) {
+        const chunk = propertyIds.slice(i, i + chunkSize)
+        const { data, error } = await supabase
+          .from('reurb_surveys')
+          .select('*')
+          .in('property_id', chunk)
+        
+        if (error) {
+          console.error('Error fetching surveys chunk:', error)
+          continue
+        }
+        
+        if (data) {
+           const mappedChunk = data.map(mapSurvey)
+           allSurveys = [...allSurveys, ...mappedChunk]
+           // Cache them
+           mappedChunk.forEach(s => db.saveSurvey({...s, sync_status: 'synchronized'}))
+        }
+      }
+      
+      return allSurveys
+    } catch (e) {
+      console.error('Error fetching surveys bulk:', e)
+      return []
+    }
+  },
+
   async saveSurvey(survey: Partial<Survey>): Promise<Survey> {
     if (!survey.property_id) throw new Error('Property ID is required')
 

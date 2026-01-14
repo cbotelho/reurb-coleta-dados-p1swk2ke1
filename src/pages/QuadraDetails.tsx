@@ -43,19 +43,22 @@ export default function QuadraDetails() {
           setProject(p)
           setLotes(l)
 
-          // Carregar surveys para cada lote
-          const surveysMap = new Map<string, Survey>()
-          for (const lote of l) {
-            try {
-              const survey = await api.getSurveyByPropertyId(lote.local_id)
-              if (survey) {
-                surveysMap.set(lote.local_id, survey)
-              }
-            } catch (e) {
-              console.error(`Erro ao carregar survey do lote ${lote.local_id}:`, e)
-            }
+          // Otimização: Carregar surveys em Batch (1 chamada) em vez de N chamadas
+          const loteIds = l.map(lote => lote.local_id)
+          try {
+             const allSurveys = await api.getSurveysByPropertyIds(loteIds)
+             const surveysMap = new Map<string, Survey>()
+             
+             allSurveys.forEach(survey => {
+                // Guarda apenas a mais recente se vier duplicada (assumindo que api retorna)
+                // ou simplesmente mapeia por property_id
+                surveysMap.set(survey.property_id, survey)
+             })
+             setSurveys(surveysMap)
+
+          } catch (e) {
+            console.error('Erro ao carregar surveys em massa:', e)
           }
-          setSurveys(surveysMap)
         }
       } catch (e) {
         console.error(e)
