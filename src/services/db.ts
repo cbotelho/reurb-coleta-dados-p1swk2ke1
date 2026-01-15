@@ -335,6 +335,13 @@ class DBService {
     this.saveItems(STORAGE_KEYS.PROJECTS, projects)
   }
 
+  deleteProject(localId: string) {
+    const projects = this.getItems<Project>(STORAGE_KEYS.PROJECTS).filter(
+      (p) => p.local_id !== localId
+    )
+    this.saveItems(STORAGE_KEYS.PROJECTS, projects)
+  }
+
   purgeSeedProjects() {
     const current = this.getProjects()
     const seeds = ['proj-1', 'proj-2']

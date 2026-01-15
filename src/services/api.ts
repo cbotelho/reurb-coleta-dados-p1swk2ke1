@@ -417,12 +417,9 @@ export const api = {
 
   async deleteProject(id: string): Promise<void> {
     if (!isOnline()) {
-      // For offline, just remove from local cache
-      const current = db.getProject(id)
-      if (current) {
-        // Remove from local storage when offline
-        // The actual deletion will sync when online
-      }
+      // For offline, remove from local cache immediately
+      console.log('[API] Deleting project locally:', id)
+      db.deleteProject(id)
       return
     }
 
