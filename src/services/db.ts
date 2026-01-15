@@ -331,6 +331,22 @@ class DBService {
     return project
   }
 
+  replaceProjects(projects: Project[]) {
+    this.saveItems(STORAGE_KEYS.PROJECTS, projects)
+  }
+
+  purgeSeedProjects() {
+    const current = this.getProjects()
+    const seeds = ['proj-1', 'proj-2']
+    const hasSeeds = current.some(p => seeds.includes(p.local_id))
+    
+    if (hasSeeds) {
+      console.log('[DB] Purging seed projects...')
+      const cleaned = current.filter(p => !seeds.includes(p.local_id))
+      this.replaceProjects(cleaned)
+    }
+  }
+
   getQuadrasByProject(projectId: string): Quadra[] {
     return this.getItems<Quadra>(STORAGE_KEYS.QUADRAS).filter(
       (q) => q.parent_item_id === projectId,

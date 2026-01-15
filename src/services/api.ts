@@ -253,6 +253,10 @@ export const api = {
 
       if (error) throw error
       const projects = (data || []).map(mapProject)
+      
+      // Wipe & Map Strategy: Limpar seeds antes de atualizar com dados reais
+      db.purgeSeedProjects()
+      
       projects.forEach((p) => db.updateProject(p))
       return projects
     } catch (e) {
