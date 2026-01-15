@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Mudado de 'autoUpdate' para 'prompt' para permitir controle manual
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       // O manifesto é gerenciado manualmente em public/manifest.json para evitar conflitos de sintaxe
       workbox: {
