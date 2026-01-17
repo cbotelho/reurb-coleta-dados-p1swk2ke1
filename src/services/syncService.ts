@@ -5,7 +5,7 @@ export const syncService = {
   // Sync Projects, Quadras, and Lotes (Base Data)
   async pullBaseData() {
     if (!navigator.onLine) return { projects: 0, quadras: 0, lotes: 0 }
-
+ 
     let pCount = 0,
       qCount = 0,
       lCount = 0

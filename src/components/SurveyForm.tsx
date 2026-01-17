@@ -25,7 +25,7 @@ import { SurveyDocsTab } from './survey/SurveyDocsTab'
 import { SurveyObservationsTab } from './survey/SurveyObservationsTab'
 
 interface SurveyFormProps {
-  propertyId: string
+  propertyId: string 
   canEdit: boolean
 }
 
