@@ -349,17 +349,51 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
     }
   }
 
+  const performBackgroundSync = async (data: any) => {
+    try {
+      // Tenta o envio. Nota: api.saveSurvey deve suportar upsert
+      await api.saveSurvey(data)
+      
+      // Se deu certo, marca como sincronizado no banco local
+      const syncedData = { 
+        ...data, 
+        sync_status: 'synchronized',
+        last_sync_at: new Date().toISOString()
+      }
+      db.saveSurvey(syncedData)
+      console.log('✅ Sincronização em background concluída.')
+
+      // Opcional: Atualizar status do lote também
+      if (lote) {
+         api.updateLote(propertyId, { status: 'surveyed' }).catch(console.warn)
+      }
+
+    } catch (err) {
+      console.error('☁️ Falha na rede (background sync). O dado permanece "pending".', err)
+    }
+  }
+
   const onSubmit = async (values: SurveyFormValues) => {
     if (!canEdit) return
     
     setLoading(true)
+    console.log('🚀 Iniciando processo de salvamento blindado...')
+    
     try {
-      const surveyData: any = {
+      const surveyPayload: any = {
         ...values,
+        property_id: propertyId,
+        // Mantém ID existente ou cria novo
+        id: surveyId || crypto.randomUUID(),
+        sync_status: 'pending',
+        updated_at: new Date().toISOString(),
+        
+        // Limpeza básica
         applicant_cpf: values.applicant_cpf?.replace(/\D/g, ''),
         spouse_cpf: values.spouse_cpf?.replace(/\D/g, ''),
       }
 
+      // Preservar campos de IA e remover vazios
       const camposIAParaPreservar = [
         'analise_ia_classificacao',
         'analise_ia_parecer',
@@ -367,77 +401,54 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         'analise_ia_gerada_em',
       ]
       
-      Object.keys(surveyData).forEach((k) => {
-        if (surveyData[k] === '' && !camposIAParaPreservar.includes(k)) {
-          delete surveyData[k]
+      Object.keys(surveyPayload).forEach((k) => {
+        if (surveyPayload[k] === '' && !camposIAParaPreservar.includes(k)) {
+          delete surveyPayload[k]
         }
       })
 
-      delete surveyData.address
-      delete surveyData.latitude
-      delete surveyData.longitude
+      // Remover campos que pertencem ao Lote, não à Vistoria
+      delete surveyPayload.address
+      delete surveyPayload.latitude
+      delete surveyPayload.longitude
 
-      // --- OFFLINE-FIRST FIX ---
-      const dataToSave = {
-        id: surveyId,
-        property_id: propertyId,
-        ...surveyData,
-        sync_status: 'pending' as const
-      }
-      
-      const savedSurvey = db.saveSurvey(dataToSave)
+      // 1. SALVAMENTO LOCAL IMEDIATO (Prioridade Máxima)
+      // db.saveSurvey salva no LocalStorage (síncrono/rápido)
+      const savedSurvey = db.saveSurvey(surveyPayload)
       setSurveyId(savedSurvey.id as string)
-      
+
+      // Atualizar status do lote localmente se possível (simulado)
+      if (lote) {
+        // Se tivéssemos db.saveLote local, faríamos aqui. 
+        // Por hora, apenas confiamos que o sync cuidará disso.
+      }
+
+      // 2. TRIGGER BACKGROUND SYNC
       if (isOnline) {
-        try {
-          await api.saveSurvey({
-            ...savedSurvey,
-            id: savedSurvey.id,
-            property_id: propertyId
-          })
-          toast({ title: 'Sucesso', description: 'Dados salvos e sincronizados com o servidor!' })
-        } catch (e) {
-          console.warn('⚠️ Falha no sync online, mantido offline:', e)
-          toast({
-            title: 'Salvo Localmente',
-            description: 'Salvo no dispositivo. Será sincronizado quando a conexão estabilizar.',
-            className: 'bg-orange-50 border-orange-200 text-orange-800',
-          })
-        }
+        performBackgroundSync(savedSurvey)
       } else {
-        toast({
-          title: 'Documentos Salvos Localmente',
-          description: 'Aguardando na fila para sincronizar quando online.',
+         toast({
+          title: 'Vistoria Salva Localmente',
+          description: 'A vitoria foi salva no dispositivo e será enviada quando houver conexão.',
           className: 'bg-orange-50 border-orange-200 text-orange-800',
         })
       }
 
-      if (lote) {
-        if (values.latitude || values.longitude || values.address) {
-          await api.updateLote(propertyId, {
-            address: values.address || lote.address,
-            latitude: values.latitude || lote.latitude,
-            longitude: values.longitude || lote.longitude,
-            status: 'surveyed',
-          })
+      // Navega de volta imediatamente
+      setTimeout(() => {
+        if (lote && lote.parent_item_id) {
+            navigate(`/quadras/${lote.parent_item_id}`)
         } else {
-          await api.saveLote({
-            ...lote,
-            address: values.address || lote.address,
-            status: 'surveyed',
-            sync_status: isOnline ? 'synchronized' : 'pending',
-            quadra_id: lote.parent_item_id,
-          })
+            navigate(-1)
         }
-      }
+      }, 500)
 
-      refreshStats()
     } catch (error) {
-      console.error(error)
+      console.error('❌ ERRO CRÍTICO NO SALVAMENTO LOCAL:', error)
       toast({
-        title: 'Falha ao sincronizar',
-        description: 'Dados salvos localmente e colocados na fila para nova tentativa.',
-        variant: 'destructive',
+        variant: "destructive",
+        title: "Erro ao gravar dados",
+        description: "O dispositivo pode estar sem espaço ou o navegador bloqueou o banco local."
       })
     } finally {
       setLoading(false)

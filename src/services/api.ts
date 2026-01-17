@@ -1268,20 +1268,15 @@ export const api = {
     payload.updated_at = new Date().toISOString()
 
     try {
-      let query
-      if (survey.id && survey.id.length > 10) {
-        query = supabase
-          .from('reurb_surveys')
-          .update(payload)
-          .eq('id', survey.id)
-          .select()
-          .single()
-      } else {
-        delete payload.id
-        query = supabase.from('reurb_surveys').insert(payload).select().single()
-      }
+      // --- FIX 406/400: USAR UPSERT PARA EVITAR CONFLITOS DE ID ---
+      // Se payload.id estiver presente, o Postgres tentará atualizar ou inserir
+      
+      const { data, error } = await supabase
+        .from('reurb_surveys')
+        .upsert(payload, { onConflict: 'id' })
+        .select()
+        .single()
 
-      const { data, error } = await query
       if (error) {
         // Log MUITO detalhado para diagnosticar 400
         const errorDetails = {

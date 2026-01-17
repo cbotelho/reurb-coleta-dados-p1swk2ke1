@@ -63,6 +63,41 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Auto-Sync Sweeper: Monitora conexão e sincroniza vistorias pendentes
+  useEffect(() => {
+    const syncPendingData = async () => {
+      if (!isOnline) return
+
+      const pendingItems = db.getPendingItems()
+      const pendingSurveys = pendingItems.surveys
+
+      if (pendingSurveys.length > 0) {
+        console.log(`📡 Auto-Sync: Encontradas ${pendingSurveys.length} vistorias pendentes.`)
+        
+        for (const survey of pendingSurveys) {
+          try {
+            // Tenta enviar para o servidor
+            await api.saveSurvey(survey) 
+            
+            // Se sucesso, atualiza localmente
+            db.saveSurvey({
+                ...survey,
+                sync_status: 'synchronized',
+                last_sync_at: new Date().toISOString()
+            })
+          } catch (e) {
+            console.error('❌ Auto-Sync falhou para vistoria:', survey.id)
+            break // Para se houver erro de rede real
+          }
+        }
+        // Atualiza estatísticas após processar fila
+        refreshStats()
+      }
+    }
+
+    syncPendingData()
+  }, [isOnline]) // Roda sempre que voltar online
+
   const refreshStats = useCallback(async () => {
     try {
       const s = await api.getDashboardStats()

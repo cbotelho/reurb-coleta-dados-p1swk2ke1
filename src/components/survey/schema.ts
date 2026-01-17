@@ -18,8 +18,8 @@ export const surveySchema = z.object({
 
   // Location update fields
   address: z.string().optional(),
-  latitude: z.string().optional(),
-  longitude: z.string().optional(),
+  latitude: z.string().optional().or(z.null()),
+  longitude: z.string().optional().or(z.null()),
 
   // Applicant
   applicant_name: z.string().min(1, 'Nome do requerente é obrigatório').max(255, 'Máximo 255 caracteres'),
@@ -79,21 +79,8 @@ export const surveySchema = z.object({
   street_paving: z.string().optional(),
 
   observations: z.string().max(2000, 'Máximo 2000 caracteres').optional(),
-  // Documentos: aceitar strings ou Date no uploadedAt e campos opcionais para evitar bloqueio de validação
-  documents: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        size: z.number(),
-        type: z.string(),
-        data: z.string().optional(),
-        url: z.string().optional(),
-        uploadedAt: z.union([z.string(), z.date()]).optional(),
-      }),
-    )
-    .optional()
-    .default([]),
+  // Documentos: aceitar array generico para evitar bloqueio de validação no PWA
+  documents: z.array(z.any()).default([]),
   
   // AI Analysis fields
   analise_ia_classificacao: z.string().optional(),

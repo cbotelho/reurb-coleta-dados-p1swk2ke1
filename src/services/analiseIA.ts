@@ -90,8 +90,9 @@ class AnaliseIAService {
       ? renda_familiar / moradores 
       : 0
 
-    const salarioMinimo = 1412.00 // 2024
-    const limiteReurbS = salarioMinimo * 3
+    // Atualizado conforme solicitação do usuário (17/01/2026)
+    const salarioMinimo = 1621.00 
+    const limiteReurbS = salarioMinimo * 5 // Lei da ReUrb cita até 5 salários para isenção/REURB-S
 
     // Critérios REURB-S (Art. 13, I, Lei 13.465/2017)
     const criteriosReurbS = [
@@ -110,7 +111,7 @@ class AnaliseIAService {
       parecer = `Enquadramento fundamentado no Art. 13, I, da Lei 13.465/2017. `
       
       if (renda_familiar && renda_familiar <= limiteReurbS) {
-        parecer += `A renda familiar de R$ ${renda_familiar.toFixed(2)} está dentro do limite usual de 3 salários mínimos (R$ ${limiteReurbS.toFixed(2)}). `
+        parecer += `A renda familiar de R$ ${renda_familiar.toFixed(2)} está dentro do limite legal de 5 salários mínimos (R$ ${limiteReurbS.toFixed(2)}). `
       }
       
       if (possui_nis) {
@@ -130,7 +131,7 @@ class AnaliseIAService {
       parecer = `Enquadramento no Art. 13, II, da Lei 13.465/2017 (REURB-E). `
       
       if (renda_familiar && renda_familiar > limiteReurbS) {
-        parecer += `A renda familiar de R$ ${renda_familiar.toFixed(2)} excede o limite usual de 3 salários mínimos. `
+        parecer += `A renda familiar de R$ ${renda_familiar.toFixed(2)} excede o limite legal de 5 salários mínimos. `
       }
       
       parecer += `Os critérios socioeconômicos não atendem aos requisitos de gratuidade previstos para REURB-S. O interessado deve arcar com os custos do processo de regularização fundiária.`
