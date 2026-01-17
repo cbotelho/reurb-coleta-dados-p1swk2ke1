@@ -1,63 +1,52 @@
-# Coleta de Dados REURB - Developer & AI Instructions
+# Instruções GitHub Copilot - REURB Coleta
 
-## ⚡ Stack & Context
-- **Frontend**: React 19 + Vite (Rolldown) + TypeScript + PWA
-- **UI**: Shadcn UI (`@/components/ui`), Tailwind CSS, Lucide Icons, TipTap (Rich Text)
-- **Backend**: Supabase (Auth, Postgres, Storage) via `@supabase/supabase-js`
-- **Architecture**: **Offline-First** (LocalStorage = Source of Truth)
-- **Quality**: `oxlint` (Linting). **NO AUTOMATED TESTS** (Do not create *.test.ts files).
+## 🧠 Contexto do Projeto
+Você está trabalhando no **REURB Coleta**, um PWA de coleta de dados para regularização fundiária.
+- **Stack**: React 19, Vite, TypeScript, Shadcn UI, Tailwind CSS, Supabase.
+- **Natureza**: **PWA Offline-First**. Usuários trabalham offline em áreas remotas; dados sincronizam quando online.
 
-## 🏗️ Architecture: Offline-First
-**Golden Rule**: The UI NEVER talks to the API directly. It ONLY talks to `db.ts`.
+## 🏗️ Arquitetura & Regras de Ouro
 
-### Data Flow
-1. **Write**: `UI` → `db.saveItem(...)` → `LocalStorage` (marked `sync_status: 'pending'`)
-2. **Sync**: `SyncService` (background) → Detects pending → Pushes to `Supabase` → Updates `db.ts`
-3. **Read**: `UI` → `db.getItems()` (Reads from LocalStorage)
+### 1. Fluxo de Dados Offline-First (ESTRITO)
+- **Fonte de Verdade**: O `db.ts` (LocalStorage) no cliente é a FONTE PRINCIPAL para a UI.
+- **Leitura**: Componentes `useQuery` / `useEffect` -> `db.getItems()`. NUNCA chame `api.ts` diretamente de componentes UI.
+- **Escrita**: Componentes -> `db.saveItem()` -> (Sync em background) -> `api.ts` -> Supabase.
+- **Exceção**: `imageService.ts` faz upload de blobs direto para o Storage do Supabase (exige conexão), salvando apenas a URL no banco local.
 
-### Key Files
-- `src/services/db.ts`: **The Database**. All CRUD operations happen here.
-- `src/services/syncService.ts`: Background synchronization logic.
-- `src/services/api.ts`: Wraps Supabase calls. **Only used by syncService**, never by UI.
-- `src/services/imageService.ts`: Exception to the rule. Directs blob uploads to Storage (requires online).
+### 2. Sistema Duplo de IDs
+Entidades (Projetos, Lotes, Vistorias) usam dois identificadores:
+- **`local_id`** (UUID String): Gerado no cliente, persistente, usado como `key` no React e para buscas/relacionamentos locais. **Sempre prefira este.**
+- **`id`** (Integer/String): ID gerado no Postgres. Fica `0` ou `null` até sincronizar. Usado só para debug/SQL backend.
 
-## 🔑 Core Concepts
+### 3. Mecanismo de Sincronização
+- Controlado por `src/services/syncService.ts`.
+- Mudanças são marcadas com `sync_status: 'pending'` em `db.ts`.
+- O sync envia pendências ao Supabase e atualiza o registro local com a confirmação do servidor.
 
-### 1. Dual ID System
-Entities (Projects, Lotes, Surveys) have two identifiers. You MUST handle both:
-- **`local_id`** (UUID String): Client-generated. **Primary Key for Frontend**. Always exists. React `key`.
-- **`id`** (Number/String): Server-side Postgres ID. `0` or `null` until synced.
-- **Usage**: Always perform lookups/updates via `local_id`.
+## 🛠️ Convenções de Desenvolvimento
 
-### 2. Feature Modules
-- **Social Reports**: `src/components/SocialReportForm.tsx`. Uses `reurb_social_reports` table & TipTap editor. See `SOCIAL-REPORTS-README.md`.
-- **CSV Import**: `src/components/csv-import/`. Uses Supabase RPC `can_import_csv`. See `CSV-IMPORT-README.md`.
+### Padrões de Código
+- **Linter**: Use `oxlint`. Rode `npm run lint` ou `npm run lint:fix` com frequência.
+- **Componentes**: Sempre funcionais, com schemas `zod` definidos *inline* para validação de formulários.
+- **Estilo**: Tailwind CSS + Shadcn UI (`@/components/ui`). Use `lucide-react` para ícones.
+- **Datas**: Salve como string ISO. Exiba usando `date-fns` com locale `pt-BR`.
+- **Listas**: Sempre itere usando `key={item.local_id}`.
 
-### 3. Migrations & Database
-- SQL files in `migration/` directory.
-- Do NOT create migration files unless asked.
-- To check DB structure, verify `migration/check_*.sql` scripts.
+### "Não Faça"
+- **NÃO CRIE TESTES**: Não crie arquivos `*.test.ts` ou `*.spec.ts`. Não há test runner.
+- **NÃO CHAME API DIRETO**: Componentes UI não devem importar de `api.ts`.
+- **NÃO CRIE MIGRAÇÕES**: Não crie arquivos SQL em `migration/` sem solicitação explícita.
 
-## 🛠️ Development Conventions
+## 📂 Mapa de Arquivos-Chave
+- `src/services/db.ts`: Lógica do banco local (cliente).
+- `src/services/syncService.ts`: Lógica de sincronização (push/pull).
+- `src/services/api.ts`: Wrapper da API Supabase (usado SOMENTE pelo syncService).
+- `src/services/imageService.ts`: Uploads diretos para o storage.
+- `src/components/SocialReportForm.tsx`: Exemplo de formulário complexo + TipTap.
+- `migration/`: Scripts SQL. Veja `check_*.sql` para validação da estrutura do banco.
 
-### Coding Patterns
-- **Imports**: Use absolute paths: `import { db } from '@/services/db'`.
-- **Validation**: Use `zod` schemas defined *inline* within component/page files.
-- **Dates**: Persist as ISO strings or timestamps. Display using `date-fns` (`pt-BR`).
-- **Lists**: Always iterate with `key={item.local_id}`.
-
-### Critical Workflows
-- **Linting**: Run `npm run lint` (uses Oxlint).
-- **Offline Debugging**: 
-  - To simulate offline: `window.dispatchEvent(new Event('offline'))` in Console.
-  - Inspect Data: `console.table(db.getPendingItems())`.
-
-### Common Pitfalls
-- **Image Uploads**: `imageService.uploadImage` fails if offline. UI must handle potential errors gracefully.
-- **Parent-Child Sync**: When a parent (Lote) is synced and gets a real `id`, children (Surveys) must update their `property_id` reference locally. This is handled in `syncService.ts`.
-
-## 🚀 Commands
-- `npm run dev`: Start dev server (Vite)
-- `npm run build`: Build for production
-- `npm run lint`: fast linting check
-
+## 🐛 Debug & Operações
+- **Simular Offline**: Rode `window.dispatchEvent(new Event('offline'))` no console do navegador.
+- **Inspecionar Estado**: `console.table(db.getPendingItems())`.
+- **Corrigir Lint**: `npm run lint:fix`.
+- **Banco de Dados**: Ao alterar schemas, atualize tanto a `interface` Typescript quanto o schema `zod`.
