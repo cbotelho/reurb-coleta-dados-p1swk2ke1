@@ -3,8 +3,7 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/comp
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { MapPin, Printer, Trash2, Upload, PenLine } from 'lucide-react'
+import { MapPin, Upload, PenLine, Trash2 } from 'lucide-react'
 import { SurveyFormValues, UF_OPTIONS } from './schema'
 import { Lote } from '@/types'
 
@@ -22,36 +21,69 @@ interface SurveyGeneralTabProps {
 }
 
 export function SurveyGeneralTab({
-  form, canEdit, lote, projectName, quadraName,
-  handlePrintLote, handleDeleteLote, getCurrentLocation,
+  form, canEdit, getCurrentLocation,
   handleSignatureFile, onOpenSignatureDialog
 }: SurveyGeneralTabProps) {
   return (
-    <div className="space-y-4">
-      {/* Seção de GPS e Campos Gerais (omitidos aqui por brevidade, mantenha os seus) */}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* ... Seus campos de form_number, survey_date, city e state */}
+    <div className="space-y-6">
+      {/* 1. BLOCO DE LOCALIZAÇÃO GPS */}
+      <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
+        <div className="flex justify-between items-center border-b pb-2">
+          <h3 className="font-semibold text-sm text-slate-700 uppercase tracking-wider text-[10px]">Localização GPS</h3>
+          <Button type="button" variant="outline" size="sm" onClick={getCurrentLocation} disabled={!canEdit}>
+            <MapPin className="w-3 h-3 mr-2 text-blue-600" /> Capturar Coordenadas
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <FormField control={form.control} name="latitude" render={({ field }) => (
+            <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
+          )} />
+          <FormField control={form.control} name="longitude" render={({ field }) => (
+            <FormItem><FormLabel>Longitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
+          )} />
+        </div>
       </div>
 
-      {/* --- ADICIONE ESTE BLOCO AQUI PARA A ASSINATURA --- */}
-      <div className="bg-white p-4 rounded-lg border space-y-3">
-        <h3 className="font-semibold text-sm border-b pb-2 text-slate-700">
-          Assinatura do Vistoriador
+      {/* 2. BLOCO DE DADOS DA VISTORIA */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <FormField control={form.control} name="form_number" render={({ field }) => (
+          <FormItem><FormLabel>Nº Formulário</FormLabel><FormControl><Input {...field} disabled={!canEdit} placeholder="Ex: 001/2024" /></FormControl></FormItem>
+        )} />
+        <FormField control={form.control} name="survey_date" render={({ field }) => (
+          <FormItem><FormLabel>Data da Vistoria *</FormLabel><FormControl><Input type="date" {...field} disabled={!canEdit} /></FormControl><FormMessage /></FormItem>
+        )} />
+        <FormField control={form.control} name="city" render={({ field }) => (
+          <FormItem><FormLabel>Município *</FormLabel><FormControl><Input {...field} disabled={!canEdit} /></FormControl><FormMessage /></FormItem>
+        )} />
+        <FormField control={form.control} name="state" render={({ field }) => (
+          <FormItem>
+            <FormLabel>UF *</FormLabel>
+            <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+              <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+              <SelectContent>{UF_OPTIONS.map(uf => <SelectItem key={uf} value={uf}>{uf}</SelectItem>)}</SelectContent>
+            </Select>
+            <FormMessage />
+          </FormItem>
+        )} />
+      </div>
+
+      {/* 3. BLOCO DE ASSINATURA DO VISTORIADOR */}
+      <div className="bg-white p-4 rounded-lg border-2 border-slate-100 space-y-3">
+        <h3 className="font-semibold text-sm border-b pb-2 text-slate-700 flex items-center gap-2">
+          <PenLine className="w-4 h-4" /> Assinatura do Vistoriador
         </h3>
         
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
             <Button 
               type="button" 
-              variant="outline" 
+              variant="secondary" 
               size="sm" 
               onClick={onOpenSignatureDialog} 
               disabled={!canEdit}
-              className="bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
             >
               <PenLine className="w-4 h-4 mr-2" />
-              Assinar Digitalmente
+              Assinar na Tela
             </Button>
 
             <div className="relative">
@@ -66,16 +98,9 @@ export function SurveyGeneralTab({
                 }}
                 disabled={!canEdit}
               />
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="sm" 
-                asChild
-                disabled={!canEdit}
-              >
+              <Button type="button" variant="outline" size="sm" asChild disabled={!canEdit}>
                 <label htmlFor="signature-upload" className="cursor-pointer">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Submeter Imagem
+                  <Upload className="w-4 h-4 mr-2" /> Carregar Foto
                 </label>
               </Button>
             </div>
@@ -87,29 +112,25 @@ export function SurveyGeneralTab({
             render={({ field }) => (
               <FormItem>
                 <FormControl>
-                  <div className="border-2 border-dashed rounded-md bg-slate-50 overflow-hidden flex items-center justify-center min-h-[120px]">
+                  <div className="border rounded-md bg-slate-50 overflow-hidden flex items-center justify-center min-h-[100px] relative">
                     {field.value ? (
-                      <div className="relative w-full">
-                        <img
-                          src={field.value}
-                          alt="Assinatura"
-                          className="max-h-32 mx-auto object-contain"
-                        />
+                      <>
+                        <img src={field.value} alt="Assinatura" className="h-24 object-contain" />
                         {canEdit && (
                           <Button
                             type="button"
                             variant="destructive"
                             size="icon"
-                            className="absolute top-1 right-1 h-6 w-6"
+                            className="absolute top-1 right-1 h-7 w-7 opacity-70 hover:opacity-100"
                             onClick={() => form.setValue('surveyor_signature', '', { shouldDirty: true })}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
-                      </div>
+                      </>
                     ) : (
-                      <span className="text-muted-foreground text-xs italic">
-                        Nenhuma assinatura registrada
+                      <span className="text-muted-foreground text-[10px] uppercase font-medium italic">
+                        Aguardando assinatura
                       </span>
                     )}
                   </div>
