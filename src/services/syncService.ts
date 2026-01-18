@@ -2,29 +2,19 @@ import { db } from './db'
 import { api } from './api'
 
 export const syncService = {
-  // Sync Projects, Quadras, and Lotes (Base Data)
   async pullBaseData() {
     if (!navigator.onLine) return { projects: 0, quadras: 0, lotes: 0 }
- 
-    let pCount = 0,
-      qCount = 0,
-      lCount = 0
+    let pCount = 0, qCount = 0, lCount = 0
 
     try {
-      // 1. Projects
       const projects = await api.getProjects()
       pCount = projects.length
-
-      // 2. Quadras (for each project)
       for (const p of projects) {
         const quadras = await api.getQuadras(p.local_id)
         qCount += quadras.length
       }
-
-      // 3. Lotes (All)
       const lotes = await api.getAllLotes()
       lCount = lotes.length
-
       return { projects: pCount, quadras: qCount, lotes: lCount }
     } catch (e) {
       console.error('Pull failed', e)
@@ -35,20 +25,19 @@ export const syncService = {
   async pushPendingItems() {
     if (!navigator.onLine) return { successCount: 0, failCount: 0 }
 
+    // Buscamos itens pendentes ou que falharam para tentar novamente
     const pending = db.getPendingItems()
     let successCount = 0
     let failCount = 0
 
-    // 1. Push Lotes First (Parents of surveys) - Update status, location, etc.
+    // 1. Sincronizar Lotes
     for (const lote of pending.lotes) {
       try {
-        const saved = await api.saveLote(lote)
+        const { sync_status, ...lotePayload } = lote as any;
+        const saved = await api.saveLote(lotePayload);
 
         if (lote.local_id !== saved.local_id) {
-          // Update foreign keys in local surveys if ID changed (e.g. temporary ID -> UUID)
-          const childSurveys = db
-            .getSurveys()
-            .filter((s) => s.property_id === lote.local_id)
+          const childSurveys = db.getSurveys().filter((s) => s.property_id === lote.local_id)
           childSurveys.forEach((s) => {
             db.saveSurvey({ ...s, property_id: saved.local_id })
           })
@@ -62,12 +51,19 @@ export const syncService = {
       }
     }
 
-    // 2. Push Surveys
+    // 2. Sincronizar Surveys (Vistorias)
     const currentPendingSurveys = db.getPendingItems().surveys
 
     for (const survey of currentPendingSurveys) {
       try {
-        await api.saveSurvey(survey)
+        // CURA DO ERRO 400: Removemos TUDO que não é coluna do banco
+        // Usamos desestruturação para separar o que o Supabase não conhece
+        const { sync_status, local_id, is_dirty, ...payload } = survey as any;
+
+        // Se o seu api.saveSurvey já usa .upsert() no Supabase, isso resolve o 406
+        await api.saveSurvey(payload);
+        
+        db.updateSurveyStatus(survey.id, 'synchronized');
         successCount++
       } catch (e) {
         console.error('Failed to sync survey', survey.id, e)

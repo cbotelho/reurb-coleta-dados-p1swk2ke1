@@ -1,92 +1,61 @@
 import { z } from 'zod'
 
-export const UF_OPTIONS = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
-  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE',
-  'TO',
-]
+export const UF_OPTIONS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
 
 export const surveySchema = z.object({
-  // Geral
-  form_number: z.string().max(50, 'Máximo 50 caracteres').optional(),
-  survey_date: z.string().min(1, 'Data da vistoria é obrigatória'),
-  city: z.string().min(1, 'Cidade é obrigatória').max(100, 'Máximo 100 caracteres').default('Macapá'),
-  state: z.string().length(2, 'UF deve ter 2 caracteres').default('AP'),
-  surveyor_name: z.string().optional(),
-  surveyor_signature: z.string().optional(),
-  assinatura_requerente: z.string().optional(),
-
-  // Location update fields
-  address: z.string().optional(),
-  latitude: z.string().optional().or(z.null()),
-  longitude: z.string().optional().or(z.null()),
-
-  // Applicant
-  applicant_name: z.string().min(1, 'Nome do requerente é obrigatório').max(255, 'Máximo 255 caracteres'),
-  applicant_cpf: z
-    .string()
-    .min(1, 'CPF é obrigatório')
-    .refine((v) => /^\d{11}$/.test(v.replace(/\D/g, '')), 'CPF inválido'),
-  applicant_rg: z.string().max(20, 'Máximo 20 caracteres').optional(),
-  applicant_civil_status: z.string().optional(),
-  applicant_profession: z.string().max(100, 'Máximo 100 caracteres').optional(),
-  applicant_income: z
-    .string()
-    .optional()
-    .refine((v) => {
-      if (!v) return true
-      const normalized = v.replace(',', '.')
-      const n = Number(normalized)
-      return !Number.isNaN(n) && n >= 0 && n <= 999999.99
-    }, 'Renda inválida'),
-  applicant_nis: z.string().max(11, 'Máximo 11 caracteres').optional(),
-  spouse_name: z.string().max(255, 'Máximo 255 caracteres').optional(),
-  spouse_cpf: z
-    .string()
-    .optional()
-    .refine((v) => {
-      if (!v) return true
-      return /^\d{11}$/.test(v.replace(/\D/g, ''))
-    }, 'CPF inválido'),
+  // Campos de Texto - Sempre garantir string para o HTML Input
+  form_number: z.string().default(''),
+  city: z.string().min(1, 'Município é obrigatório').default('Macapá'),
+  state: z.string().length(2).default('AP'),
+  survey_date: z.string().min(1, 'Data é obrigatória'),
+  surveyor_name: z.string().default(''),
+  surveyor_signature: z.string().default(''),
+  assinatura_requerente: z.string().default(''),
+  address: z.string().default(''),
+  latitude: z.string().default(''),
+  longitude: z.string().default(''),
+  
+  // Requerente
+  applicant_name: z.string().min(1, 'Nome é obrigatório').default(''),
+  applicant_cpf: z.string().min(1, 'CPF é obrigatório').default(''),
+  applicant_rg: z.string().default(''),
+  applicant_civil_status: z.string().default(''),
+  applicant_profession: z.string().default(''),
+  applicant_income: z.string().default(''),
+  applicant_nis: z.string().default(''),
+  spouse_name: z.string().default(''),
+  spouse_cpf: z.string().default(''),
+  
+  // Numéricos - Usamos coerce para transformar string de input em number
+  residents_count: z.coerce.number().min(0).default(0),
+  rooms_count: z.coerce.number().min(0).default(0),
+  
+  // Booleanos
+  has_children: z.boolean().default(false),
   declaracao_requerente: z.boolean().default(false),
-
-  residents_count: z.coerce
-    .number()
-    .int('Informe um número inteiro')
-    .min(0, 'Número de moradores não pode ser negativo')
-    .max(50, 'Máximo 50 moradores'),
-  has_children: z.boolean(),
-
-  // Occupation & Characteristics
-  occupation_time: z.string().optional(),
-  acquisition_mode: z.string().optional(),
-  property_use: z.string().optional(),
-  construction_type: z.string().optional(),
-  roof_type: z.string().optional(),
-  floor_type: z.string().optional(),
-  rooms_count: z.coerce
-    .number()
-    .int('Informe um número inteiro')
-    .min(0, 'Número de cômodos não pode ser negativo')
-    .max(20, 'Máximo 20 cômodos'),
-  conservation_state: z.string().optional(),
-  fencing: z.string().optional(),
-
-  // Infrastructure
-  water_supply: z.string().optional(),
-  energy_supply: z.string().optional(),
-  sanitation: z.string().optional(),
-  street_paving: z.string().optional(),
-
-  observations: z.string().max(2000, 'Máximo 2000 caracteres').optional(),
-  // Documentos: aceitar array generico para evitar bloqueio de validação no PWA
+  
+  // Seleções
+  occupation_time: z.string().default(''),
+  acquisition_mode: z.string().default(''),
+  property_use: z.string().default(''),
+  construction_type: z.string().default(''),
+  roof_type: z.string().default(''),
+  floor_type: z.string().default(''),
+  conservation_state: z.string().default(''),
+  fencing: z.string().default(''),
+  water_supply: z.string().default(''),
+  energy_supply: z.string().default(''),
+  sanitation: z.string().default(''),
+  street_paving: z.string().default(''),
+  
+  observations: z.string().default(''),
   documents: z.array(z.any()).default([]),
   
-  // AI Analysis fields
-  analise_ia_classificacao: z.string().optional(),
-  analise_ia_parecer: z.string().optional(),
-  analise_ia_proximo_passo: z.string().optional(),
-  analise_ia_gerada_em: z.string().optional(),
+  // IA
+  analise_ia_classificacao: z.string().default(''),
+  analise_ia_parecer: z.string().default(''),
+  analise_ia_proximo_passo: z.string().default(''),
+  analise_ia_gerada_em: z.string().default(''),
 })
 
 export type SurveyFormValues = z.infer<typeof surveySchema>
