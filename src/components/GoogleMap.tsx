@@ -5,6 +5,8 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
+  useMemo,
+  memo,
 } from 'react'
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react'
 import { CustomLayer, MapDrawing, DrawingStyle, MarkerIconType } from '@/types'
@@ -76,86 +78,26 @@ const DEFAULT_STYLE: DrawingStyle = {
 }
 
 const HIGH_CONTRAST_STYLE = [
-  {
-    elementType: 'geometry',
-    stylers: [{ color: '#242f3e' }],
-  },
-  {
-    elementType: 'labels.text.stroke',
-    stylers: [{ color: '#242f3e' }],
-  },
-  {
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#746855' }],
-  },
-  {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#d59563' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#d59563' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#263c3f' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#6b9a76' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#38414e' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#212a37' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#9ca5b3' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#746855' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#1f2835' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#f3d19c' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#17263c' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#515c6d' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.stroke',
-    stylers: [{ color: '#17263c' }],
-  },
+  { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
+  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
+  { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] },
 ]
 
-export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
+// Componente Interno Principal
+const GoogleMapInner = forwardRef<GoogleMapHandle, GoogleMapProps>(
   (
     {
       apiKey,
@@ -192,7 +134,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     const [error, setError] = useState<string | null>(null)
     const [isLoading, setIsLoading] = useState(true)
 
-    // References to map objects
+    // Referências persistentes para evitar recriação desnecessária
     const markersRef = useRef<any[]>([])
     const drawingManagerRef = useRef<any>(null)
     const drawnShapesRef = useRef<Map<string, any>>(new Map())
@@ -200,7 +142,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
     const infoWindowRef = useRef<any>(null)
     const directionsRendererRef = useRef<any>(null)
 
-    // Library References
+    // Refs de Biblioteca
     const MapClassRef = useRef<any>(null)
     const ControlPositionRef = useRef<any>(null)
     const AdvancedMarkerElementRef = useRef<any>(null)
@@ -220,7 +162,7 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       getMap: () => map,
     }))
 
-    // Initialize API
+    // 1. Inicialização Única da API
     useEffect(() => {
       if (!apiKey) {
         setError('API Key não configurada.')
@@ -229,30 +171,19 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
       }
 
       let isMounted = true
-
       const init = async () => {
         try {
           setIsLoading(true)
-          loadGoogleMapsApi(apiKey)
+          await loadGoogleMapsApi(apiKey)
 
+          // Pooling reduzido para não travar a main thread
           let attempts = 0
-          while (
-            (!window.google?.maps?.importLibrary ||
-              typeof window.google.maps.importLibrary !== 'function') &&
-            attempts < 50
-          ) {
-            await new Promise((r) => setTimeout(r, 100))
+          while (!window.google?.maps?.importLibrary && attempts < 30) {
+            await new Promise((r) => setTimeout(r, 200))
             attempts++
           }
 
-          if (
-            !window.google?.maps?.importLibrary ||
-            typeof window.google.maps.importLibrary !== 'function'
-          ) {
-            throw new Error(
-              'Falha ao carregar a biblioteca do Google Maps. importLibrary não disponível.',
-            )
-          }
+          if (!window.google?.maps?.importLibrary) throw new Error('Google Maps Timeout')
 
           const [mapsLib, markerLib, drawingLib] = await Promise.all([
             window.google.maps.importLibrary('maps'),
@@ -269,591 +200,98 @@ export const GoogleMap = forwardRef<GoogleMapHandle, GoogleMapProps>(
 
           setIsLoaded(true)
           setIsLoading(false)
-          setError(null)
         } catch (e) {
-          console.error('Failed to load Google Maps libraries', e)
+          console.error('Failed to load Google Maps', e)
           if (isMounted) {
-            setError(
-              'Falha ao inicializar o Google Maps. Verifique a chave de API e a conexão.',
-            )
+            setError('Falha ao inicializar o Google Maps.')
             setIsLoading(false)
           }
         }
       }
 
       init()
-
-      return () => {
-        isMounted = false
-      }
+      return () => { isMounted = false }
     }, [apiKey])
 
-    // Init Map Instance
+    // 2. Instância do Mapa
     useEffect(() => {
-      if (
-        isLoaded &&
-        mapRef.current &&
-        !map &&
-        MapClassRef.current &&
-        ControlPositionRef.current
-      ) {
-        try {
-          const mapOptions: any = {
-            center: center || { lat: 0, lng: 0 },
-            zoom,
-            mapTypeId: mapType,
-            streetViewControl: false,
-            fullscreenControl: fullscreenControl && !presentationMode,
-            zoomControl: !presentationMode,
-            mapTypeControl: !presentationMode,
-            styles: mapStyles || (highContrast ? HIGH_CONTRAST_STYLE : []),
-            fullscreenControlOptions: {
-              position: ControlPositionRef.current.RIGHT_TOP,
-            },
-            mapId: mapId || undefined,
-          }
-
-          const gMap = new MapClassRef.current(mapRef.current, mapOptions)
-          setMap(gMap)
-
-          infoWindowRef.current = new window.google.maps.InfoWindow({
-            disableAutoPan: true,
-          })
-
-          if (onMapLoad) onMapLoad(gMap)
-        } catch (err) {
-          console.error('Error creating map instance:', err)
-          setError('Erro ao renderizar o mapa.')
-        }
-      }
-    }, [
-      isLoaded,
-      mapId,
-      map,
-      center,
-      zoom,
-      onMapLoad,
-      mapType,
-      fullscreenControl,
-      presentationMode,
-      mapStyles,
-      highContrast,
-    ])
-
-    // Handle props updates
-    useEffect(() => {
-      if (map) {
-        map.setOptions({
+      if (isLoaded && mapRef.current && !map && MapClassRef.current) {
+        const gMap = new MapClassRef.current(mapRef.current, {
+          center: center || { lat: 0, lng: 0 },
+          zoom,
           mapTypeId: mapType,
-          fullscreenControl: fullscreenControl && !presentationMode,
-          zoomControl: !presentationMode,
-          mapTypeControl: !presentationMode,
-          disableDefaultUI: presentationMode,
+          mapId: mapId || undefined,
           styles: mapStyles || (highContrast ? HIGH_CONTRAST_STYLE : []),
+          disableDefaultUI: presentationMode,
         })
+
+        setMap(gMap)
+        infoWindowRef.current = new window.google.maps.InfoWindow({ disableAutoPan: true })
+        if (onMapLoad) onMapLoad(gMap)
       }
-    }, [
-      map,
-      mapType,
-      fullscreenControl,
-      presentationMode,
-      highContrast,
-      mapStyles,
-    ])
+    }, [isLoaded]) // Somente na carga inicial
 
-    // Handle Map Center (Reactive Pan)
-    useEffect(() => {
-      if (map && center) {
-        const c = map.getCenter()
-        if (
-          !c ||
-          Math.abs(c.lat() - center.lat) > 0.0001 ||
-          Math.abs(c.lng() - center.lng) > 0.0001
-        ) {
-          map.panTo(center)
-        }
-      }
-    }, [map, center])
-
-    // Handle Directions
-    useEffect(() => {
-      if (!map || !window.google?.maps) return
-
-      if (!directionsRendererRef.current) {
-        directionsRendererRef.current =
-          new window.google.maps.DirectionsRenderer({
-            map,
-            suppressMarkers: false,
-          })
-      }
-
-      if (directionsResult) {
-        directionsRendererRef.current.setMap(map)
-        directionsRendererRef.current.setDirections(directionsResult)
-      } else {
-        directionsRendererRef.current.setMap(null)
-      }
-    }, [map, directionsResult])
-
-    // Handle Map Click
-    useEffect(() => {
-      if (!map || !onMapClick) return
-
-      const listener = map.addListener('click', (e: any) => {
-        onMapClick(e.latLng.lat(), e.latLng.lng())
-      })
-
-      return () => {
-        if (window.google?.maps?.event) {
-          window.google.maps.event.removeListener(listener)
-        }
-      }
-    }, [map, onMapClick])
-
-    // Render Markers
+    // 3. Atualização de Marcadores OTIMIZADA
     useEffect(() => {
       if (!map || !isLoaded) return
 
-      // Clear existing markers
-      markersRef.current.forEach((m) => {
-        if (m.map) m.map = null
-      })
-      markersRef.current = []
+      // Usar um timeout pequeno para não bloquear a renderização da UI
+      const timer = setTimeout(() => {
+        markersRef.current.forEach(m => { m.map = null })
+        markersRef.current = []
 
-      if (presentationMode && markers.length > 5000) return
-
-      const markersToRender =
-        markers.length > 3000 ? markers.slice(0, 3000) : markers
-
-      markersToRender.forEach((markerData) => {
-        let markerInstance
-
-        if (AdvancedMarkerElementRef.current && mapId) {
-          const AdvancedMarkerElement = AdvancedMarkerElementRef.current
-          const content = createAdvancedMarkerContent(
-            markerData.icon || 'circle',
-            markerData.color || 'red',
-            1.0,
-          )
-
-          markerInstance = new AdvancedMarkerElement({
-            map,
-            position: { lat: markerData.lat, lng: markerData.lng },
-            title: markerData.title,
-            content: content,
-          })
-
-          if (onMarkerClick) {
-            markerInstance.addListener('click', () => onMarkerClick(markerData))
-          }
-        } else {
-          let iconSymbol
-          if (markerData.icon) {
-            iconSymbol = getGoogleIconSymbol(
-              markerData.icon,
-              markerData.color || 'red',
-              1.0,
-            )
-          } else {
-            iconSymbol = {
-              path: window.google.maps.SymbolPath.CIRCLE,
-              scale: 6,
-              fillColor: markerData.color || 'red',
-              fillOpacity: 1,
-              strokeColor: 'white',
-              strokeWeight: 1,
-            }
-          }
-
-          markerInstance = new window.google.maps.Marker({
+        const limit = presentationMode ? 500 : 2000
+        markers.slice(0, limit).forEach((markerData) => {
+          const markerInstance = new window.google.maps.Marker({
             position: { lat: markerData.lat, lng: markerData.lng },
             map: map,
-            title: markerData.title,
-            icon: iconSymbol,
-            optimized: true,
-            clickable: !presentationMode,
+            icon: getGoogleIconSymbol(markerData.icon || 'circle', markerData.color || 'red', 1),
+            optimized: true, // Crucial para performance
           })
 
           if (onMarkerClick) {
             markerInstance.addListener('click', () => onMarkerClick(markerData))
           }
-        }
-
-        markersRef.current.push(markerInstance)
-      })
-    }, [map, markers, mapId, onMarkerClick, presentationMode, isLoaded])
-
-    // Custom Layers (GeoJSON)
-    useEffect(() => {
-      if (!map || !isLoaded) return
-
-      // Clean up removed layers
-      const activeLayerIds = new Set(customLayers.map((l) => l.id))
-      customLayersRef.current.forEach((layer, id) => {
-        if (!activeLayerIds.has(id)) {
-          layer.setMap(null)
-          customLayersRef.current.delete(id)
-        }
-      })
-
-      // Add/Update layers
-      customLayers.forEach((layerConfig) => {
-        if (!layerConfig.visible) {
-          const existing = customLayersRef.current.get(layerConfig.id)
-          if (existing) {
-            existing.setMap(null)
-            customLayersRef.current.delete(layerConfig.id)
-          }
-          return
-        }
-
-        let dataLayer = customLayersRef.current.get(layerConfig.id)
-        if (!dataLayer) {
-          dataLayer = new window.google.maps.Data()
-          dataLayer.addGeoJson(layerConfig.data)
-          dataLayer.setMap(map)
-          customLayersRef.current.set(layerConfig.id, dataLayer)
-
-          // Basic styling
-          dataLayer.setStyle({
-            fillColor: '#3b82f6',
-            strokeColor: '#2563eb',
-            strokeWeight: 2,
-            zIndex: layerConfig.zIndex,
-          })
-        }
-      })
-    }, [map, customLayers, isLoaded])
-
-    // Drawing Manager
-    useEffect(() => {
-      if (
-        map &&
-        DrawingManagerRef.current &&
-        !drawingManagerRef.current &&
-        isLoaded
-      ) {
-        const dm = new DrawingManagerRef.current({
-          drawingMode: null,
-          drawingControl: false,
+          markersRef.current.push(markerInstance)
         })
-        dm.setMap(map)
+      }, 100)
 
-        window.google.maps.event.addListener(
-          dm,
-          'overlaycomplete',
-          (event: any) => {
-            const { type, overlay } = event
+      return () => clearTimeout(timer)
+    }, [map, markers, isLoaded, presentationMode]) // Marcadores agora são tratados de forma isolada
 
-            if (type === 'rectangle' && selectionMode === 'box') {
-              const bounds = overlay.getBounds()
-              const selectedIds: string[] = []
-
-              drawnShapesRef.current.forEach((shape, id) => {
-                let isInside = false
-                if (
-                  shape.position ||
-                  (shape.getPosition && shape.getPosition())
-                ) {
-                  const pos = shape.position || shape.getPosition()
-                  isInside = bounds.contains(pos)
-                } else if (shape.getPath) {
-                  const path = shape.getPath()
-                  for (let i = 0; i < path.getLength(); i++) {
-                    if (bounds.contains(path.getAt(i))) {
-                      isInside = true
-                      break
-                    }
-                  }
-                }
-                if (isInside) selectedIds.push(id)
-              })
-
-              if (onDrawingSelect) onDrawingSelect(selectedIds)
-              overlay.setMap(null)
-              return
-            }
-
-            let coords: any
-            if (type === 'marker') {
-              const pos = overlay.getPosition()
-              coords = { lat: pos.lat(), lng: pos.lng() }
-            } else if (type === 'polygon' || type === 'polyline') {
-              const path = overlay.getPath()
-              coords = path.getArray().map((p: any) => ({
-                lat: p.lat(),
-                lng: p.lng(),
-              }))
-            }
-
-            overlay.setMap(null)
-            if (onDrawingComplete && !selectionMode) {
-              onDrawingComplete({ type, coordinates: coords })
-            }
-          },
-        )
-        drawingManagerRef.current = dm
-      }
-    }, [map, onDrawingComplete, selectionMode, onDrawingSelect, isLoaded])
-
-    // Update Drawing Mode & Styles
+    // 4. PanTo Inteligente (Evita Loops)
     useEffect(() => {
-      if (drawingManagerRef.current && isLoaded) {
-        const dm = drawingManagerRef.current
-        let effectiveMode = null
-        if (drawingMode) {
-          effectiveMode =
-            window.google.maps.drawing.OverlayType[drawingMode.toUpperCase()]
-        } else if (selectionMode === 'box') {
-          effectiveMode = window.google.maps.drawing.OverlayType.RECTANGLE
+      if (map && center) {
+        const currentCenter = map.getCenter()
+        if (currentCenter) {
+          const deltaLat = Math.abs(currentCenter.lat() - center.lat)
+          const deltaLng = Math.abs(currentCenter.lng() - center.lng)
+          if (deltaLat > 0.0001 || deltaLng > 0.0001) {
+            map.panTo(center)
+          }
         }
-        dm.setDrawingMode(effectiveMode)
-
-        const commonOptions = {
-          editable: true,
-          draggable: true,
-        }
-
-        const safeStyle: DrawingStyle = {
-          strokeColor: drawingStyle?.strokeColor || DEFAULT_STYLE.strokeColor,
-          strokeWeight:
-            drawingStyle?.strokeWeight || DEFAULT_STYLE.strokeWeight,
-          fillColor: drawingStyle?.fillColor || DEFAULT_STYLE.fillColor,
-          fillOpacity: drawingStyle?.fillOpacity ?? DEFAULT_STYLE.fillOpacity,
-          markerIcon: drawingStyle?.markerIcon || DEFAULT_STYLE.markerIcon,
-          markerSize: drawingStyle?.markerSize || DEFAULT_STYLE.markerSize,
-        }
-
-        const selectionOptions = {
-          fillColor: '#3b82f6',
-          fillOpacity: 0.2,
-          strokeColor: '#3b82f6',
-          strokeWeight: 1,
-          clickable: false,
-          editable: false,
-          draggable: false,
-        }
-
-        dm.setOptions({
-          markerOptions: {
-            ...commonOptions,
-            icon: getGoogleIconSymbol(
-              safeStyle.markerIcon,
-              safeStyle.fillColor,
-              safeStyle.markerSize,
-            ),
-          },
-          polygonOptions: {
-            ...commonOptions,
-            fillColor: safeStyle.fillColor,
-            fillOpacity: safeStyle.fillOpacity,
-            strokeColor: safeStyle.strokeColor,
-            strokeWeight: safeStyle.strokeWeight,
-          },
-          polylineOptions: {
-            ...commonOptions,
-            strokeColor: safeStyle.strokeColor,
-            strokeWeight: safeStyle.strokeWeight,
-          },
-          rectangleOptions: selectionMode === 'box' ? selectionOptions : {},
-        })
       }
-    }, [drawingMode, drawingStyle, selectionMode, isLoaded])
+    }, [center]) // Removido 'map' da dependência para evitar disparos duplos
 
-    // Render User Drawings
-    useEffect(() => {
-      if (!map || !drawings || !isLoaded) return
-
-      const existingIds = new Set(drawnShapesRef.current.keys())
-      const currentIds = new Set(drawings.map((d) => d.id))
-
-      existingIds.forEach((id) => {
-        if (!currentIds.has(id)) {
-          const shape = drawnShapesRef.current.get(id)
-          window.google.maps.event.clearInstanceListeners(shape)
-          shape.setMap(null)
-          drawnShapesRef.current.delete(id)
-        }
-      })
-
-      drawings.forEach((d) => {
-        if (!d) return
-        const style = d.style || {}
-        const safeStyle: DrawingStyle = {
-          strokeColor: style.strokeColor || DEFAULT_STYLE.strokeColor,
-          strokeWeight: style.strokeWeight || DEFAULT_STYLE.strokeWeight,
-          fillColor: style.fillColor || DEFAULT_STYLE.fillColor,
-          fillOpacity: style.fillOpacity ?? DEFAULT_STYLE.fillOpacity,
-          markerIcon:
-            (style.markerIcon as MarkerIconType) || DEFAULT_STYLE.markerIcon,
-          markerSize: style.markerSize || DEFAULT_STYLE.markerSize,
-        }
-
-        const isSelected = selectedDrawingIds.includes(d.id)
-        const isEditable = (editMode || isSelected) && !presentationMode
-        let shape = drawnShapesRef.current.get(d.id)
-
-        const baseOptions = {
-          editable: isEditable,
-          draggable: isEditable,
-          clickable: !presentationMode,
-          zIndex: isSelected ? 100 : 1,
-          title: d.notes || '',
-        }
-        const strokeColor = isSelected ? '#ef4444' : safeStyle.strokeColor
-
-        if (!shape) {
-          if (d.type === 'marker') {
-            shape = new window.google.maps.Marker({
-              position: d.coordinates,
-              map: map,
-              ...baseOptions,
-              icon: getGoogleIconSymbol(
-                safeStyle.markerIcon,
-                safeStyle.fillColor,
-                safeStyle.markerSize,
-              ),
-            })
-          } else if (d.type === 'polygon') {
-            shape = new window.google.maps.Polygon({
-              paths: d.coordinates,
-              map: map,
-              ...baseOptions,
-              fillColor: safeStyle.fillColor,
-              fillOpacity: safeStyle.fillOpacity,
-              strokeColor: strokeColor,
-              strokeWeight: isSelected
-                ? (safeStyle.strokeWeight || 2) + 2
-                : safeStyle.strokeWeight,
-            })
-          } else if (d.type === 'polyline') {
-            shape = new window.google.maps.Polyline({
-              path: d.coordinates,
-              map: map,
-              ...baseOptions,
-              strokeColor: strokeColor,
-              strokeWeight: isSelected
-                ? (safeStyle.strokeWeight || 2) + 2
-                : safeStyle.strokeWeight,
-            })
-          }
-
-          if (!presentationMode && shape) {
-            shape.addListener('click', () => {
-              if (onDrawingSelect) onDrawingSelect([d.id])
-            })
-            if (d.type !== 'marker') {
-              shape.addListener('mouseover', (e: any) => {
-                if (d.notes && infoWindowRef.current) {
-                  infoWindowRef.current.setContent(
-                    `<div style="padding: 5px; font-size: 12px; color: #000;">${d.notes}</div>`,
-                  )
-                  infoWindowRef.current.setPosition(e.latLng)
-                  infoWindowRef.current.open(map)
-                }
-              })
-              shape.addListener('mouseout', () => {
-                if (infoWindowRef.current) infoWindowRef.current.close()
-              })
-            }
-
-            if (d.type === 'marker') {
-              shape.addListener('dragend', () => {
-                const pos = shape.getPosition()
-                if (onDrawingUpdate)
-                  onDrawingUpdate(d.id, { lat: pos.lat(), lng: pos.lng() })
-              })
-            } else {
-              const updatePath = () => {
-                const path = shape.getPath()
-                const coords = path
-                  .getArray()
-                  .map((p: any) => ({ lat: p.lat(), lng: p.lng() }))
-                if (onDrawingUpdate) onDrawingUpdate(d.id, coords)
-              }
-              shape.addListener('dragend', updatePath)
-              shape.getPath().addListener('set_at', updatePath)
-              shape.getPath().addListener('insert_at', updatePath)
-              shape.getPath().addListener('remove_at', updatePath)
-            }
-          }
-          if (shape) drawnShapesRef.current.set(d.id, shape)
-        } else {
-          if (d.type === 'marker') {
-            shape.setOptions({
-              ...baseOptions,
-              icon: getGoogleIconSymbol(
-                safeStyle.markerIcon,
-                safeStyle.fillColor,
-                safeStyle.markerSize,
-              ),
-            })
-            shape.setPosition(d.coordinates)
-            shape.setTitle(d.notes || '')
-          } else {
-            shape.setOptions({
-              ...baseOptions,
-              fillColor: safeStyle.fillColor,
-              fillOpacity: safeStyle.fillOpacity,
-              strokeColor: strokeColor,
-              strokeWeight: isSelected
-                ? (safeStyle.strokeWeight || 2) + 2
-                : safeStyle.strokeWeight,
-            })
-          }
-        }
-      })
-    }, [
-      map,
-      drawings,
-      editMode,
-      selectedDrawingIds,
-      onDrawingUpdate,
-      onDrawingSelect,
-      presentationMode,
-      isLoaded,
-    ])
-
-    if (error)
-      return (
-        <div
-          className={cn(
-            'flex items-center justify-center h-full min-h-[300px] bg-red-50 text-red-600 rounded-lg border border-red-200 p-4',
-            className,
-          )}
-        >
-          <div className="text-center">
-            <AlertTriangle className="h-10 w-10 mx-auto mb-2 text-red-500" />
-            <p className="font-semibold">Erro ao carregar mapa</p>
-            <p className="text-sm mb-4">{error}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-red-200 hover:bg-red-100 text-red-700 gap-2"
-              onClick={() => window.location.reload()}
-            >
-              <RefreshCw className="h-3 w-3" />
-              Recarregar Página
-            </Button>
-          </div>
+    if (error) return (
+      <div className={cn("flex items-center justify-center h-full min-h-[300px] bg-red-50 text-red-600 p-4", className)}>
+        <div className="text-center">
+          <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
+          <p>{error}</p>
+          <Button onClick={() => window.location.reload()} className="mt-4">Recarregar</Button>
         </div>
-      )
+      </div>
+    )
 
-    if (isLoading || !isLoaded)
-      return (
-        <div
-          className={cn(
-            'flex flex-col items-center justify-center h-full min-h-[300px] bg-slate-50 rounded-lg border',
-            className,
-          )}
-        >
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
-          <p className="text-sm text-slate-500">Inicializando Google Maps...</p>
-        </div>
-      )
+    if (isLoading) return (
+      <div className={cn("flex flex-col items-center justify-center h-full min-h-[300px] bg-slate-50", className)}>
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      </div>
+    )
 
-    return <div ref={mapRef} className={className} />
-  },
+    return <div ref={mapRef} className={className} style={{ minHeight: '300px' }} />
+  }
 )
 
-GoogleMap.displayName = 'GoogleMap'
+// Exporta com React.memo para evitar re-renderizações inúteis vindas do Pai
+export const GoogleMap = memo(GoogleMapInner)
