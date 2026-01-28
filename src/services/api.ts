@@ -1330,8 +1330,9 @@ async deleteQuadra(id: string): Promise<void> {
 
   // Groups
   async getGroups(): Promise<UserGroup[]> {
+    // Força buscar SEMPRE do Supabase, nunca do storage local
+    // Se der erro, retorna array vazio (não mostra grupos mockados)
     try {
-      // Sempre buscar da tabela reurb_user_groups
       const { data, error } = await supabase
         .from('reurb_user_groups')
         .select('*')
@@ -1347,8 +1348,7 @@ async deleteQuadra(id: string): Promise<void> {
       }))
     } catch (e) {
       console.error(e)
-      // Offline: buscar do storage local, que deve refletir a tabela reurb_user_groups
-      return db.getGroups()
+      return []
     }
   },
 
