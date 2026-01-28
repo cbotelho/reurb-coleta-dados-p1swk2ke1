@@ -1,8 +1,8 @@
-  /**
-   * Diagnóstico: lista todos os lotes e quadras do storage local
-   * Exibe no console: local_id, name, parent_item_id (lotes) e quadraId
-   */
-  debugListLotesAndQuadras() {
+/**
+ * Diagnóstico: lista todos os lotes e quadras do storage local
+ * Exibe no console: local_id, name, parent_item_id (lotes) e quadraId
+ */
+debugListLotesAndQuadras() {
     const lotes = this.getAllLotes()
     const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
     console.group('Diagnóstico de Lotes e Quadras (LocalStorage)')
