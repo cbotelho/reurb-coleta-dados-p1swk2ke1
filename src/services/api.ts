@@ -78,7 +78,7 @@ const mapLote = (row: any): Lote => ({
   images: row.images || [],
   latitude: row.latitude?.toString(),
   longitude: row.longitude?.toString(),
-  parent_item_id: row.quadra_id,
+  parent_item_id: row.quadra_id || row.parent_item_id, // Garante consistência para busca local
   status: row.status || 'not_surveyed',
 })
 
