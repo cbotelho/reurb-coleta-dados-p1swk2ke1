@@ -52,7 +52,7 @@ const formSchema = z.object({
   email: z.string().email('Email inválido'),
   username: z.string().min(1, 'Nome de usuário é obrigatório'),
   photoUrl: z.string().optional(),
-  status: z.enum(['active', 'inactive', 'suspended']).default('active'),
+  status: z.enum(['active', 'inactive', 'suspended']),
   groups: z.array(z.string()).min(1, 'Selecione pelo menos um grupo'),
   password: z.string().optional(),
 })
@@ -70,18 +70,20 @@ export default function Users() {
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
 
+  const defaultValues: FormValues = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    username: '',
+    photoUrl: '',
+    status: 'active',
+    groups: [],
+    password: '',
+  }
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      firstName: '',
-      lastName: '',
-      email: '',
-      username: '',
-      photoUrl: '',
-      status: 'active',
-      groups: [],
-      password: '',
-    },
+    defaultValues,
   })
 
   useEffect(() => {
@@ -192,16 +194,7 @@ export default function Users() {
 
   const openNew = () => {
     setEditingUser(null)
-    form.reset({
-      firstName: '',
-      lastName: '',
-      email: '',
-      username: '',
-      photoUrl: '',
-      status: 'active',
-      groups: [],
-      password: '',
-    })
+    form.reset(defaultValues)
     setIsDialogOpen(true)
   }
 
@@ -213,7 +206,7 @@ export default function Users() {
       email: u.email || '',
       username: u.username,
       photoUrl: u.photoUrl || '',
-      status: (u.status as any) || 'active',
+      status: (u.status as 'active' | 'inactive' | 'suspended') || 'active',
       groups: u.groupIds || [],
       password: '',
     })

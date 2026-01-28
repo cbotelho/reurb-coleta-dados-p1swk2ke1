@@ -1330,30 +1330,24 @@ async deleteQuadra(id: string): Promise<void> {
 
   // Groups
   async getGroups(): Promise<UserGroup[]> {
-    if (!isOnline()) return db.getGroups()
     try {
-      // Get unique groups from reurb_user_profiles
-      // CORREÇÃO: Buscar grupo_acesso em vez de role
+      // Sempre buscar da tabela reurb_user_groups
       const { data, error } = await supabase
-        .from('reurb_user_profiles')
-        .select('grupo_acesso')
-        .not('grupo_acesso', 'is', null)
-      
+        .from('reurb_user_groups')
+        .select('*')
       if (error) throw error
-      
-      // Get unique groups and map to UserGroup format
-      const uniqueGroups = [...new Set((data || []).map((row: any) => row.grupo_acesso))]
-      
-      return uniqueGroups.map((group: string) => ({
-        id: group,
-        name: group,
-        description: `Grupo: ${group}`,
-        permissions: getPermissionsForGroup(group),
-        created_at: new Date().toISOString(),
-        role: group as any, // CORREÇÃO: Forçar o tipo apropriado
+      return (data || []).map((group: any) => ({
+        id: group.id,
+        name: group.name,
+        description: group.description,
+        permissions: group.permissions || [],
+        created_at: group.created_at,
+        updated_at: group.updated_at,
+        role: group.name as any,
       }))
     } catch (e) {
       console.error(e)
+      // Offline: buscar do storage local, que deve refletir a tabela reurb_user_groups
       return db.getGroups()
     }
   },
