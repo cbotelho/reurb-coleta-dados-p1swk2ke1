@@ -111,8 +111,10 @@ export default function LoteForm() {
   const canEdit = hasPermission('all') || hasPermission('edit_projects')
   const isAdminOrAssistant = user?.grupo_acesso === 'Administrador' || user?.grupo_acesso === 'Administradores' || user?.grupo_acesso === 'Assistente Social'
   
-  // Se tem análise IA e usuário não é admin/assistente social, desabilita edição
-  const canEditSurvey = canEdit && (isAdminOrAssistant || !surveyData?.analise_ia_classificacao)
+  // Só bloquear edição se houver parecer conclusivo do assistente social
+  const hasConclusiveSocialReport = !!(socialReport && (socialReport.status === 'finalizado' || socialReport.status === 'aprovado' || socialReport.status === 'conclusivo'))
+  // Permite edição se: admin/assistente social OU NÃO existe parecer conclusivo
+  const canEditSurvey = canEdit && (isAdminOrAssistant || !hasConclusiveSocialReport)
 
   const form = useForm<LoteFormValues>({
     resolver: zodResolver(loteFormSchema),
@@ -690,13 +692,13 @@ export default function LoteForm() {
         <TabsContent value="vistoria">
           {currentLote && (
             <>
-              {surveyData?.analise_ia_classificacao && !isAdminOrAssistant && (
+              {hasConclusiveSocialReport && !isAdminOrAssistant && (
                 <div className="mb-6 p-4 bg-orange-50 border border-orange-300 rounded-lg">
                   <p className="text-orange-800 font-semibold">
-                    ⚠️ Vistoria Bloqueada para Edição
+                    ⚠️ Edição Bloqueada
                   </p>
                   <p className="text-orange-700 text-sm mt-2">
-                    Esta vistoria já foi analisada pelo sistema de IA. Apenas usuários do grupo "Administrador" ou "Assistente Social" podem realizar edições.
+                    Este lote já possui parecer conclusivo do assistente social. Apenas usuários do grupo "Administrador" ou "Assistente Social" podem realizar edições.
                   </p>
                 </div>
               )}

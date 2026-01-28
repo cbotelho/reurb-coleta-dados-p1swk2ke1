@@ -1,52 +1,47 @@
-# Instruções GitHub Copilot - REURB Coleta
 
-## 🧠 Contexto do Projeto
-Você está trabalhando no **REURB Coleta**, um PWA de coleta de dados para regularização fundiária.
-- **Stack**: React 19, Vite, TypeScript, Shadcn UI, Tailwind CSS, Supabase.
-- **Natureza**: **PWA Offline-First**. Usuários trabalham offline em áreas remotas; dados sincronizam quando online.
+# Instruções para Agentes de IA — REURB Coleta
 
-## 🏗️ Arquitetura & Regras de Ouro
+## Visão Geral
+**REURB Coleta** é um PWA offline-first para coleta de dados de regularização fundiária. Usuários trabalham offline; a sincronização ocorre quando online. O projeto utiliza React 19, Vite, TypeScript, Shadcn UI, Tailwind CSS e Supabase.
 
-### 1. Fluxo de Dados Offline-First (ESTRITO)
-- **Fonte de Verdade**: O `db.ts` (LocalStorage) no cliente é a FONTE PRINCIPAL para a UI.
-- **Leitura**: Componentes `useQuery` / `useEffect` -> `db.getItems()`. NUNCA chame `api.ts` diretamente de componentes UI.
-- **Escrita**: Componentes -> `db.saveItem()` -> (Sync em background) -> `api.ts` -> Supabase.
-- **Exceção**: `imageService.ts` faz upload de blobs direto para o Storage do Supabase (exige conexão), salvando apenas a URL no banco local.
+## Arquitetura e Fluxos Essenciais
+- **Offline-First:** O arquivo `src/services/db.ts` (LocalStorage) é a fonte de verdade para a UI. Nunca acesse `api.ts` diretamente em componentes — use sempre o serviço local.
+- **Sincronização:** O `src/services/syncService.ts` gerencia o push/pull de dados com Supabase. Mudanças locais são marcadas com `sync_status: 'pending'` e sincronizadas em background.
+- **IDs Duplos:** Entidades usam `local_id` (UUID gerado no cliente, sempre preferido para chaves e relacionamentos) e `id` (do backend, só para debug/SQL).
+- **Uploads de Imagem:** `src/services/imageService.ts` faz upload direto para o storage do Supabase (salva apenas a URL localmente).
 
-### 2. Sistema Duplo de IDs
-Entidades (Projetos, Lotes, Vistorias) usam dois identificadores:
-- **`local_id`** (UUID String): Gerado no cliente, persistente, usado como `key` no React e para buscas/relacionamentos locais. **Sempre prefira este.**
-- **`id`** (Integer/String): ID gerado no Postgres. Fica `0` ou `null` até sincronizar. Usado só para debug/SQL backend.
+## Convenções e Padrões do Projeto
+- **Componentes:** Sempre funcionais, validando formulários com schemas `zod` inline.
+- **Estilo:** Tailwind CSS + Shadcn UI (`@/components/ui`). Ícones via `lucide-react`.
+- **Datas:** Sempre ISO string no storage; exibição com `date-fns` e locale `pt-BR`.
+- **Listas:** Sempre use `key={item.local_id}`.
+- **Lint:** Use `oxlint` (`npm run lint` ou `npm run lint:fix`).
+- **Não crie testes** (`*.test.ts`, `*.spec.ts`) — não há test runner.
+- **Não crie migrações** sem solicitação explícita.
+- **Nunca chame API direto em UI** — use apenas via serviços locais.
 
-### 3. Mecanismo de Sincronização
-- Controlado por `src/services/syncService.ts`.
-- Mudanças são marcadas com `sync_status: 'pending'` em `db.ts`.
-- O sync envia pendências ao Supabase e atualiza o registro local com a confirmação do servidor.
+## Workflows de Desenvolvimento
+- **Instalação:** `npm install`
+- **Desenvolvimento:** `npm start` ou `npm run dev`
+- **Build:** `npm run build` (produção) ou `npm run build:dev`
+- **Preview:** `npm run preview`
+- **Lint/Format:** `npm run lint`, `npm run lint:fix`, `npm run format`
 
-## 🛠️ Convenções de Desenvolvimento
+## Exemplos de Fluxos e Arquivos-Chave
+- **Formulários complexos:** Veja `src/components/SocialReportForm.tsx`.
+- **Scripts SQL:** Use `migration/check_*.sql` para validação e diagnóstico.
+- **Mapeamento de campos:** Sempre alinhe alterações de schema entre TypeScript (`src/types/`) e SQL/zod.
 
-### Padrões de Código
-- **Linter**: Use `oxlint`. Rode `npm run lint` ou `npm run lint:fix` com frequência.
-- **Componentes**: Sempre funcionais, com schemas `zod` definidos *inline* para validação de formulários.
-- **Estilo**: Tailwind CSS + Shadcn UI (`@/components/ui`). Use `lucide-react` para ícones.
-- **Datas**: Salve como string ISO. Exiba usando `date-fns` com locale `pt-BR`.
-- **Listas**: Sempre itere usando `key={item.local_id}`.
+## Dicas de Debug e Operação
+- **Simular offline:** `window.dispatchEvent(new Event('offline'))` no console.
+- **Ver pendências:** `console.table(db.getPendingItems())`.
+- **Corrigir lint:** `npm run lint:fix`
+- **Deploy:** Commit/push no GitHub; deploy AWS é automático.
 
-### "Não Faça"
-- **NÃO CRIE TESTES**: Não crie arquivos `*.test.ts` ou `*.spec.ts`. Não há test runner.
-- **NÃO CHAME API DIRETO**: Componentes UI não devem importar de `api.ts`.
-- **NÃO CRIE MIGRAÇÕES**: Não crie arquivos SQL em `migration/` sem solicitação explícita.
+## Documentação Complementar
+- [README.md](../README.md) — stack, scripts, estrutura
+- [FORMULARIOS-MAPEAMENTO-COMPLETO.md](../../FORMULARIOS-MAPEAMENTO-COMPLETO.md) — mapeamento campos UI ↔ BD
+- [CSV-IMPORT-README.md](../../CSV-IMPORT-README.md) — importação CSV
 
-## 📂 Mapa de Arquivos-Chave
-- `src/services/db.ts`: Lógica do banco local (cliente).
-- `src/services/syncService.ts`: Lógica de sincronização (push/pull).
-- `src/services/api.ts`: Wrapper da API Supabase (usado SOMENTE pelo syncService).
-- `src/services/imageService.ts`: Uploads diretos para o storage.
-- `src/components/SocialReportForm.tsx`: Exemplo de formulário complexo + TipTap.
-- `migration/`: Scripts SQL. Veja `check_*.sql` para validação da estrutura do banco.
-
-## 🐛 Debug & Operações
-- **Simular Offline**: Rode `window.dispatchEvent(new Event('offline'))` no console do navegador.
-- **Inspecionar Estado**: `console.table(db.getPendingItems())`.
-- **Corrigir Lint**: `npm run lint:fix`.
-- **Banco de Dados**: Ao alterar schemas, atualize tanto a `interface` Typescript quanto o schema `zod`.
+---
+**Versão:** 1.4.6+ | **Status:** Produção | **Atualizado:** 28/01/2026
