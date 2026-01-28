@@ -240,7 +240,10 @@ export const api = {
         .select('*')
         .order('updated_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const projects = (data || []).map(mapProject)
       
       // Wipe & Map Strategy: Limpar seeds antes de atualizar com dados reais
@@ -264,7 +267,10 @@ export const api = {
         .eq('id', id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const project = mapProject(data)
       db.updateProject(project)
       return project
@@ -431,7 +437,10 @@ export const api = {
         .eq('project_id', projectId)
         .order('name', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const quadras = (data || []).map(mapQuadra)
       quadras.forEach((q) => db.saveQuadra(q))
       return quadras
@@ -450,7 +459,10 @@ export const api = {
         .eq('id', id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const q = mapQuadra(data)
       db.saveQuadra(q)
       return q
@@ -667,7 +679,10 @@ export const api = {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const saved = mapQuadra(data)
       db.saveQuadra(saved)
       return saved
@@ -702,7 +717,10 @@ export const api = {
         .eq('quadra_id', quadraId)
         .order('name', { ascending: true })
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const lotes = (data || []).map(mapLote)
       lotes.forEach((l) => db.saveLote(l, quadraId))
       return lotes
@@ -720,7 +738,10 @@ export const api = {
         .select('*')
         .limit(2000)
 
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const lotes = (data || []).map(mapLote)
       lotes.forEach((l) => l.parent_item_id && db.saveLote(l, l.parent_item_id))
       return lotes
@@ -864,7 +885,10 @@ export const api = {
       }
 
       const { data, error } = await query
-      if (error) throw error
+      if (error) {
+        console.error('PostgREST', error.code, error.details, error.hint, error.message)
+        throw error
+      }
       const saved = mapLote(data)
       db.saveLote(
         { ...saved, sync_status: 'synchronized' },
@@ -1348,8 +1372,8 @@ export const api = {
         // Contar surveys com análise IA
         const { count: totalAnalyzedByAI } = await supabase
           .from('reurb_surveys')
-          .select('*', { count: 'exact', head: true })
-          .not('analise_ia_classificacao', 'is', null)
+          .select('*', { count: 'exact', head: false }) // Usa GET, não HEAD
+          .filter('analise_ia_classificacao', 'is.not.null')
       
         // Contar lotes com processo (contratos)
         const { data: contractsData } = await supabase
@@ -1361,14 +1385,14 @@ export const api = {
         // Contar surveys REURB-S (via IA)
         const { count: countReurbS } = await supabase
           .from('reurb_surveys')
-          .select('*', { count: 'exact', head: true })
-          .ilike('analise_ia_classificacao', '%REURB-S%')
+          .select('*', { count: 'exact', head: false })
+          .ilike('analise_ia_classificacao', '%25REURB-S%25') // encode %
 
         // Contar surveys REURB-E (via IA)
         const { count: countReurbE } = await supabase
           .from('reurb_surveys')
-          .select('*', { count: 'exact', head: true })
-          .ilike('analise_ia_classificacao', '%REURB-E%')
+          .select('*', { count: 'exact', head: false })
+          .ilike('analise_ia_classificacao', '%25REURB-E%25')
       
         const localStats = db.getDashboardStats()
 
