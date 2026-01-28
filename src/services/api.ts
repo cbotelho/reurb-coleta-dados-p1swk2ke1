@@ -215,12 +215,12 @@ export const api = {
     try {
       const { count: quadras } = await supabase
         .from('reurb_quadras')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
         .eq('project_id', projectId)
 
       const { count: lotes } = await supabase
         .from('reurb_properties')
-        .select('*, reurb_quadras!inner(project_id)', { count: 'exact', head: true })
+        .select('*, reurb_quadras!inner(project_id)')
         .eq('reurb_quadras.project_id', projectId)
 
       return {
@@ -1149,65 +1149,65 @@ async deleteQuadra(id: string): Promise<void> {
     try {
       const { count: totalProjects } = await supabase
         .from('reurb_projects')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
 
       const { count: totalLotes } = await supabase
         .from('reurb_properties')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
 
       const { count: totalSurveyed } = await supabase
         .from('reurb_properties')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
         .eq('status', 'surveyed')
 
       const { count: totalFamilies } = await supabase
         .from('reurb_surveys')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
 
       const { count: totalQuadras } = await supabase
         .from('reurb_quadras')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
 
       const { count: totalContracts } = await supabase
         .from('reurb_contracts')
-        .select('*', { count: 'exact', head: true })
+        .select('*')
 
-        // Buscar lotes com vistoria completa (surveys exists)
-        const { data: surveysData } = await supabase
-          .from('reurb_surveys')
-          .select('property_id')
-      
-        const surveysCompleted = surveysData?.length || 0
-      
-        // Total de lotes não vistoriados (sem survey)
-        const totalNotSurveyed = (totalLotes || 0) - surveysCompleted
-      
-        // Contar surveys com análise IA
-        const { count: totalAnalyzedByAI } = await supabase
-          .from('reurb_surveys')
-          .select('*', { count: 'exact', head: false }) // Usa GET, não HEAD
-          .filter('analise_ia_classificacao', 'is', 'not.null')
-      
-        // Contar lotes com processo (contratos)
-        const { data: contractsData } = await supabase
-          .from('reurb_contracts')
-          .select('property_id')
-      
-        const propertiesWithProcess = contractsData?.length || 0
+      // Buscar lotes com vistoria completa (surveys exists)
+      const { data: surveysData } = await supabase
+        .from('reurb_surveys')
+        .select('property_id')
 
-        // Contar surveys REURB-S (via IA)
-        const { count: countReurbS } = await supabase
-          .from('reurb_surveys')
-          .select('*', { count: 'exact', head: false })
-          .ilike('analise_ia_classificacao', '%25REURB-S%25') // encode %
+      const surveysCompleted = surveysData?.length || 0
 
-        // Contar surveys REURB-E (via IA)
-        const { count: countReurbE } = await supabase
-          .from('reurb_surveys')
-          .select('*', { count: 'exact', head: false })
-          .ilike('analise_ia_classificacao', '%25REURB-E%25')
-      
-        const localStats = db.getDashboardStats()
+      // Total de lotes não vistoriados (sem survey)
+      const totalNotSurveyed = (totalLotes || 0) - surveysCompleted
+
+      // Contar surveys com análise IA
+      const { count: totalAnalyzedByAI } = await supabase
+        .from('reurb_surveys')
+        .select('*')
+        .filter('analise_ia_classificacao', 'is', 'not.null')
+
+      // Contar lotes com processo (contratos)
+      const { data: contractsData } = await supabase
+        .from('reurb_contracts')
+        .select('property_id')
+
+      const propertiesWithProcess = contractsData?.length || 0
+
+      // Contar surveys REURB-S (via IA)
+      const { count: countReurbS } = await supabase
+        .from('reurb_surveys')
+        .select('*')
+        .ilike('analise_ia_classificacao', '%25REURB-S%25') // encode %
+
+      // Contar surveys REURB-E (via IA)
+      const { count: countReurbE } = await supabase
+        .from('reurb_surveys')
+        .select('*')
+        .ilike('analise_ia_classificacao', '%25REURB-E%25')
+
+      const localStats = db.getDashboardStats()
 
       return {
         collected: totalLotes || 0,
@@ -1221,13 +1221,13 @@ async deleteQuadra(id: string): Promise<void> {
         totalFamilies: totalFamilies || 0,
         totalContracts: totalContracts || 0,
         totalQuadras: totalQuadras || 0,
-          totalProperties: totalLotes || 0,
-          totalSurveysCompleted: surveysCompleted,
-          totalSurveysNotCompleted: totalNotSurveyed,
-          totalAnalyzedByAI: totalAnalyzedByAI || 0,
-          totalPropertiesWithProcess: propertiesWithProcess,
-          totalReurbS: countReurbS || 0,
-          totalReurbE: countReurbE || 0,
+        totalProperties: totalLotes || 0,
+        totalSurveysCompleted: surveysCompleted,
+        totalSurveysNotCompleted: totalNotSurveyed,
+        totalAnalyzedByAI: totalAnalyzedByAI || 0,
+        totalPropertiesWithProcess: propertiesWithProcess,
+        totalReurbS: countReurbS || 0,
+        totalReurbE: countReurbE || 0,
       }
     } catch {
       return db.getDashboardStats()
