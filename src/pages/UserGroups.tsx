@@ -50,9 +50,14 @@ export function UserGroupsManager() {
     setLoading(true)
     try {
       const data = await api.getGroups()
+      console.log('Grupos recebidos do Supabase:', data)
       setGroups(data)
-    } catch (e) {
-      toast.error('Erro ao carregar grupos')
+      if (!data || data.length === 0) {
+        toast.error('Nenhum grupo retornado do Supabase. Verifique permissões, RLS ou erros de consulta.')
+      }
+    } catch (e: any) {
+      toast.error('Erro ao carregar grupos: ' + (e?.message || e))
+      console.error('Erro ao carregar grupos:', e)
     } finally {
       setLoading(false)
     }
