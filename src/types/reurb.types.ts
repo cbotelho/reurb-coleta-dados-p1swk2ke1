@@ -15,20 +15,8 @@ export type TipoNotificacao = 'alerta' | 'atualizacao' | 'pendencia' | 'aprovaca
  */
 export type UserRole = 'Administrador' | 'Administradores' | 'tecnico' | 'gestor' | 'cidadão';
 
-export interface ReurbProfile {
-  id: string;
-  grupo_acesso: string | null;
-  nome_usuario: string | null;
-  nome: string | null;
-  sobrenome: string | null;
-  email: string | null;
-  foto: string | null;
-  ultimo_login: string | null;
-  situacao: string | null;
-  criado_por: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
+
+// Interface antiga removida. Use UserProfile abaixo para perfis de usuário.
 
 export interface UserProfile {
   id: string;

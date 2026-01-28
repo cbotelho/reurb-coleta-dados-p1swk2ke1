@@ -120,35 +120,24 @@ const getPermissionsForGroup = (group: string): string[] => {
   }
 }
 
-const mapProfile = (row: any): User => {
-  // Use grupo_acesso as the primary group
-  const grupoAcesso = row.grupo_acesso || 'viewer'
-  
-  // Extract Creator Name if available
-  const creatorName = row.criado_por
-
-  return {
-    id: row.id,
-    username: row.nome_usuario || '',
-    firstName: row.nome || '',
-    lastName: row.sobrenome || '',
-    name:
-      row.nome ||
-      `${row.nome || ''} ${row.sobrenome || ''}`.trim() ||
-      'Usuário',
-    email: row.email || row.nome_usuario, // Sometimes username is email, fallback
-    photoUrl: row.foto,
-    status: (row.situacao as 'active' | 'inactive' | 'suspended') || 'active',
-    lastLoginAt: row.ultimo_login,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    createdById: row.criado_por,
-    createdBy: creatorName,
-    groupIds: [grupoAcesso],
-    groupNames: [grupoAcesso],
-    active: row.situacao === 'Ativo',
-  }
-}
+const mapProfile = (row: any): User => ({
+  id: row.user_id,
+  username: row.full_name || '',
+  firstName: row.full_name?.split(' ')[0] || '',
+  lastName: row.full_name?.split(' ').slice(1).join(' ') || '',
+  name: row.full_name || 'Usuário',
+  email: row.email,
+  photoUrl: row.avatar_url || '',
+  status: row.is_active ? 'active' : 'inactive',
+  lastLoginAt: row.last_login,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  createdById: undefined,
+  createdBy: undefined,
+  groupIds: [row.role],
+  groupNames: [row.role],
+  active: !!row.is_active,
+})
 
 const mapSurvey = (row: any): Survey => ({
   ...row,
@@ -1434,20 +1423,18 @@ export const api = {
     if (user.id) {
       // Update existing user profile
       const payload = {
-        nome: user.firstName,
-        sobrenome: user.lastName,
-        nome_usuario: user.username,
+        full_name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.full_name,
         email: user.email,
-        foto: user.photoUrl,
-        grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Externo',
-        situacao: user.status === 'active' ? 'Ativo' : 'Inativo',
+        avatar_url: user.photoUrl,
+        role: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Vistoriador',
+        is_active: user.status === 'active',
         updated_at: new Date().toISOString(),
       }
 
       const { error } = await supabase
         .from('reurb_user_profiles')
         .update(payload)
-        .eq('id', user.id)
+        .eq('user_id', user.id)
 
       if (error) throw error
     } else {
@@ -1456,13 +1443,11 @@ export const api = {
         body: {
           email: user.email,
           password: user.password,
-          nome: user.firstName,
-          sobrenome: user.lastName,
-          nome_usuario: user.username,
-          grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Externo',
-          foto: user.photoUrl,
-          situacao: user.status === 'active' ? 'Ativo' : 'Inativo',
-          criado_por: user.createdById || 'system',
+          full_name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.full_name,
+          role: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Vistoriador',
+          avatar_url: user.photoUrl,
+          is_active: user.status === 'active',
+          created_by: user.createdById || 'system',
         },
       })
 
@@ -1475,7 +1460,7 @@ export const api = {
     const { data: profile } = await supabase
       .from('reurb_user_profiles')
       .select('email')
-      .eq('id', id)
+      .eq('user_id', id)
       .single()
     
     if (profile?.email) {
@@ -1490,7 +1475,7 @@ export const api = {
     const { error } = await supabase
       .from('reurb_user_profiles')
       .delete()
-      .eq('id', id)
+      .eq('user_id', id)
     if (error) throw error
   },
 
