@@ -183,7 +183,7 @@ export type Database = {
           },
         ]
       }
-      reurb_profiles: {
+      reurb_user_profiles: {
         Row: {
           id: string
           grupo_acesso: string | null
@@ -558,7 +558,7 @@ export type Database = {
             foreignKeyName: 'reurb_user_group_membership_user_id_fkey'
             columns: ['user_id']
             isOneToOne: false
-            referencedRelation: 'reurb_profiles'
+            referencedRelation: 'reurb_user_profiles'
             referencedColumns: ['id']
           },
         ]

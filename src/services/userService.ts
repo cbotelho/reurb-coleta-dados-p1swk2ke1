@@ -8,7 +8,7 @@ export const userService = {
     if (!user) return null
 
     const { data, error } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .select('*')
       .eq('id', user.id)
       .single()
@@ -24,7 +24,7 @@ export const userService = {
   // Buscar perfil de um usuário específico (apenas admin)
   async getReurbProfile(userId: string): Promise<ReurbProfile | null> {
     const { data, error } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .select('*')
       .eq('id', userId)
       .single()
@@ -40,7 +40,7 @@ export const userService = {
   // Listar todos os perfis de usuário (apenas admin)
   async listReurbProfiles(): Promise<ReurbProfile[]> {
     const { data, error } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
 
@@ -58,7 +58,7 @@ export const userService = {
     updates: Partial<Omit<ReurbProfile, 'id' | 'created_at' | 'updated_at'>>
   ): Promise<ReurbProfile | null> {
     const { data, error } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .update({
         ...updates,
         updated_at: new Date().toISOString()

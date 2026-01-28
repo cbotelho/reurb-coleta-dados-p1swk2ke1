@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!profile) {
         // Se não existir perfil, tenta criar um com perfil de cidadão
         const { error } = await supabase
-          .from('reurb_profiles')
+          .from('reurb_user_profiles')
           .insert([{
             id: sbUser.id,
             nome_usuario: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'Usuário',

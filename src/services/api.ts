@@ -304,7 +304,7 @@ export const api = {
     
     // Check user profile and permissions
     const { data: profile } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .select('*')
       .eq('id', user?.id)
       .single()
@@ -1412,8 +1412,8 @@ export const api = {
   async getUsers(): Promise<User[]> {
     if (!isOnline()) return db.getUsers()
     try {
-      // Fetch users from reurb_profiles table
-      const { data, error } = await supabase.from('reurb_profiles').select('*')
+      // Fetch users from reurb_user_profiles table
+      const { data, error } = await supabase.from('reurb_user_profiles').select('*')
 
       if (error) throw error
 
@@ -1445,7 +1445,7 @@ export const api = {
       }
 
       const { error } = await supabase
-        .from('reurb_profiles')
+        .from('reurb_user_profiles')
         .update(payload)
         .eq('id', user.id)
 
@@ -1473,7 +1473,7 @@ export const api = {
   async deleteUser(id: string): Promise<void> {
     // Get user email first
     const { data: profile } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .select('email')
       .eq('id', id)
       .single()
@@ -1488,7 +1488,7 @@ export const api = {
     
     // Delete profile
     const { error } = await supabase
-      .from('reurb_profiles')
+      .from('reurb_user_profiles')
       .delete()
       .eq('id', id)
     if (error) throw error
@@ -1498,9 +1498,9 @@ export const api = {
   async getGroups(): Promise<UserGroup[]> {
     if (!isOnline()) return db.getGroups()
     try {
-      // Get unique groups from reurb_profiles
+      // Get unique groups from reurb_user_profiles
       const { data, error } = await supabase
-        .from('reurb_profiles')
+        .from('reurb_user_profiles')
         .select('grupo_acesso')
         .not('grupo_acesso', 'is', null)
       
@@ -1659,7 +1659,7 @@ export const api = {
         .select(
           `
           id, action, details, created_at, target_type,
-          reurb_profiles:user_id ( nome )
+          reurb_user_profiles:user_id ( nome )
         `,
         )
         .order('created_at', { ascending: false })
@@ -1673,13 +1673,13 @@ export const api = {
         else if (a.action.includes('aprova')) type = 'approval'
         else if (a.action.includes('Edital') || a.action.includes('Documento'))
           type = 'document'
-        else if (!a.reurb_profiles) type = 'system'
+        else if (!a.reurb_user_profiles) type = 'system'
 
         return {
           id: a.id,
           action: a.action,
           details: a.details || '',
-          user_name: a.reurb_profiles?.nome || 'Sistema',
+          user_name: a.reurb_user_profiles?.nome || 'Sistema',
           timestamp: a.created_at,
           type,
         }
