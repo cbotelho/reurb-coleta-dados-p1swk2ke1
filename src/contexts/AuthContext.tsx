@@ -30,6 +30,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Função utilitária para nome do grupo
+  const getRoleName = (role: string): string => {
+    switch (role) {
+      case 'admin':
+      case 'Administrador':
+      case 'Administradores':
+        return 'Administrador'
+      case 'vistoriador':
+      case 'Vistoriador':
+        return 'Vistoriador'
+      case 'tecnico':
+        return 'Técnico'
+      case 'gestor':
+        return 'Gestor'
+      case 'cidadão':
+        return 'Cidadão'
+      default:
+        return role
+    }
+  }
+
+  // Função utilitária para permissões
+  const getPermissionsForRole = (role: string): string[] => {
+    switch (role) {
+      case 'admin':
+      case 'Administrador':
+      case 'Administradores':
+        return ['all']
+      case 'vistoriador':
+      case 'Vistoriador':
+        return [
+          // CRUD completo
+          'projects:read', 'projects:create', 'projects:update', 'projects:delete',
+          'properties:read', 'properties:create', 'properties:update', 'properties:delete',
+          'quadras:read', 'quadras:create', 'quadras:update', 'quadras:delete',
+          'surveys:read', 'surveys:create', 'surveys:update', 'surveys:delete',
+          // Documentos
+          'documentos:read_all', 'documentos:write_own', 'documentos:delete_own',
+          // Imagens
+          'image_metadata:read_all', 'image_metadata:write_own', 'image_metadata:delete_own',
+        ]
+      case 'gestor':
+      case 'SEHAB':
+        return ['manage_projects', 'view_reports', 'manage_documents']
+      case 'tecnico':
+      case 'Técnicos Amapá Terra':
+        return ['edit_projects', 'view_reports', 'upload_documents']
+      case 'Next Ambiente':
+        return ['view_only']
+      case 'Externo':
+      case 'Externo Editar':
+        return ['edit_projects']
+      case 'cidadão':
+        return ['view_own_data', 'upload_documents']
+      default:
+        return []
+    }
+  }
+
   useEffect(() => {
     // Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -67,11 +126,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { error } = await supabase
           .from('reurb_user_profiles')
           .insert([{
-            id: sbUser.id,
-            nome_usuario: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'Usuário',
+            id: crypto.randomUUID(),
+            user_id: sbUser.id,
+            full_name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || 'Usuário',
             email: sbUser.email,
-            grupo_acesso: 'cidadão',
-            situacao: 'ativo'
+            role: 'vistoriador',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
           }])
           
         if (error) {
@@ -89,89 +151,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Atualiza último login
       await userService.updateReurbProfile(sbUser.id, {
-        ultimo_login: new Date().toISOString()
-      })
+        last_login: new Date().toISOString()
+      }) 
 
       // Mapeia para o formato de usuário do frontend
       const mappedUser: User = {
         id: sbUser.id,
         username: sbUser.email?.split('@')[0] || '',
-        name: profile.nome_usuario || profile.nome || '',
-        firstName: profile.nome_usuario?.split(' ')[0] || '',
-        lastName: profile.nome_usuario?.split(' ').slice(1).join(' ') || '',
+        name: profile.full_name || '',
+        firstName: profile.full_name?.split(' ')[0] || '',
+        lastName: profile.full_name?.split(' ').slice(1).join(' ') || '',
         email: profile.email || sbUser.email || '',
-        photoUrl: profile.foto,
-        status: profile.situacao === 'ativo' ? 'active' : 'inactive',
-        active: profile.situacao === 'ativo',
-        lastLoginAt: profile.ultimo_login,
+        photoUrl: profile.avatar_url || '',
+        status: profile.is_active ? 'active' : 'inactive',
+        active: !!profile.is_active,
+        lastLoginAt: profile.last_login || '',
         createdAt: profile.created_at,
-        groupIds: [profile.grupo_acesso || ''],
-        role: profile.grupo_acesso || '',
-        grupo_acesso: profile.grupo_acesso || ''
+        groupIds: [profile.role || ''],
+        role: profile.role || '',
+        grupo_acesso: profile.role || ''
       }
 
       setUser(mappedUser)
       
       // Define os grupos do usuário com base no perfil
-      const userRole = profile.grupo_acesso || 'cidadão'
+      const userRole = profile.role || 'vistoriador'
       const permissions = getPermissionsForRole(userRole)
       
       setGroups([
         {
           id: userRole,
           name: getRoleName(userRole),
-          role: userRole,
+          role: userRole as any,
           permissions,
         },
       ])
-
+      
       setIsAuthenticated(true)
-    } catch (e) {
-      console.error('Auth handling error:', e)
+    } catch (error) {
+      console.error('Erro ao processar sessão do usuário:', error)
+      setUser(null)
+      setGroups([])
+      setIsAuthenticated(false)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const getRoleName = (role: string): string => {
-    switch (role) {
-      case 'Administrador':
-      case 'Administradores':
-        return 'Administrador'
-      case 'tecnico':
-        return 'Técnico'
-      case 'gestor':
-        return 'Gestor'
-      case 'cidadão':
-        return 'Cidadão'
-      default:
-        return role
-    }
-  }
-
-  const getPermissionsForRole = (role: string): string[] => {
-    // Este método agora é apenas para permissões locais do frontend
-    // As permissões reais são verificadas no banco de dados
-    switch (role) {
-      case 'Administrador':
-      case 'Administradores':
-      case 'admin':
-        return ['all']
-      case 'gestor':
-      case 'SEHAB':
-        return ['manage_projects', 'view_reports', 'manage_documents']
-      case 'tecnico':
-      case 'Técnicos Amapá Terra':
-        return ['edit_projects', 'view_reports', 'upload_documents']
-      case 'Next Ambiente':
-        return ['view_only']
-      case 'Externo':
-      case 'Externo Editar':
-        return ['edit_projects']
-      case 'cidadão':
-        return ['view_own_data', 'upload_documents']
-      default:
-        return []
     }
   }
 
@@ -219,7 +242,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return false
     
     // Se for admin, tem todas as permissões
-    if (user.grupo_acesso === 'Administrador' || user.grupo_acesso === 'Administradores') return true
+    if (user.grupo_acesso === 'admin' || 
+        user.grupo_acesso === 'Administrador' || 
+        user.grupo_acesso === 'Administradores') return true
     
     // Verifica a permissão no banco de dados
     try {

@@ -384,3 +384,17 @@ export interface SocialReport {
   quadra_name?: string
   property_name?: string
 }
+
+export interface UserProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  cpf?: string;
+  phone?: string;
+  avatar_url?: string;
+  role: 'tecnico' | 'Administrador' | 'Administradores' | 'gestor' | 'admin' | 'manager' | 'viewer' | 'SEHAB' | 'Técnicos Amapá Terra' | 'Next Ambiente' | 'Externo' | 'Externo Editar';
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  email: string;
+}

@@ -84,7 +84,9 @@ const mapLote = (row: any): Lote => ({
 
 const getPermissionsForGroup = (group: string): string[] => {
   switch (group) {
+    case 'admin':
     case 'Administrador':
+    case 'Administradores':
       return ['all']
     case 'Assistente Social':
       return [
@@ -98,6 +100,7 @@ const getPermissionsForGroup = (group: string): string[] => {
         'create_legal_report', 'edit_legal_report', 'print_reports'
       ]
     case 'Técnico':
+    case 'vistoriador':
     case 'Vistoriador':
       return [
         'insert_lote', 'edit_lote', 'insert_survey', 'edit_survey',
@@ -107,11 +110,7 @@ const getPermissionsForGroup = (group: string): string[] => {
     case 'Next Ambiente': // Manter compatibilidade
       return ['view_only']
     // Legados para garantir compatibilidade
-    case 'Administradores':
-    case 'super_admin':
-      return ['all']
     case 'SEHAB':
-    case 'admin':
       return ['manage_users', 'edit_projects', 'view_reports', 'manage_groups']
     case 'Externo':
     case 'viewer':
@@ -120,23 +119,26 @@ const getPermissionsForGroup = (group: string): string[] => {
   }
 }
 
+// CORREÇÃO: Usar grupo_acesso em vez de role
 const mapProfile = (row: any): User => ({
   id: row.user_id,
-  username: row.full_name || '',
-  firstName: row.full_name?.split(' ')[0] || '',
-  lastName: row.full_name?.split(' ').slice(1).join(' ') || '',
-  name: row.full_name || 'Usuário',
+  username: row.nome_usuario || row.full_name || '',
+  firstName: row.nome || row.full_name?.split(' ')[0] || '',
+  lastName: row.sobrenome || row.full_name?.split(' ').slice(1).join(' ') || '',
+  name: row.nome_usuario || row.full_name || 'Usuário',
   email: row.email,
-  photoUrl: row.avatar_url || '',
-  status: row.is_active ? 'active' : 'inactive',
-  lastLoginAt: row.last_login,
+  photoUrl: row.foto || row.avatar_url || '',
+  status: row.situacao === 'ativo' || row.is_active ? 'active' : 'inactive',
+  lastLoginAt: row.ultimo_login,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
-  createdById: undefined,
+  createdById: row.criado_por,
   createdBy: undefined,
-  groupIds: [row.role],
-  groupNames: [row.role],
-  active: !!row.is_active,
+  groupIds: [row.grupo_acesso || row.role], // Usar grupo_acesso como prioridade
+  groupNames: [row.grupo_acesso || row.role],
+  active: row.situacao === 'ativo' || !!row.is_active,
+  role: row.grupo_acesso || row.role, // Usar grupo_acesso
+  grupo_acesso: row.grupo_acesso || row.role,
 })
 
 const mapSurvey = (row: any): Survey => ({
@@ -279,7 +281,7 @@ export const api = {
     }
   },
 
-  async updateProject(id: string, updates: Partial<any>): Promise<Project> {
+  async updateProject(id: string, updates: Record<string, any>): Promise<Project> {
     if (!isOnline()) {
       const current = db.getProject(id)
       if (current) {
@@ -298,25 +300,37 @@ export const api = {
     console.log('Current user:', user?.id, user?.email)
     
     // Check user profile and permissions
+    // CORREÇÃO: Usar grupo_acesso em vez de role
     const { data: profile } = await supabase
       .from('reurb_user_profiles')
       .select('*')
-      .eq('id', user?.id)
+      .eq('user_id', user?.id)
       .single()
     
     console.log('User profile:', profile)
-    console.log('User group:', profile?.grupo_acesso)
+    console.log('User grupo_acesso:', profile?.grupo_acesso)
 
-    // Try the simplest possible update - just updated_at
-    const simpleUpdate = {
+    // Prepare update payload
+    const payload: any = {
       updated_at: new Date().toISOString()
     }
 
-    console.log('Simple update payload:', simpleUpdate)
+    // Add only provided fields to payload
+    if (updates.name !== undefined) payload.name = updates.name
+    if (updates.description !== undefined) payload.description = updates.description
+    if (updates.city !== undefined) payload.city = updates.city
+    if (updates.state !== undefined) payload.state = updates.state
+    if (updates.status !== undefined) payload.status = updates.status
+    if (updates.latitude !== undefined) payload.latitude = updates.latitude ? parseFloat(updates.latitude) : null
+    if (updates.longitude !== undefined) payload.longitude = updates.longitude ? parseFloat(updates.longitude) : null
+    if (updates.image_url !== undefined) payload.image_url = updates.image_url
+    if (updates.tags !== undefined) payload.tags = updates.tags
+
+    console.log('Update payload:', payload)
 
     const { data, error } = await supabase
       .from('reurb_projects')
-      .update(simpleUpdate)
+      .update(payload)
       .eq('id', id)
       .select()
 
@@ -330,67 +344,6 @@ export const api = {
     
     console.log('Update result:', data)
     console.log('Update affected rows:', data?.length || 0)
-    
-    // Check if RLS is blocking by trying to count rows
-    const { count } = await supabase
-      .from('reurb_projects')
-      .select('*', { count: 'exact', head: true })
-      .eq('id', id)
-    
-    console.log('Project exists check:', count)
-    
-    // Now try with actual data
-    if (updates.name) {
-      console.log('Trying to update name...')
-      const { data: nameData, error: nameError } = await supabase
-        .from('reurb_projects')
-        .update({ name: updates.name })
-        .eq('id', id)
-        .select()
-        
-      if (nameError) {
-        console.error('Name update error:', nameError)
-      } else {
-        console.log('Name update success:', nameData)
-        console.log('Name update affected rows:', nameData?.length || 0)
-      }
-    }
-    
-    // Try city update separately
-    if (updates.city !== undefined) {
-      console.log('Trying to update city to:', updates.city)
-      const { data: cityData, error: cityError } = await supabase
-        .from('reurb_projects')
-        .update({ city: updates.city })
-        .eq('id', id)
-        .select()
-        
-      if (cityError) {
-        console.error('City update error:', cityError)
-        console.error('City update error details:', cityError.details)
-      } else {
-        console.log('City update success:', cityData)
-        console.log('City update affected rows:', cityData?.length || 0)
-      }
-    }
-    
-    // Try state update separately
-    if (updates.state !== undefined) {
-      console.log('Trying to update state to:', updates.state)
-      const { data: stateData, error: stateError } = await supabase
-        .from('reurb_projects')
-        .update({ state: updates.state })
-        .eq('id', id)
-        .select()
-        
-      if (stateError) {
-        console.error('State update error:', stateError)
-        console.error('State update error details:', stateError.details)
-      } else {
-        console.log('State update success:', stateData)
-        console.log('State update affected rows:', stateData?.length || 0)
-      }
-    }
     
     // Fetch final project state
     const { data: finalProject, error: fetchError } = await supabase
@@ -412,7 +365,6 @@ export const api = {
 
   async deleteProject(id: string): Promise<void> {
     if (!isOnline()) {
-      // For offline, remove from local cache immediately
       console.log('[API] Deleting project locally:', id)
       db.deleteProject(id)
       return
@@ -471,7 +423,7 @@ export const api = {
     }
   },
 
-  async updateQuadra(id: string, updates: Partial<any>): Promise<Quadra> {
+  async updateQuadra(id: string, updates: Partial<Quadra>): Promise<Quadra> {
     if (!isOnline()) {
       const current = db.getQuadra(id)
       if (current) {
@@ -485,57 +437,27 @@ export const api = {
     console.log('Updating quadra ID:', id)
     console.log('Raw updates received:', updates)
 
-    // Try the simplest possible update - just updated_at
-    const simpleUpdate = {
+    // Prepare update payload
+    const payload: any = {
       updated_at: new Date().toISOString()
     }
 
+    // Add only provided fields to payload
+    if (updates.name !== undefined) payload.name = updates.name
+    if (updates.area !== undefined) payload.area = updates.area
+    if (updates.description !== undefined) payload.description = updates.description
+    if (updates.document_url !== undefined) payload.document_url = updates.document_url
+    if (updates.image_url !== undefined) payload.image_url = updates.image_url
+
     const { data, error } = await supabase
       .from('reurb_quadras')
-      .update(simpleUpdate)
+      .update(payload)
       .eq('id', id)
       .select()
 
     if (error) {
       console.error('Supabase error details:', error)
       throw error
-    }
-    
-    // Now try with actual data
-    if (updates.name) {
-      const { data: nameData, error: nameError } = await supabase
-        .from('reurb_quadras')
-        .update({ name: updates.name })
-        .eq('id', id)
-        .select()
-        
-      if (nameError) {
-        console.error('Name update error:', nameError)
-      }
-    }
-    
-    if (updates.area !== undefined) {
-      const { data: areaData, error: areaError } = await supabase
-        .from('reurb_quadras')
-        .update({ area: updates.area })
-        .eq('id', id)
-        .select()
-        
-      if (areaError) {
-        console.error('Area update error:', areaError)
-      }
-    }
-    
-    if (updates.description !== undefined) {
-      const { data: descData, error: descError } = await supabase
-        .from('reurb_quadras')
-        .update({ description: updates.description } as any)
-        .eq('id', id)
-        .select()
-        
-      if (descError) {
-        console.error('Description update error:', descError)
-      }
     }
     
     // Fetch final quadra state
@@ -555,14 +477,11 @@ export const api = {
     return quadra
   },
 
+  // CORREÇÃO: Adicionar método deleteQuadra no db.ts ou usar método existente
   async deleteQuadra(id: string): Promise<void> {
     if (!isOnline()) {
-      // For offline, just remove from local cache
-      const current = db.getQuadra(id)
-      if (current) {
-        // Remove from local storage when offline
-        // The actual deletion will sync when online
-      }
+      // Remover do cache local
+      db.deleteQuadra(id)
       return
     }
 
@@ -913,7 +832,7 @@ export const api = {
     db.deleteLote(id)
   },
 
-  async updateLote(id: string, updates: Partial<any>): Promise<Lote> {
+  async updateLote(id: string, updates: Record<string, any>): Promise<Lote> {
     if (!isOnline()) {
       const current = db.getLote(id)
       if (current) {
@@ -927,104 +846,34 @@ export const api = {
     console.log('Updating lote ID:', id)
     console.log('Raw updates received:', updates)
 
-    // Try the simplest possible update - just updated_at
-    const simpleUpdate = {
+    // Prepare update payload
+    const payload: any = {
       updated_at: new Date().toISOString()
     }
 
+    // Add only provided fields to payload
+    if (updates.name !== undefined) payload.name = updates.name
+    if (updates.address !== undefined) payload.address = updates.address
+    if (updates.area !== undefined) payload.area = updates.area
+    if (updates.description !== undefined) payload.description = updates.description
+    if (updates.status !== undefined) payload.status = updates.status
+    if (updates.latitude !== undefined) {
+      payload.latitude = updates.latitude ? parseFloat(String(updates.latitude)) : null
+    }
+    if (updates.longitude !== undefined) {
+      payload.longitude = updates.longitude ? parseFloat(String(updates.longitude)) : null
+    }
+    if (updates.images !== undefined) payload.images = updates.images
+
     const { data, error } = await supabase
       .from('reurb_properties')
-      .update(simpleUpdate)
+      .update(payload)
       .eq('id', id)
       .select()
 
     if (error) {
       console.error('Supabase error details:', error)
       throw error
-    }
-    
-    // Now try with actual data
-    if (updates.name) {
-      const { data: nameData, error: nameError } = await supabase
-        .from('reurb_properties')
-        .update({ name: updates.name })
-        .eq('id', id)
-        .select()
-        
-      if (nameError) {
-        console.error('Name update error:', nameError)
-      }
-    }
-    
-    if (updates.address !== undefined) {
-      const { data: addressData, error: addressError } = await supabase
-        .from('reurb_properties')
-        .update({ address: updates.address })
-        .eq('id', id)
-        .select()
-        
-      if (addressError) {
-        console.error('Address update error:', addressError)
-      }
-    }
-    
-    if (updates.area !== undefined) {
-      const { data: areaData, error: areaError } = await supabase
-        .from('reurb_properties')
-        .update({ area: updates.area })
-        .eq('id', id)
-        .select()
-        
-      if (areaError) {
-        console.error('Area update error:', areaError)
-      }
-    }
-    
-    if (updates.description !== undefined) {
-      const { data: descData, error: descError } = await supabase
-        .from('reurb_properties')
-        .update({ description: updates.description } as any)
-        .eq('id', id)
-        .select()
-        
-      if (descError) {
-        console.error('Description update error:', descError)
-      }
-    }
-    
-    if (updates.status !== undefined) {
-      const { data: statusData, error: statusError } = await supabase
-        .from('reurb_properties')
-        .update({ status: updates.status })
-        .eq('id', id)
-        .select()
-        
-      if (statusError) {
-        console.error('Status update error:', statusError)
-      }
-    }
-    
-    // Update latitude/longitude if provided
-    if (updates.latitude !== undefined || updates.longitude !== undefined) {
-      const geoUpdate: any = {}
-      if (updates.latitude !== undefined) {
-        geoUpdate.latitude = updates.latitude ? parseFloat(String(updates.latitude)) : null
-      }
-      if (updates.longitude !== undefined) {
-        geoUpdate.longitude = updates.longitude ? parseFloat(String(updates.longitude)) : null
-      }
-      
-      const { data: geoData, error: geoError } = await supabase
-        .from('reurb_properties')
-        .update(geoUpdate)
-        .eq('id', id)
-        .select()
-        
-      if (geoError) {
-        console.error('Geo coordinates update error:', geoError)
-      } else {
-        console.log('✅ Geo coordinates updated:', geoUpdate)
-      }
     }
     
     // Fetch final lote state
@@ -1047,12 +896,16 @@ export const api = {
   // Surveys
   async getSurveyByPropertyId(propertyId: string): Promise<Survey | null> {
     console.log('🔍 getSurveyByPropertyId chamado para:', propertyId)
-    
+    // Validação de UUID
+    const isUuid = (val: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(val)
+    if (!isUuid(propertyId)) {
+      console.warn('❌ propertyId inválido, abortando query:', propertyId)
+      return null
+    }
     if (!isOnline()) {
       console.log('💾 Offline, buscando vistoria do LocalStorage')
       return db.getSurveyByPropertyId(propertyId) || null
     }
-
     try {
       console.log('🌐 Buscando vistoria no Supabase...')
       const { data, error } = await supabase
@@ -1062,7 +915,6 @@ export const api = {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-
       console.log('📊 Resposta Supabase:', { 
         encontrou: !!data, 
         erro: error?.message,
@@ -1070,27 +922,21 @@ export const api = {
         applicant_name: data?.applicant_name,
         created_at: data?.created_at
       })
-
       if (error) {
         console.warn('⚠️ Erro ao buscar vistoria:', error)
         return db.getSurveyByPropertyId(propertyId) || null
       }
-      
       if (!data) {
         console.log('ℹ️ Nenhuma vistoria encontrada no Supabase')
         return db.getSurveyByPropertyId(propertyId) || null
       }
-      
       console.log('✅ Vistoria encontrada no Supabase, salvando no cache')
       const survey = mapSurvey(data)
-      
-      // Tentar salvar no cache, mas retornar survey mesmo se falhar
       try {
         db.saveSurvey({ ...survey, sync_status: 'synchronized' })
       } catch (cacheError) {
         console.warn('⚠️ Não foi possível salvar vistoria no cache (quota excedida):', cacheError)
       }
-      
       return survey
     } catch (err) {
       console.error('❌ Exceção ao buscar vistoria:', err)
@@ -1373,7 +1219,7 @@ export const api = {
         const { count: totalAnalyzedByAI } = await supabase
           .from('reurb_surveys')
           .select('*', { count: 'exact', head: false }) // Usa GET, não HEAD
-          .filter('analise_ia_classificacao', 'is.not.null')
+          .filter('analise_ia_classificacao', 'is', 'not.null')
       
         // Contar lotes com processo (contratos)
         const { data: contractsData } = await supabase
@@ -1426,7 +1272,10 @@ export const api = {
     if (!isOnline()) return db.getUsers()
     try {
       // Fetch users from reurb_user_profiles table
-      const { data, error } = await supabase.from('reurb_user_profiles').select('*')
+      // CORREÇÃO: Usar colunas corretas da tabela reurb_user_profiles
+      const { data, error } = await supabase
+        .from('reurb_user_profiles')
+        .select('*')
 
       if (error) throw error
 
@@ -1446,12 +1295,15 @@ export const api = {
   ): Promise<void> {
     if (user.id) {
       // Update existing user profile
+      // CORREÇÃO: Usar grupo_acesso em vez de role
       const payload = {
-        full_name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.full_name,
+        nome_usuario: user.name,
+        nome: user.firstName,
+        sobrenome: user.lastName,
         email: user.email,
-        avatar_url: user.photoUrl,
-        role: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Vistoriador',
-        is_active: user.status === 'active',
+        foto: user.photoUrl,
+        grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'vistoriador',
+        situacao: user.status === 'active' ? 'ativo' : 'inativo',
         updated_at: new Date().toISOString(),
       }
 
@@ -1463,15 +1315,18 @@ export const api = {
       if (error) throw error
     } else {
       // Create new user via Edge Function
+      // CORREÇÃO: Usar grupo_acesso em vez de role
       const { error } = await supabase.functions.invoke('create-user', {
         body: {
           email: user.email,
           password: user.password,
-          full_name: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.full_name,
-          role: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'Vistoriador',
-          avatar_url: user.photoUrl,
-          is_active: user.status === 'active',
-          created_by: user.createdById || 'system',
+          nome_usuario: user.name || '',
+          nome: user.firstName || '',
+          sobrenome: user.lastName || '',
+          grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'vistoriador',
+          foto: user.photoUrl,
+          situacao: user.status === 'active' ? 'ativo' : 'inativo',
+          criado_por: user.createdById || 'system',
         },
       })
 
@@ -1508,6 +1363,7 @@ export const api = {
     if (!isOnline()) return db.getGroups()
     try {
       // Get unique groups from reurb_user_profiles
+      // CORREÇÃO: Buscar grupo_acesso em vez de role
       const { data, error } = await supabase
         .from('reurb_user_profiles')
         .select('grupo_acesso')
@@ -1524,6 +1380,7 @@ export const api = {
         description: `Grupo: ${group}`,
         permissions: getPermissionsForGroup(group),
         created_at: new Date().toISOString(),
+        role: group as any, // CORREÇÃO: Forçar o tipo apropriado
       }))
     } catch (e) {
       console.error(e)
@@ -1566,6 +1423,7 @@ export const api = {
       description: data.description,
       permissions: data.permissions || [],
       created_at: data.created_at,
+      role: data.name as any, // CORREÇÃO: Forçar o tipo apropriado
     }
   },
 
