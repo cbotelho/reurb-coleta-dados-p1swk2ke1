@@ -25,35 +25,39 @@
 -- 6. DEPOIS que o usuário for criado no dashboard, execute este SQL:
 -- ============================================================================
 
-INSERT INTO public.reurb_profiles (id, nome, email, grupo_acesso)
+
+INSERT INTO public.reurb_user_profiles (user_id, full_name, email, role, is_active)
 VALUES (
   (SELECT id FROM auth.users WHERE email = 'ivoneserrana@gmail.com'),
   'Ivone Serrana',
   'ivoneserrana@gmail.com',
-  'Técnicos Amapá Terra'
+  'Vistoriador',
+  true
 )
-ON CONFLICT (id) DO UPDATE 
+ON CONFLICT (user_id) DO UPDATE 
 SET 
-  grupo_acesso = 'Técnicos Amapá Terra',
-  nome = 'Ivone Serrana';
+  role = 'Vistoriador',
+  full_name = 'Ivone Serrana',
+  is_active = true;
 
 -- 7. VERIFICAR SE ESTÁ TUDO CORRETO:
 -- ============================================================================
 
+
 SELECT 
-  au.id,
+  au.id as auth_id,
   au.email,
   au.email_confirmed_at IS NOT NULL as email_confirmed,
-  rp.grupo_acesso,
-  rp.nome
+  up.role,
+  up.full_name
 FROM auth.users au
-LEFT JOIN public.reurb_profiles rp ON rp.id = au.id
+LEFT JOIN public.reurb_user_profiles up ON up.user_id = au.id
 WHERE au.email = 'ivoneserrana@gmail.com';
 
 -- Resultado esperado:
 -- email_confirmed: true
--- grupo_acesso: Técnicos Amapá Terra
--- nome: Ivone Serrana
+-- role: Vistoriador
+-- full_name: Ivone Serrana
 
 -- ============================================================================
 -- AGORA TENTE FAZER LOGIN:
