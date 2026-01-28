@@ -1,24 +1,4 @@
-/**
- * Diagnóstico: lista todos os lotes e quadras do storage local
- * Exibe no console: local_id, name, parent_item_id (lotes) e quadraId
- */
-debugListLotesAndQuadras() {
-    const lotes = this.getAllLotes()
-    const quadras = this.getItems<Quadra>(STORAGE_KEYS.QUADRAS)
-    console.group('Diagnóstico de Lotes e Quadras (LocalStorage)')
-    console.table(lotes.map(l => ({
-      local_id: l.local_id,
-      name: l.name,
-      parent_item_id: l.parent_item_id,
-      status: l.status
-    })))
-    console.table(quadras.map(q => ({
-      local_id: q.local_id,
-      name: q.name,
-      parent_item_id: q.parent_item_id
-    })))
-    console.groupEnd()
-  }
+
 import {
   Project,
   Quadra,
@@ -46,6 +26,25 @@ import {
 import { SEED_PROJECTS, SEED_QUADRAS, SEED_LOTES } from './seedData'
 import { subMonths, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+
+// Função utilitária para diagnóstico (pode ser chamada via window.debugListLotesAndQuadras())
+export function debugListLotesAndQuadras(getAllLotes: () => Lote[], getItems: <T>(key: string) => T[], STORAGE_KEYS: any) {
+  const lotes = getAllLotes()
+  const quadras = getItems<Quadra>(STORAGE_KEYS.QUADRAS)
+  console.group('Diagnóstico de Lotes e Quadras (LocalStorage)')
+  console.table(lotes.map(l => ({
+    local_id: l.local_id,
+    name: l.name,
+    parent_item_id: l.parent_item_id,
+    status: l.status
+  })))
+  console.table(quadras.map(q => ({
+    local_id: q.local_id,
+    name: q.name,
+    parent_item_id: q.parent_item_id
+  })))
+  console.groupEnd()
+}
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
