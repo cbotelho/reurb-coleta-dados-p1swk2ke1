@@ -40,21 +40,24 @@ export function Header() {
     <>
       <header className="fixed top-0 left-0 right-0 h-14 md:h-16 bg-blue-600 text-white z-40 flex items-center justify-between px-4 shadow-md">
         <div className="flex items-center gap-3">
-          {isRoot ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-blue-700"
-              onClick={() => setIsDrawerOpen(true)}
-            >
-              <Menu className="h-6 w-6" />
-            </Button>
-          ) : (
+          {/* Botão Dashboard à esquerda */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-blue-700"
+            onClick={() => navigate('/')}
+            title="Ir para o Dashboard"
+          >
+            <Menu className="h-6 w-6" />
+          </Button>
+          {/* Botão padrão de drawer/back, exceto na raiz */}
+          {!isRoot && (
             <Button
               variant="ghost"
               size="icon"
               className="text-white hover:bg-blue-700"
               onClick={() => navigate(-1)}
+              title="Voltar"
             >
               <ArrowLeft className="h-6 w-6" />
             </Button>
