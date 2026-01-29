@@ -46,27 +46,26 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-// Schema corrigido - photoUrl deve ser string ou undefined
 const formSchema = z.object({
-  firstName: z.string().min(1, 'Nome é obrigatório'),
-  lastName: z.string().min(1, 'Sobrenome é obrigatório'),
+  fullName: z.string().min(1, 'Nome completo é obrigatório'),
   email: z.string().email('Email inválido'),
   username: z.string().min(1, 'Nome de usuário é obrigatório'),
   photoUrl: z.string().optional(),
   status: z.enum(['active', 'inactive', 'suspended']),
   groups: z.array(z.string()).min(1, 'Selecione pelo menos um grupo'),
   password: z.string().optional(),
+  role: z.string().optional(),
 })
 
 type FormValues = {
-  firstName: string
-  lastName: string
+  fullName: string
   email: string
   username: string
   photoUrl?: string
   status: 'active' | 'inactive' | 'suspended'
   groups: string[]
   password?: string
+  role?: string
 }
 
 export default function Users() {
@@ -81,14 +80,14 @@ export default function Users() {
   const [searchTerm, setSearchTerm] = useState('')
 
   const defaultValues: FormValues = {
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
     username: '',
-    photoUrl: '', // Agora é string vazia, não null
+    photoUrl: '',
     status: 'active',
     groups: [],
     password: '',
+    role: 'vistoriador',
   }
 
   const form = useForm<FormValues>({
@@ -141,18 +140,7 @@ export default function Users() {
       }
     } catch (e: any) {
       console.error('Erro ao carregar dados:', e)
-      
-      if (e.status === 400) {
-        toast.error('Erro na requisição ao banco de dados. Verifique as permissões RLS.')
-      } else if (e.status === 401 || e.status === 403) {
-        toast.error('Acesso não autorizado. Faça login novamente.')
-      } else if (e.status === 404) {
-        toast.error('Tabela não encontrada.')
-      } else if (e.status === 500) {
-        toast.error('Erro interno do servidor.')
-      } else {
-        toast.error('Erro ao carregar dados. Verifique sua conexão.')
-      }
+      toast.error('Erro ao carregar dados')
     } finally {
       setLoading(false)
     }
@@ -184,14 +172,14 @@ export default function Users() {
     try {
       const userData = {
         id: editingUser?.id,
-        firstName: values.firstName.trim(),
-        lastName: values.lastName.trim(),
+        fullName: values.fullName.trim(),
         username: values.username.trim().toLowerCase(),
         email: values.email.trim().toLowerCase(),
         password: values.password || undefined,
-        photoUrl: values.photoUrl?.trim() || undefined, // Pode ser undefined
+        photoUrl: values.photoUrl?.trim() || undefined,
         status: values.status,
         groupIds: values.groups,
+        role: values.role || 'vistoriador',
         createdById: user?.id,
       }
 
@@ -206,14 +194,7 @@ export default function Users() {
       loadData()
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error)
-      
-      if (error.message?.includes('duplicate key')) {
-        toast.error('Email ou nome de usuário já está em uso.')
-      } else if (error.message?.includes('violates foreign key constraint')) {
-        toast.error('Erro na referência aos grupos selecionados.')
-      } else {
-        toast.error(error.message || 'Erro ao salvar usuário')
-      }
+      toast.error(error.message || 'Erro ao salvar usuário')
     } finally {
       setSaving(false)
     }
@@ -235,12 +216,7 @@ export default function Users() {
       loadData()
     } catch (error: any) {
       console.error('Erro ao remover usuário:', error)
-      
-      if (error.message?.includes('violates foreign key constraint')) {
-        toast.error('Não é possível remover usuário com registros associados.')
-      } else {
-        toast.error('Erro ao remover usuário')
-      }
+      toast.error('Erro ao remover usuário')
     }
   }
 
@@ -253,14 +229,14 @@ export default function Users() {
   const openEdit = (u: User) => {
     setEditingUser(u)
     form.reset({
-      firstName: u.firstName || u.name.split(' ')[0],
-      lastName: u.lastName || u.name.split(' ').slice(1).join(' '),
+      fullName: u.name || '',
       email: u.email || '',
       username: u.username,
       photoUrl: u.photoUrl || '',
       status: (u.status as 'active' | 'inactive' | 'suspended') || 'active',
       groups: u.groupIds || [],
       password: '',
+      role: (u as any).role || 'vistoriador',
     })
     setIsDialogOpen(true)
   }
@@ -290,6 +266,25 @@ export default function Users() {
     }
   }
 
+  const getRoleBadge = (role?: string) => {
+    switch (role) {
+      case 'admin':
+        return (
+          <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-0">
+            Admin
+          </Badge>
+        )
+      case 'vistoriador':
+        return (
+          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0">
+            Vistoriador
+          </Badge>
+        )
+      default:
+        return <Badge variant="outline">{role || 'Usuário'}</Badge>
+    }
+  }
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-'
     try {
@@ -301,15 +296,34 @@ export default function Users() {
   }
 
   // Função para gerar avatar inicial
-  const getAvatarInitials = (firstName?: string, lastName?: string, username?: string) => {
-    if (firstName && lastName) {
-      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
-    } else if (firstName) {
-      return firstName.charAt(0).toUpperCase()
+  const getAvatarInitials = (fullName?: string, username?: string) => {
+    if (fullName) {
+      const nameParts = fullName.split(' ')
+      if (nameParts.length >= 2) {
+        return `${nameParts[0].charAt(0)}${nameParts[nameParts.length - 1].charAt(0)}`.toUpperCase()
+      }
+      return fullName.charAt(0).toUpperCase()
     } else if (username) {
       return username.charAt(0).toUpperCase()
     }
     return '?'
+  }
+
+  // Função para obter nomes dos grupos
+  const getGroupNames = (user: User): string[] => {
+    if (user.groupNames && user.groupNames.length > 0) {
+      return user.groupNames
+    }
+    
+    // Se não tiver groupNames, tenta mapear groupIds para nomes
+    if (user.groupIds && user.groupIds.length > 0) {
+      return user.groupIds.map(groupId => {
+        const group = availableGroups.find(g => g.id === groupId)
+        return group ? group.name : 'Desconhecido'
+      })
+    }
+    
+    return []
   }
 
   if (loading) {
@@ -355,91 +369,94 @@ export default function Users() {
               <TableHead className="w-[50px]">Foto</TableHead>
               <TableHead>Nome Completo</TableHead>
               <TableHead>Email / Username</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead>Grupo de Acesso</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Último Login</TableHead>
-              <TableHead>Criado Por</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredUsers.map((u) => (
-              <TableRow key={u.id} className="hover:bg-gray-50">
-                <TableCell>
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={u.photoUrl || undefined} />
-                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                      {getAvatarInitials(u.firstName, u.lastName, u.username)}
-                    </AvatarFallback>
-                  </Avatar>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {u.firstName} {u.lastName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      ID: {u.id.substring(0, 8)}...
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col text-sm">
-                    <span>{u.email}</span>
-                    <span className="text-xs text-muted-foreground">
-                      @{u.username}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {u.groupNames && u.groupNames.length > 0 ? (
-                      u.groupNames.map((gName, idx) => (
-                        <Badge
-                          key={idx}
-                          variant="secondary"
-                          className="text-[10px]"
-                        >
-                          {gName}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-xs italic">
-                        Sem grupo
+            {filteredUsers.map((u) => {
+              const groupNames = getGroupNames(u)
+              const userRole = (u as any).role || 'vistoriador'
+              
+              return (
+                <TableRow key={u.id} className="hover:bg-gray-50">
+                  <TableCell>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={u.photoUrl || undefined} />
+                      <AvatarFallback className="bg-blue-100 text-blue-600">
+                        {getAvatarInitials(u.name, u.username)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{u.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ID: {u.id.substring(0, 8)}...
                       </span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>{getStatusBadge(u.status)}</TableCell>
-                <TableCell className="text-sm">
-                  {formatDate(u.lastLoginAt)}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {u.createdBy || 'Sistema'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(u)}
-                      title="Editar usuário"
-                    >
-                      <Edit2 className="w-4 h-4 text-blue-500" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(u.id)}
-                      disabled={u.id === user?.id}
-                      title={u.id === user?.id ? "Você não pode remover seu próprio perfil" : "Remover usuário"}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col text-sm">
+                      <span>{u.email}</span>
+                      <span className="text-xs text-muted-foreground">
+                        @{u.username}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {getRoleBadge(userRole)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {groupNames.length > 0 ? (
+                        groupNames.map((gName, idx) => (
+                          <Badge
+                            key={idx}
+                            variant="secondary"
+                            className="text-[10px]"
+                          >
+                            {gName}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground text-xs italic">
+                          Sem grupo
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(u.status)}</TableCell>
+                  <TableCell className="text-sm">
+                    {formatDate(u.lastLoginAt)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(u)}
+                        title="Editar usuário"
+                      >
+                        <Edit2 className="w-4 h-4 text-blue-500" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(u.id)}
+                        disabled={u.id === user?.id}
+                        title={u.id === user?.id ? "Você não pode remover seu próprio perfil" : "Remover usuário"}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
             {filteredUsers.length === 0 && (
               <TableRow>
                 <TableCell
@@ -489,8 +506,7 @@ export default function Users() {
                             <AvatarImage src={field.value || undefined} />
                             <AvatarFallback className="text-2xl bg-blue-100 text-blue-600">
                               {getAvatarInitials(
-                                form.getValues('firstName'),
-                                form.getValues('lastName'),
+                                form.getValues('fullName'),
                                 form.getValues('username')
                               )}
                             </AvatarFallback>
@@ -515,34 +531,19 @@ export default function Users() {
                   />
                 </div>
                 <div className="w-2/3 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Nome *</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="João" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Sobrenome *</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Silva" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="fullName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nome Completo *</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Carlos Botelho" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}
@@ -554,7 +555,7 @@ export default function Users() {
                           <Input
                             {...field}
                             type="email"
-                            placeholder="joao@empresa.com"
+                            placeholder="carlos@empresa.com"
                           />
                         </FormControl>
                         <FormMessage />
@@ -570,7 +571,7 @@ export default function Users() {
                         <FormItem>
                           <FormLabel>Username *</FormLabel>
                           <FormControl>
-                            <Input {...field} placeholder="joao.silva" />
+                            <Input {...field} placeholder="carlos.botelho" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -578,10 +579,10 @@ export default function Users() {
                     />
                     <FormField
                       control={form.control}
-                      name="status"
+                      name="role"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Status</FormLabel>
+                          <FormLabel>Role</FormLabel>
                           <Select
                             onValueChange={field.onChange}
                             defaultValue={field.value}
@@ -592,11 +593,9 @@ export default function Users() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              <SelectItem value="active">Ativo</SelectItem>
-                              <SelectItem value="inactive">Inativo</SelectItem>
-                              <SelectItem value="suspended">
-                                Suspenso
-                              </SelectItem>
+                              <SelectItem value="admin">Administrador</SelectItem>
+                              <SelectItem value="vistoriador">Vistoriador</SelectItem>
+                              <SelectItem value="gestor">Gestor</SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
@@ -604,6 +603,34 @@ export default function Users() {
                       )}
                     />
                   </div>
+
+                  <FormField
+                    control={form.control}
+                    name="status"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="active">Ativo</SelectItem>
+                            <SelectItem value="inactive">Inativo</SelectItem>
+                            <SelectItem value="suspended">
+                              Suspenso
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
               </div>
 
@@ -692,6 +719,7 @@ export default function Users() {
                       <li>Foto de perfil é opcional</li>
                       <li>O email será usado para login</li>
                       <li>Username deve ser único</li>
+                      <li>Role define o nível de acesso principal</li>
                     </ul>
                   </div>
                 </div>
