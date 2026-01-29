@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { PhotoCapture } from '@/components/PhotoCapture'
 import { useToast } from '@/hooks/use-toast'
-import { Trash2, Printer, Loader2, FileText, Image, Navigation } from 'lucide-react'
+import { Trash2, Printer, Loader2, FileText, Image, Navigation, MapPin } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,7 +71,6 @@ export default function LoteForm() {
   const [currentLote, setCurrentLote] = useState<Lote | undefined>()
   const { hasPermission } = useAuth()
   
-  // Permissão simplificada
   const canEdit = true
 
   const form = useForm<FormValues>({
@@ -285,113 +284,114 @@ export default function LoteForm() {
           </TabsTrigger>
         </TabsList>
 
-        {/* ABA LOTE - COM BOTÃO DE GPS VISÍVEL */}
+        {/* ABA LOTE - TESTE SIMPLES DIRETO */}
         <TabsContent value="lote">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
             >
-              {/* SEÇÃO DE LOCALIZAÇÃO COM BOTÃO GRANDE E VISÍVEL */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-200 shadow-sm">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2">
-                      <Navigation className="h-5 w-5" />
-                      Localização Geográfica
-                    </h3>
-                    <p className="text-sm text-blue-600 mt-1">
-                      Capture as coordenadas do lote usando GPS
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={handleGeolocation}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all"
-                  >
-                    <svg 
-                      className="w-5 h-5 mr-2" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        d="M12 11.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
-                      />
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        d="M12 3v2.25m0 13.5V21m8.25-9H21m-17.25 0H3m15.364-6.364l-1.591 1.591m-9.192 9.192l-1.591 1.591m12.728 0l-1.591-1.591m-9.192-9.192L4.636 4.636"
-                      />
-                    </svg>
-                    CAPTURAR LOCALIZAÇÃO
-                  </Button>
-                </div>
+              {/* TESTE: BOTÃO FORA DO FORM FIELD - DIRETO NO HTML */}
+              <div className="border-2 border-red-500 p-4 rounded-lg">
+                <h3 className="text-lg font-bold text-red-600 mb-4">TESTE DE BOTÃO (DEVE APARECER)</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* BOTÃO FORA DE QUALQUER COMPONENTE */}
+                <Button
+                  type="button"
+                  onClick={handleGeolocation}
+                  className="bg-red-600 hover:bg-red-700 text-white mb-4"
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  TESTE: CAPTURAR LOCALIZAÇÃO
+                </Button>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <FormField 
-                      control={form.control} 
-                      name="latitude" 
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-blue-700 font-medium">Latitude *</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input 
-                                {...field} 
-                                placeholder="Ex: -0.036161"
-                                className="pl-10 bg-white border-blue-300 focus:border-blue-500 focus:ring-blue-500"
-                              />
-                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500">
-                                ↗
-                              </span>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} 
+                    <label className="text-sm font-medium">Latitude</label>
+                    <input
+                      value={form.getValues('latitude')}
+                      onChange={(e) => form.setValue('latitude', e.target.value)}
+                      placeholder="Ex: -0.036161"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
                   </div>
                   
                   <div className="space-y-2">
-                    <FormField 
-                      control={form.control} 
-                      name="longitude" 
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-blue-700 font-medium">Longitude *</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input 
-                                {...field} 
-                                placeholder="Ex: -51.130895"
-                                className="pl-10 bg-white border-blue-300 focus:border-blue-500 focus:ring-blue-500"
-                              />
-                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500">
-                                ↗
-                              </span>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} 
+                    <label className="text-sm font-medium">Longitude</label>
+                    <input
+                      value={form.getValues('longitude')}
+                      onChange={(e) => form.setValue('longitude', e.target.value)}
+                      placeholder="Ex: -51.130895"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
                   </div>
                 </div>
                 
-                <div className="mt-4 p-3 bg-blue-100 rounded-lg">
-                  <p className="text-sm text-blue-800 flex items-start">
-                    <span className="mr-2">💡</span>
-                    Clique no botão acima para capturar automaticamente sua localização atual via GPS
-                  </p>
-                </div>
+                {/* OUTRO BOTÃO DEPOIS DOS CAMPOS */}
+                <Button
+                  type="button"
+                  onClick={handleGeolocation}
+                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white w-full"
+                >
+                  <Navigation className="mr-2 h-4 w-4" />
+                  CAPTURAR LOCALIZAÇÃO (2)
+                </Button>
               </div>
 
-              {/* RESTANTE DOS CAMPOS */}
+              {/* VERSÃO COM FORM FIELD - PARA COMPARAÇÃO */}
+              <div className="border-2 border-blue-500 p-4 rounded-lg">
+                <h3 className="text-lg font-bold text-blue-600 mb-4">VERSÃO COM FORM FIELD</h3>
+                
+                {/* BOTÃO ANTES DO FORM FIELD */}
+                <Button
+                  type="button"
+                  onClick={handleGeolocation}
+                  className="mb-4 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  BOTÃO ANTES DO FORM FIELD
+                </Button>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField 
+                    control={form.control} 
+                    name="latitude" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Ex: -0.036161" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} 
+                  />
+                  
+                  <FormField 
+                    control={form.control} 
+                    name="longitude" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Ex: -51.130895" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} 
+                  />
+                </div>
+                
+                {/* BOTÃO DEPOIS DO FORM FIELD */}
+                <Button
+                  type="button"
+                  onClick={handleGeolocation}
+                  className="mt-4 bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  BOTÃO DEPOIS DO FORM FIELD
+                </Button>
+              </div>
+
+              {/* RESTANTE DOS CAMPOS (ORIGINAL) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -400,7 +400,7 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Nome do Lote *</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ex: Lote 10" />
+                        <Input {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -418,7 +418,7 @@ export default function LoteForm() {
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione o status" />
+                            <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -441,7 +441,7 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Área (m²) *</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Ex: 250,32" />
+                        <Input {...field} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -453,7 +453,7 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Endereço</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Endereço completo do lote" />
+                        <Input {...field} />
                       </FormControl>
                     </FormItem>
                   )}
@@ -467,11 +467,7 @@ export default function LoteForm() {
                   <FormItem>
                     <FormLabel>Descrição</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        {...field} 
-                        placeholder="Descrição detalhada do lote..."
-                        className="min-h-[100px]"
-                      />
+                      <Textarea {...field} />
                     </FormControl>
                   </FormItem>
                 )}
@@ -482,7 +478,7 @@ export default function LoteForm() {
                 name="images"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fotos do Lote</FormLabel>
+                    <FormLabel>Fotos do Imóvel e Documentos</FormLabel>
                     <FormControl>
                       <PhotoCapture
                         initialPhotos={field.value || []}
@@ -497,7 +493,7 @@ export default function LoteForm() {
 
               <Button
                 type="submit"
-                className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-medium"
+                className="w-full bg-blue-600 hover:bg-blue-700"
                 disabled={loading}
               >
                 {loading ? 'Salvando...' : 'Salvar Dados do Lote'}
