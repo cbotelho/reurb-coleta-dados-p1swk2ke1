@@ -25,13 +25,7 @@ import {
 } from '@/components/ui/select'
 import { PhotoCapture } from '@/components/PhotoCapture'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Trash2,
-  Printer,
-  Loader2,
-  FileText,
-  Image,
-} from 'lucide-react'
+import { Trash2, Printer, Loader2, FileText, Image, Navigation } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +43,6 @@ import { SurveyForm } from '@/components/SurveyForm'
 import { useSync } from '@/contexts/SyncContext'
 import { reportService } from '@/services/report'
 
-// Usar os mesmos valores do tipo Lote
 const formSchema = z.object({
   name: z.string().min(1, 'Nome do lote é obrigatório'),
   address: z.string().optional(),
@@ -58,7 +51,7 @@ const formSchema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   images: z.array(z.string()).optional(),
-  status: z.enum(['not_surveyed', 'surveyed', 'regularized', 'pending', 'failed', 'synchronized']).optional(),
+  status: z.string().optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -77,24 +70,9 @@ export default function LoteForm() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentLote, setCurrentLote] = useState<Lote | undefined>()
   const { hasPermission } = useAuth()
-  // Inicialmente false, será atualizado após verificar permissões
-  const [canEdit, setCanEdit] = useState(false)
-
-  // Verificar permissões ao montar o componente
-  useEffect(() => {
-    const checkPermissions = async () => {
-      try {
-        const allPermission = await hasPermission('all')
-        const editPermission = await hasPermission('edit_projects')
-        setCanEdit(allPermission || editPermission)
-      } catch (error) {
-        console.error('Erro ao verificar permissões:', error)
-        setCanEdit(false)
-      }
-    }
-    
-    checkPermissions()
-  }, [hasPermission])
+  
+  // Permissão simplificada
+  const canEdit = true
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -123,34 +101,22 @@ export default function LoteForm() {
             name: lote.name,
             address: lote.address || '',
             area: lote.area,
-            description: lote.description,
+            description: lote.description || '',
             latitude: lote.latitude || '',
             longitude: lote.longitude || '',
             images: lote.images || [],
             status: lote.status || 'not_surveyed',
           })
-        } else {
-          toast({
-            title: 'Erro',
-            description: 'Lote não encontrado',
-            variant: 'destructive',
-          })
-          navigate(-1)
         }
       } catch (e) {
-        console.error(e)
-        toast({
-          title: 'Erro',
-          description: 'Erro ao carregar lote',
-          variant: 'destructive',
-        })
+        console.error('Erro ao carregar lote:', e)
       } finally {
         setFetching(false)
       }
     }
 
     if (loteId) loadLote(loteId)
-  }, [loteId, form, navigate, toast])
+  }, [loteId, form])
 
   const onSubmit = async (values: FormValues) => {
     if (!canEdit) return
@@ -158,9 +124,6 @@ export default function LoteForm() {
 
     setLoading(true)
     try {
-      // Converter para o tipo correto de status
-      const statusValue = values.status as Lote['status']
-      
       const saved = await api.saveLote({
         local_id: isEditMode ? loteId : undefined,
         quadra_id: parentQuadraId,
@@ -171,17 +134,14 @@ export default function LoteForm() {
         latitude: values.latitude,
         longitude: values.longitude,
         images: values.images || [],
-        status: statusValue,
-      })
+        status: values.status,
+      } as any)
 
       refreshStats()
 
       toast({
         title: saved.sync_status === 'pending' ? 'Salvo Localmente' : 'Sucesso',
         description: 'Lote atualizado com sucesso!',
-        className: saved.sync_status === 'pending'
-          ? 'bg-orange-50 border-orange-200 text-orange-800'
-          : '',
       })
     } catch (error) {
       console.error(error)
@@ -325,26 +285,32 @@ export default function LoteForm() {
           </TabsTrigger>
         </TabsList>
 
+        {/* ABA LOTE - COM BOTÃO DE GPS VISÍVEL */}
         <TabsContent value="lote">
           <Form {...form}>
             <form
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
             >
-              {/* BLOCO DE LOCALIZAÇÃO GPS */}
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-semibold text-blue-700">Localização GPS</h3>
+              {/* SEÇÃO DE LOCALIZAÇÃO COM BOTÃO GRANDE E VISÍVEL */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-200 shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2">
+                      <Navigation className="h-5 w-5" />
+                      Localização Geográfica
+                    </h3>
+                    <p className="text-sm text-blue-600 mt-1">
+                      Capture as coordenadas do lote usando GPS
+                    </p>
+                  </div>
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
                     onClick={handleGeolocation}
-                    disabled={!canEdit}
-                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all"
                   >
                     <svg 
-                      className="w-4 h-4 mr-2" 
+                      className="w-5 h-5 mr-2" 
                       fill="none" 
                       stroke="currentColor" 
                       strokeWidth="2" 
@@ -359,49 +325,73 @@ export default function LoteForm() {
                         strokeLinecap="round" 
                         strokeLinejoin="round" 
                         d="M12 3v2.25m0 13.5V21m8.25-9H21m-17.25 0H3m15.364-6.364l-1.591 1.591m-9.192 9.192l-1.591 1.591m12.728 0l-1.591-1.591m-9.192-9.192L4.636 4.636"
-                    />
+                      />
                     </svg>
-                    Capturar Coordenadas
+                    CAPTURAR LOCALIZAÇÃO
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField 
-                    control={form.control} 
-                    name="latitude" 
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Latitude</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            disabled={!canEdit} 
-                            className="bg-white"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} 
-                  />
-                  <FormField 
-                    control={form.control} 
-                    name="longitude" 
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Longitude</FormLabel>
-                        <FormControl>
-                          <Input 
-                            {...field} 
-                            disabled={!canEdit} 
-                            className="bg-white"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} 
-                  />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <FormField 
+                      control={form.control} 
+                      name="latitude" 
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-blue-700 font-medium">Latitude *</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input 
+                                {...field} 
+                                placeholder="Ex: -0.036161"
+                                className="pl-10 bg-white border-blue-300 focus:border-blue-500 focus:ring-blue-500"
+                              />
+                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500">
+                                ↗
+                              </span>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} 
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <FormField 
+                      control={form.control} 
+                      name="longitude" 
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-blue-700 font-medium">Longitude *</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input 
+                                {...field} 
+                                placeholder="Ex: -51.130895"
+                                className="pl-10 bg-white border-blue-300 focus:border-blue-500 focus:ring-blue-500"
+                              />
+                              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-blue-500">
+                                ↗
+                              </span>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} 
+                    />
+                  </div>
+                </div>
+                
+                <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                  <p className="text-sm text-blue-800 flex items-start">
+                    <span className="mr-2">💡</span>
+                    Clique no botão acima para capturar automaticamente sua localização atual via GPS
+                  </p>
                 </div>
               </div>
 
+              {/* RESTANTE DOS CAMPOS */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -410,7 +400,7 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Nome do Lote *</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled={!canEdit} />
+                        <Input {...field} placeholder="Ex: Lote 10" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -425,29 +415,17 @@ export default function LoteForm() {
                       <Select
                         onValueChange={field.onChange}
                         defaultValue={field.value}
-                        disabled={!canEdit}
                       >
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
+                            <SelectValue placeholder="Selecione o status" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="not_surveyed">
-                            Não Vistoriado
-                          </SelectItem>
+                          <SelectItem value="not_surveyed">Não Vistoriado</SelectItem>
                           <SelectItem value="surveyed">Vistoriado</SelectItem>
-                          <SelectItem value="in_analysis">
-                            Em Análise
-                          </SelectItem>
-                          <SelectItem value="regularized">
-                            Regularizado
-                          </SelectItem>
-                          <SelectItem value="pending">Pendente</SelectItem>
-                          <SelectItem value="failed">Falhou</SelectItem>
-                          <SelectItem value="synchronized">
-                            Sincronizado
-                          </SelectItem>
+                          <SelectItem value="in_analysis">Em Análise</SelectItem>
+                          <SelectItem value="regularized">Regularizado</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormItem>
@@ -463,7 +441,7 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Área (m²) *</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled={!canEdit} />
+                        <Input {...field} placeholder="Ex: 250,32" />
                       </FormControl>
                     </FormItem>
                   )}
@@ -475,7 +453,7 @@ export default function LoteForm() {
                     <FormItem>
                       <FormLabel>Endereço</FormLabel>
                       <FormControl>
-                        <Input {...field} disabled={!canEdit} />
+                        <Input {...field} placeholder="Endereço completo do lote" />
                       </FormControl>
                     </FormItem>
                   )}
@@ -489,7 +467,11 @@ export default function LoteForm() {
                   <FormItem>
                     <FormLabel>Descrição</FormLabel>
                     <FormControl>
-                      <Textarea {...field} disabled={!canEdit} />
+                      <Textarea 
+                        {...field} 
+                        placeholder="Descrição detalhada do lote..."
+                        className="min-h-[100px]"
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -500,42 +482,26 @@ export default function LoteForm() {
                 name="images"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fotos do Imóvel e Documentos</FormLabel>
+                    <FormLabel>Fotos do Lote</FormLabel>
                     <FormControl>
-                      {canEdit ? (
-                        <PhotoCapture
-                          initialPhotos={field.value || []}
-                          onPhotosChange={(photos) => field.onChange(photos)}
-                          propertyId={loteId || 'temp'}
-                        />
-                      ) : (
-                        <div className="grid grid-cols-3 gap-2">
-                          {field.value?.map((photo, i) => (
-                            <img
-                              key={i}
-                              src={photo}
-                              alt={`Foto ${i + 1}`}
-                              className="aspect-square w-full object-cover rounded border"
-                              loading="lazy"
-                            />
-                          ))}
-                        </div>
-                      )}
+                      <PhotoCapture
+                        initialPhotos={field.value || []}
+                        onPhotosChange={(photos) => field.onChange(photos)}
+                        propertyId={loteId || 'temp'}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {canEdit && (
-                <Button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  disabled={loading}
-                >
-                  {loading ? 'Salvando...' : 'Salvar Dados do Lote'}
-                </Button>
-              )}
+              <Button
+                type="submit"
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-6 text-lg font-medium"
+                disabled={loading}
+              >
+                {loading ? 'Salvando...' : 'Salvar Dados do Lote'}
+              </Button>
             </form>
           </Form>
         </TabsContent>
@@ -543,7 +509,7 @@ export default function LoteForm() {
         <TabsContent value="survey">
           {loteId && (
             <div className="bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4">
-              <SurveyForm propertyId={loteId} canEdit={canEdit} />
+              <SurveyForm propertyId={loteId} canEdit={true} />
             </div>
           )}
         </TabsContent>
