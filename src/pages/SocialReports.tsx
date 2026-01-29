@@ -59,6 +59,7 @@ export default function SocialReports() {
   const { user } = useAuth()
   const { isAdmin } = usePermissions()
   
+ 
   const [reports, setReports] = useState<SocialReport[]>([])
   const [filteredReports, setFilteredReports] = useState<SocialReport[]>([])
   const [isLoading, setIsLoading] = useState(true)
