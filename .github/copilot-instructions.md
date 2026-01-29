@@ -1,5 +1,6 @@
 
 
+
 # Instruções para Agentes de IA — REURB Coleta
 
 ## Visão Geral e Arquitetura
@@ -10,11 +11,13 @@
 - **Sincronização:** O serviço `src/services/syncService.ts` faz push/pull com Supabase. Alterações locais recebem `sync_status: 'pending'` e são sincronizadas em background.
 - **IDs:** Use sempre `local_id` (UUID cliente) para chaves e relacionamentos. O campo `id` (backend) é só para debug/SQL.
 - **Uploads de Imagem:** Use `src/services/imageService.ts` para upload direto ao Supabase Storage; salve apenas a URL localmente.
+- **Formulários:** Validação sempre com `zod` inline. Veja exemplos em [src/components/SocialReportForm.tsx](../src/components/SocialReportForm.tsx).
+- **Mapeamento de campos:** Alinhe alterações entre [src/types/](../src/types/), SQL e zod. Consulte [FORMULARIOS-MAPEAMENTO-COMPLETO.md](../../FORMULARIOS-MAPEAMENTO-COMPLETO.md).
 
 ## Convenções e Padrões
-- **Componentes:** Sempre funcionais. Validação de formulários com schemas `zod` inline.
+- **Componentes:** Sempre funcionais. Não use classes.
 - **Estilo:** Tailwind CSS + Shadcn UI (`@/components/ui`). Ícones: `lucide-react`.
-- **Datas:** Armazene sempre como ISO string; exiba com `date-fns` e locale `pt-BR`.
+- **Datas:** Armazene como ISO string; exiba com `date-fns` e locale `pt-BR`.
 - **Listas:** Use sempre `key={item.local_id}`.
 - **Lint:** Use `oxlint` (`npm run lint` ou `npm run lint:fix`).
 - **Testes:** Não crie arquivos de teste (`*.test.ts`, `*.spec.ts`). Não há test runner.
@@ -29,9 +32,14 @@
 - **Lint/Format:** `npm run lint`, `npm run lint:fix`, `npm run format`
 
 ## Exemplos e Arquivos-Chave
-- **Formulários complexos:** Veja [src/components/SocialReportForm.tsx](../src/components/SocialReportForm.tsx)
-- **Scripts SQL de diagnóstico:** Veja [migration/check_*.sql](../migration/)
-- **Mapeamento de campos:** Alinhe sempre alterações entre [src/types/](../src/types/), SQL e zod.
+- **Formulários complexos:** [src/components/SocialReportForm.tsx](../src/components/SocialReportForm.tsx)
+- **Scripts SQL de diagnóstico:** [migration/check_*.sql](../migration/)
+- **Mapeamento de campos:** [src/types/](../src/types/), [FORMULARIOS-MAPEAMENTO-COMPLETO.md](../../FORMULARIOS-MAPEAMENTO-COMPLETO.md)
+
+## Integrações e Dependências
+- **Supabase:** Usado para sync, storage e autenticação. Não acesse Supabase diretamente fora dos serviços.
+- **React Hook Form:** Para formulários, sempre com zod.
+- **date-fns:** Para manipulação e exibição de datas.
 
 ## Dicas Práticas
 - **Simular offline:** Execute `window.dispatchEvent(new Event('offline'))` no console.
@@ -45,4 +53,4 @@
 - [CSV-IMPORT-README.md](../../CSV-IMPORT-README.md) — importação CSV
 
 ---
-**Versão:** 1.4.6+ | **Status:** Produção | **Atualizado:** 28/01/2026
+**Versão:** 1.4.6+ | **Status:** Produção | **Atualizado:** 29/01/2026

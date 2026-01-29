@@ -70,8 +70,8 @@ export default function Login() {
           setError(error.message || 'Erro ao tentar conectar.')
         }
       } else {
-        // Redirect handled by AuthContext/Router usually, but we can force it
-        navigate('/')
+        // Redirecionar para projetos após login
+        navigate('/projetos')
       }
     } catch (err) {
       console.error('Unexpected login error:', err)

@@ -92,7 +92,7 @@ const App = () => (
                 </PrivateRoute>
               }
             >
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Navigate to="/projetos" replace />} />
               <Route path="/projetos" element={<Projetos />} />
               <Route path="/projetos/novo" element={<ProjetoNew />} />
               <Route path="/projetos/:projectId" element={<ProjetoDetails />} />
