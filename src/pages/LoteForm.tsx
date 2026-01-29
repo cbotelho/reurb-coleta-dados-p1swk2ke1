@@ -1,3 +1,4 @@
+import { TesteGPS } from '@/components/TesteGPS'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -510,6 +511,10 @@ export default function LoteForm() {
           )}
         </TabsContent>
       </Tabs>
+          <div className="mt-8">
+            <TesteGPS />
+          </div>
     </div>
+    
   )
 }
