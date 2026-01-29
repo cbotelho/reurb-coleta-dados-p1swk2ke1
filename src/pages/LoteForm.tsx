@@ -287,6 +287,47 @@ export default function LoteForm() {
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
             >
+
+              {/* BLOCO DE LOCALIZAÇÃO GPS */}
+              <div className="bg-slate-50 p-4 rounded-lg border space-y-4 mb-4">
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h3 className="font-semibold text-sm text-slate-700 uppercase tracking-wider text-[10px]">Localização GPS</h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if ('geolocation' in navigator) {
+                        navigator.geolocation.getCurrentPosition(
+                          (position) => {
+                            form.setValue('latitude', position.coords.latitude.toFixed(6))
+                            form.setValue('longitude', position.coords.longitude.toFixed(6))
+                            toast({ title: 'Localização obtida', description: 'Coordenadas atualizadas.' })
+                          },
+                          (error) => {
+                            toast({ title: 'Erro ao obter localização', description: error.message, variant: 'destructive' })
+                          }
+                        )
+                      } else {
+                        toast({ title: 'Geolocalização não suportada', description: 'Seu navegador não suporta geolocalização.', variant: 'destructive' })
+                      }
+                    }}
+                    disabled={!canEdit}
+                  >
+                    <svg className="w-3 h-3 mr-2 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 11.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.25-9H21m-17.25 0H3m15.364-6.364l-1.591 1.591m-9.192 9.192l-1.591 1.591m12.728 0l-1.591-1.591m-9.192-9.192L4.636 4.636"/></svg>
+                    Capturar Coordenadas
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={form.control} name="latitude" render={({ field }) => (
+                    <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
+                  )} />
+                  <FormField control={form.control} name="longitude" render={({ field }) => (
+                    <FormItem><FormLabel>Longitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
+                  )} />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}

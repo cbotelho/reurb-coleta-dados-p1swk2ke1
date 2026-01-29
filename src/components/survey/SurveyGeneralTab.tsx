@@ -25,26 +25,8 @@ export function SurveyGeneralTab({
   handleSignatureFile, onOpenSignatureDialog
 }: SurveyGeneralTabProps) {
   return (
-    <div className="space-y-6">
-      {/* 1. BLOCO DE LOCALIZAÇÃO GPS */}
-      <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
-        <div className="flex justify-between items-center border-b pb-2">
-          <h3 className="font-semibold text-sm text-slate-700 uppercase tracking-wider text-[10px]">Localização GPS</h3>
-          <Button type="button" variant="outline" size="sm" onClick={getCurrentLocation} disabled={!canEdit}>
-            <MapPin className="w-3 h-3 mr-2 text-blue-600" /> Capturar Coordenadas
-          </Button>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField control={form.control} name="latitude" render={({ field }) => (
-            <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
-          )} />
-          <FormField control={form.control} name="longitude" render={({ field }) => (
-            <FormItem><FormLabel>Longitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
-          )} />
-        </div>
-      </div>
-
-      {/* 2. BLOCO DE DADOS DA VISTORIA */}
+    <div className="space-y-6"> 
+      {/* 1. BLOCO DE DADOS DA VISTORIA */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FormField control={form.control} name="form_number" render={({ field }) => (
           <FormItem><FormLabel>Nº Formulário</FormLabel><FormControl><Input {...field} disabled={!canEdit} placeholder="Ex: 001/2024" /></FormControl></FormItem>
