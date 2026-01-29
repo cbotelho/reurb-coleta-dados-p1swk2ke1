@@ -52,6 +52,7 @@ import { SurveyForm } from '@/components/SurveyForm'
 import { useSync } from '@/contexts/SyncContext'
 import { reportService } from '@/services/report'
 
+// Atualize o schema para corresponder ao tipo Lote
 const formSchema = z.object({
   name: z.string().min(1, 'Nome do lote é obrigatório'),
   address: z.string().optional(),
@@ -60,7 +61,7 @@ const formSchema = z.object({
   latitude: z.string().optional(),
   longitude: z.string().optional(),
   images: z.array(z.string()).optional(),
-  status: z.string().optional(),
+  status: z.enum(['not_surveyed', 'surveyed', 'regularized', 'pending', 'failed', 'synchronized']).optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -81,7 +82,18 @@ export default function LoteForm() {
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentLote, setCurrentLote] = useState<Lote | undefined>()
   const { hasPermission } = useAuth()
-  const canEdit = hasPermission('all') || hasPermission('edit_projects')
+  const [canEdit, setCanEdit] = useState(false)
+
+  // Verificar permissões assincronamente
+  useEffect(() => {
+    const checkPermissions = async () => {
+      const allPermission = await hasPermission('all')
+      const editPermission = await hasPermission('edit_projects')
+      setCanEdit(allPermission || editPermission)
+    }
+    
+    checkPermissions()
+  }, [hasPermission])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -145,6 +157,9 @@ export default function LoteForm() {
 
     setLoading(true)
     try {
+      // Garantir que o status seja um dos valores válidos
+      const validStatus = values.status as Lote['status']
+      
       const saved = await api.saveLote({
         local_id: isEditMode ? loteId : undefined,
         quadra_id: parentQuadraId,
@@ -155,7 +170,7 @@ export default function LoteForm() {
         latitude: values.latitude,
         longitude: values.longitude,
         images: values.images || [],
-        status: values.status,
+        status: validStatus,
       })
 
       refreshStats()
@@ -287,12 +302,12 @@ export default function LoteForm() {
               onSubmit={form.handleSubmit(onSubmit)}
               className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
             >
-
-
               {/* BLOCO DE LOCALIZAÇÃO GPS DESTACADO */}
               <div className="bg-slate-50 p-4 rounded-lg border space-y-4 mb-4">
                 <div className="flex justify-between items-center border-b pb-2">
-                  <h3 className="font-semibold text-sm text-slate-700 uppercase tracking-wider text-[10px]">Localização GPS</h3>
+                  <h3 className="font-semibold text-sm text-slate-700 uppercase tracking-wider text-[10px]">
+                    Localização GPS
+                  </h3>
                   <Button
                     type="button"
                     variant="outline"
@@ -303,29 +318,78 @@ export default function LoteForm() {
                           (position) => {
                             form.setValue('latitude', position.coords.latitude.toFixed(6))
                             form.setValue('longitude', position.coords.longitude.toFixed(6))
-                            toast({ title: 'Localização obtida', description: 'Coordenadas atualizadas.' })
+                            toast({ 
+                              title: 'Localização obtida', 
+                              description: 'Coordenadas atualizadas.' 
+                            })
                           },
                           (error) => {
-                            toast({ title: 'Erro ao obter localização', description: error.message, variant: 'destructive' })
+                            toast({ 
+                              title: 'Erro ao obter localização', 
+                              description: error.message, 
+                              variant: 'destructive' 
+                            })
                           }
                         )
                       } else {
-                        toast({ title: 'Geolocalização não suportada', description: 'Seu navegador não suporta geolocalização.', variant: 'destructive' })
+                        toast({ 
+                          title: 'Geolocalização não suportada', 
+                          description: 'Seu navegador não suporta geolocalização.', 
+                          variant: 'destructive' 
+                        })
                       }
                     }}
                     disabled={!canEdit}
+                    className="flex items-center gap-1"
                   >
-                    <svg className="w-3 h-3 mr-2 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 11.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m0 13.5V21m8.25-9H21m-17.25 0H3m15.364-6.364l-1.591 1.591m-9.192 9.192l-1.591 1.591m12.728 0l-1.591-1.591m-9.192-9.192L4.636 4.636"/></svg>
-                    Capturar Coordenadas
+                    <svg 
+                      className="w-3 h-3 text-blue-600" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        d="M12 11.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0z"
+                      />
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        d="M12 3v2.25m0 13.5V21m8.25-9H21m-17.25 0H3m15.364-6.364l-1.591 1.591m-9.192 9.192l-1.591 1.591m12.728 0l-1.591-1.591m-9.192-9.192L4.636 4.636"
+                      />
+                    </svg>
+                    <span>Capturar Coordenadas</span>
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="latitude" render={({ field }) => (
-                    <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
-                  )} />
-                  <FormField control={form.control} name="longitude" render={({ field }) => (
-                    <FormItem><FormLabel>Longitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
-                  )} />
+                  <FormField 
+                    control={form.control} 
+                    name="latitude" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled={!canEdit} readOnly />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} 
+                  />
+                  <FormField 
+                    control={form.control} 
+                    name="longitude" 
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled={!canEdit} readOnly />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} 
+                  />
                 </div>
               </div>
 
@@ -364,11 +428,17 @@ export default function LoteForm() {
                             Não Vistoriado
                           </SelectItem>
                           <SelectItem value="surveyed">Vistoriado</SelectItem>
-                          <SelectItem value="in_analysis">
-                            Em Análise
-                          </SelectItem>
                           <SelectItem value="regularized">
                             Regularizado
+                          </SelectItem>
+                          <SelectItem value="pending">
+                            Pendente
+                          </SelectItem>
+                          <SelectItem value="failed">
+                            Falhou
+                          </SelectItem>
+                          <SelectItem value="synchronized">
+                            Sincronizado
                           </SelectItem>
                         </SelectContent>
                       </Select>
@@ -387,6 +457,7 @@ export default function LoteForm() {
                       <FormControl>
                         <Input {...field} disabled={!canEdit} />
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -399,6 +470,7 @@ export default function LoteForm() {
                       <FormControl>
                         <Input {...field} disabled={!canEdit} />
                       </FormControl>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -413,6 +485,7 @@ export default function LoteForm() {
                     <FormControl>
                       <Textarea {...field} disabled={!canEdit} />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
