@@ -288,7 +288,8 @@ export default function LoteForm() {
               className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
             >
 
-              {/* BLOCO DE LOCALIZAÇÃO GPS */}
+
+              {/* BLOCO DE LOCALIZAÇÃO GPS DESTACADO */}
               <div className="bg-slate-50 p-4 rounded-lg border space-y-4 mb-4">
                 <div className="flex justify-between items-center border-b pb-2">
                   <h3 className="font-semibold text-sm text-slate-700 uppercase tracking-wider text-[10px]">Localização GPS</h3>
@@ -318,7 +319,7 @@ export default function LoteForm() {
                     Capturar Coordenadas
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="latitude" render={({ field }) => (
                     <FormItem><FormLabel>Latitude</FormLabel><FormControl><Input {...field} disabled={!canEdit} readOnly /></FormControl></FormItem>
                   )} />
