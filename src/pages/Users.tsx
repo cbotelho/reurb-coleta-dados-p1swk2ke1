@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Plus, Trash2, Edit2, Loader2, ShieldAlert, Search } from 'lucide-react'
+import { Plus, Trash2, Edit2, Loader2, ShieldAlert, Search, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -46,6 +46,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
+// Schema corrigido - photoUrl deve ser string ou undefined
 const formSchema = z.object({
   firstName: z.string().min(1, 'Nome é obrigatório'),
   lastName: z.string().min(1, 'Sobrenome é obrigatório'),
@@ -57,7 +58,16 @@ const formSchema = z.object({
   password: z.string().optional(),
 })
 
-type FormValues = z.infer<typeof formSchema>
+type FormValues = {
+  firstName: string
+  lastName: string
+  email: string
+  username: string
+  photoUrl?: string
+  status: 'active' | 'inactive' | 'suspended'
+  groups: string[]
+  password?: string
+}
 
 export default function Users() {
   const { user, hasPermission } = useAuth()
@@ -75,7 +85,7 @@ export default function Users() {
     lastName: '',
     email: '',
     username: '',
-    photoUrl: '',
+    photoUrl: '', // Agora é string vazia, não null
     status: 'active',
     groups: [],
     password: '',
@@ -113,10 +123,36 @@ export default function Users() {
         api.getUsers(),
         api.getGroups(),
       ])
-      setUsers(usersData)
-      setAvailableGroups(groupsData)
-    } catch (e) {
-      toast.error('Erro ao carregar dados')
+      
+      if (Array.isArray(usersData)) {
+        setUsers(usersData)
+      } else {
+        console.error('Resposta inválida para usuários:', usersData)
+        toast.error('Formato de resposta inválido para usuários')
+        setUsers([])
+      }
+      
+      if (Array.isArray(groupsData)) {
+        setAvailableGroups(groupsData)
+      } else {
+        console.error('Resposta inválida para grupos:', groupsData)
+        toast.error('Formato de resposta inválido para grupos')
+        setAvailableGroups([])
+      }
+    } catch (e: any) {
+      console.error('Erro ao carregar dados:', e)
+      
+      if (e.status === 400) {
+        toast.error('Erro na requisição ao banco de dados. Verifique as permissões RLS.')
+      } else if (e.status === 401 || e.status === 403) {
+        toast.error('Acesso não autorizado. Faça login novamente.')
+      } else if (e.status === 404) {
+        toast.error('Tabela não encontrada.')
+      } else if (e.status === 500) {
+        toast.error('Erro interno do servidor.')
+      } else {
+        toast.error('Erro ao carregar dados. Verifique sua conexão.')
+      }
     } finally {
       setLoading(false)
     }
@@ -148,12 +184,12 @@ export default function Users() {
     try {
       const userData = {
         id: editingUser?.id,
-        firstName: values.firstName,
-        lastName: values.lastName,
-        username: values.username,
-        email: values.email,
-        password: values.password,
-        photoUrl: values.photoUrl,
+        firstName: values.firstName.trim(),
+        lastName: values.lastName.trim(),
+        username: values.username.trim().toLowerCase(),
+        email: values.email.trim().toLowerCase(),
+        password: values.password || undefined,
+        photoUrl: values.photoUrl?.trim() || undefined, // Pode ser undefined
         status: values.status,
         groupIds: values.groups,
         createdById: user?.id,
@@ -169,24 +205,40 @@ export default function Users() {
       setIsDialogOpen(false)
       loadData()
     } catch (error: any) {
-      console.error(error)
-      toast.error(error.message || 'Erro ao salvar usuário')
+      console.error('Erro ao salvar usuário:', error)
+      
+      if (error.message?.includes('duplicate key')) {
+        toast.error('Email ou nome de usuário já está em uso.')
+      } else if (error.message?.includes('violates foreign key constraint')) {
+        toast.error('Erro na referência aos grupos selecionados.')
+      } else {
+        toast.error(error.message || 'Erro ao salvar usuário')
+      }
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja remover este usuário?')) {
-      if (id === user?.id) {
-        toast.error('Você não pode remover seu próprio perfil')
-        return
-      }
-      try {
-        await api.deleteUser(id)
-        toast.success('Usuário removido')
-        loadData()
-      } catch (e) {
+    if (!confirm('Tem certeza que deseja remover este usuário?')) {
+      return
+    }
+    
+    if (id === user?.id) {
+      toast.error('Você não pode remover seu próprio perfil')
+      return
+    }
+    
+    try {
+      await api.deleteUser(id)
+      toast.success('Usuário removido com sucesso')
+      loadData()
+    } catch (error: any) {
+      console.error('Erro ao remover usuário:', error)
+      
+      if (error.message?.includes('violates foreign key constraint')) {
+        toast.error('Não é possível remover usuário com registros associados.')
+      } else {
         toast.error('Erro ao remover usuário')
       }
     }
@@ -240,15 +292,34 @@ export default function Users() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-'
-    return format(new Date(dateString), 'dd/MM/yyyy HH:mm', { locale: ptBR })
+    try {
+      return format(new Date(dateString), 'dd/MM/yyyy HH:mm', { locale: ptBR })
+    } catch (e) {
+      console.error('Erro ao formatar data:', e)
+      return '-'
+    }
   }
 
-  if (loading)
+  // Função para gerar avatar inicial
+  const getAvatarInitials = (firstName?: string, lastName?: string, username?: string) => {
+    if (firstName && lastName) {
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+    } else if (firstName) {
+      return firstName.charAt(0).toUpperCase()
+    } else if (username) {
+      return username.charAt(0).toUpperCase()
+    }
+    return '?'
+  }
+
+  if (loading) {
     return (
-      <div className="p-10 flex justify-center">
-        <Loader2 className="animate-spin text-blue-600" />
+      <div className="h-[calc(100vh-200px)] flex flex-col items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600 h-8 w-8 mb-4" />
+        <p className="text-muted-foreground">Carregando usuários...</p>
       </div>
     )
+  }
 
   return (
     <div className="space-y-6 pb-20">
@@ -293,12 +364,12 @@ export default function Users() {
           </TableHeader>
           <TableBody>
             {filteredUsers.map((u) => (
-              <TableRow key={u.id}>
+              <TableRow key={u.id} className="hover:bg-gray-50">
                 <TableCell>
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={u.photoUrl} />
-                    <AvatarFallback>
-                      {u.firstName?.charAt(0) || u.username.charAt(0)}
+                    <AvatarImage src={u.photoUrl || undefined} />
+                    <AvatarFallback className="bg-blue-100 text-blue-600">
+                      {getAvatarInitials(u.firstName, u.lastName, u.username)}
                     </AvatarFallback>
                   </Avatar>
                 </TableCell>
@@ -352,6 +423,7 @@ export default function Users() {
                       variant="ghost"
                       size="icon"
                       onClick={() => openEdit(u)}
+                      title="Editar usuário"
                     >
                       <Edit2 className="w-4 h-4 text-blue-500" />
                     </Button>
@@ -360,6 +432,7 @@ export default function Users() {
                       size="icon"
                       onClick={() => handleDelete(u.id)}
                       disabled={u.id === user?.id}
+                      title={u.id === user?.id ? "Você não pode remover seu próprio perfil" : "Remover usuário"}
                     >
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </Button>
@@ -371,9 +444,15 @@ export default function Users() {
               <TableRow>
                 <TableCell
                   colSpan={8}
-                  className="text-center py-8 text-muted-foreground"
+                  className="text-center py-12 text-muted-foreground"
                 >
-                  Nenhum usuário encontrado.
+                  <div className="flex flex-col items-center">
+                    <UserIcon className="w-12 h-12 text-gray-300 mb-3" />
+                    <p className="font-medium">Nenhum usuário encontrado</p>
+                    <p className="text-sm mt-1">
+                      {searchTerm ? 'Tente alterar sua busca' : 'Crie seu primeiro usuário clicando em "Novo Usuário"'}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
@@ -404,20 +483,30 @@ export default function Users() {
                     name="photoUrl"
                     render={({ field }) => (
                       <FormItem className="text-center">
-                        <FormLabel>Foto de Perfil</FormLabel>
+                        <FormLabel>Foto de Perfil (Opcional)</FormLabel>
                         <div className="mt-2 flex flex-col items-center gap-2">
                           <Avatar className="h-24 w-24">
-                            <AvatarImage src={field.value} />
-                            <AvatarFallback className="text-2xl">
-                              ?
+                            <AvatarImage src={field.value || undefined} />
+                            <AvatarFallback className="text-2xl bg-blue-100 text-blue-600">
+                              {getAvatarInitials(
+                                form.getValues('firstName'),
+                                form.getValues('lastName'),
+                                form.getValues('username')
+                              )}
                             </AvatarFallback>
                           </Avatar>
                           <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="URL da Imagem"
-                              className="text-xs"
-                            />
+                            <div className="w-full">
+                              <Input
+                                {...field}
+                                value={field.value || ''}
+                                placeholder="URL da Imagem"
+                                className="text-xs"
+                              />
+                              <p className="text-xs text-muted-foreground mt-1 text-center">
+                                Deixe em branco para usar avatar padrão
+                              </p>
+                            </div>
                           </FormControl>
                         </div>
                         <FormMessage />
@@ -529,51 +618,40 @@ export default function Users() {
                         <ScrollArea className="h-full">
                           <div className="space-y-2">
                             {availableGroups.map((group) => (
-                              <FormField
+                              <div
                                 key={group.id}
-                                control={form.control}
-                                name="groups"
-                                render={({ field }) => {
-                                  return (
-                                    <FormItem
-                                      key={group.id}
-                                      className="flex flex-row items-start space-x-3 space-y-0"
-                                    >
-                                      <FormControl>
-                                        <div className="flex items-center space-x-2">
-                                          <input
-                                            type="checkbox"
-                                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            checked={field.value?.includes(
-                                              group.id,
-                                            )}
-                                            onChange={(e) => {
-                                              const checked = e.target.checked
-                                              const value = field.value || []
-                                              if (checked) {
-                                                field.onChange([
-                                                  ...value,
-                                                  group.id,
-                                                ])
-                                              } else {
-                                                field.onChange(
-                                                  value.filter(
-                                                    (val) => val !== group.id,
-                                                  ),
-                                                )
-                                              }
-                                            }}
-                                          />
-                                          <FormLabel className="font-normal cursor-pointer text-sm">
-                                            {group.name}
-                                          </FormLabel>
-                                        </div>
-                                      </FormControl>
-                                    </FormItem>
-                                  )
-                                }}
-                              />
+                                className="flex items-center space-x-2"
+                              >
+                                <input
+                                  type="checkbox"
+                                  id={`group-${group.id}`}
+                                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  checked={field.value?.includes(group.id)}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked
+                                    const value = field.value || []
+                                    if (checked) {
+                                      field.onChange([...value, group.id])
+                                    } else {
+                                      field.onChange(
+                                        value.filter((val) => val !== group.id)
+                                      )
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`group-${group.id}`}
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  {group.name}
+                                </label>
+                              </div>
                             ))}
+                            {availableGroups.length === 0 && (
+                              <p className="text-sm text-muted-foreground italic">
+                                Nenhum grupo disponível. Crie grupos primeiro.
+                              </p>
+                            )}
                           </div>
                         </ScrollArea>
                       </div>
@@ -589,12 +667,12 @@ export default function Users() {
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Senha Inicial</FormLabel>
+                          <FormLabel>Senha Inicial *</FormLabel>
                           <FormControl>
                             <Input
                               {...field}
                               type="password"
-                              placeholder="******"
+                              placeholder="Mínimo 6 caracteres"
                             />
                           </FormControl>
                           <FormMessage />
@@ -604,10 +682,18 @@ export default function Users() {
                   )}
                   {editingUser && (
                     <div className="p-4 bg-yellow-50 text-yellow-800 rounded-md text-xs">
-                      Para alterar a senha, peça ao usuário que utilize a função
-                      "Esqueci minha senha" na tela de login.
+                      <p className="font-medium mb-1">Alteração de Senha</p>
+                      <p>Para alterar a senha, peça ao usuário que utilize a função "Esqueci minha senha" na tela de login.</p>
                     </div>
                   )}
+                  <div className="p-3 bg-blue-50 text-blue-800 rounded-md text-xs">
+                    <p className="font-medium mb-1">Informações Importantes</p>
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>Foto de perfil é opcional</li>
+                      <li>O email será usado para login</li>
+                      <li>Username deve ser único</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
@@ -616,6 +702,7 @@ export default function Users() {
                   type="button"
                   variant="outline"
                   onClick={() => setIsDialogOpen(false)}
+                  disabled={saving}
                 >
                   Cancelar
                 </Button>
