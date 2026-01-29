@@ -1,0 +1,54 @@
+<!-- teste-gps.html - Salve este arquivo NA RAIZ do seu projeto -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TESTE GPS PURO</title>
+    <style>
+        body { padding: 40px; font-family: Arial; }
+        .teste { border: 5px solid red; padding: 30px; margin: 20px; }
+        button { padding: 20px; font-size: 20px; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>🚀 TESTE GPS 100% HTML/JavaScript</h1>
+    
+    <div class="teste">
+        <h2>Teste 1: Botão HTML Puro</h2>
+        <button onclick="alert('HTML funciona!')">
+            BOTÃO HTML (clique aqui)
+        </button>
+    </div>
+    
+    <div class="teste">
+        <h2>Teste 2: GPS Direto</h2>
+        <button onclick="testarGPS()">
+            🌍 TESTAR GPS DIRETO
+        </button>
+        <p id="status">Status: Aguardando...</p>
+    </div>
+    
+    <script>
+        function testarGPS() {
+            document.getElementById('status').textContent = 'Testando...';
+            
+            if (!navigator.geolocation) {
+                document.getElementById('status').textContent = '❌ Navegador não suporta GPS';
+                return;
+            }
+            
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    const lat = pos.coords.latitude.toFixed(6);
+                    const lng = pos.coords.longitude.toFixed(6);
+                    document.getElementById('status').textContent = `✅ GPS FUNCIONA! ${lat}, ${lng}`;
+                    alert(`🎉 GPS funciona!\nLat: ${lat}\nLng: ${lng}`);
+                },
+                function(err) {
+                    const erros = {1:'❌ Permissão negada',2:'❌ GPS desligado',3:'❌ Tempo esgotado'};
+                    document.getElementById('status').textContent = erros[err.code] || '❌ Erro desconhecido';
+                }
+            );
+        }
+    </script>
+</body>
+</html>
