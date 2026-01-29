@@ -1,4 +1,4 @@
-import { TesteGPS } from '@/components/TesteGPS'
+import { NuclearGPSTest } from '@/components/NuclearGPSTest'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -213,6 +213,7 @@ export default function LoteForm() {
     }
   }
 
+  // SUBSTITUA TODO O RETURN DO LoteForm POR ISTO:
   if (fetching) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
@@ -222,299 +223,112 @@ export default function LoteForm() {
   }
 
   return (
-    <div className="space-y-4 pb-20 px-2 sm:px-0 max-w-3xl mx-auto">
-      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm border">
-        <div>
-          <h2 className="text-xl font-bold">
-            {isEditMode ? form.getValues('name') : 'Novo Lote'}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {currentLote?.area || 'Nova área'}
-          </p>
+    <div style={{padding: '40px', maxWidth: '800px', margin: '0 auto'}}>
+      <h1 style={{color: 'blue', fontSize: '36px', marginBottom: '30px', textAlign: 'center'}}>
+        🚨 DIAGNÓSTICO DO LoteForm
+      </h1>
+      
+      {/* Seção 1: Info do lote */}
+      <div style={{border: '3px solid #ccc', padding: '20px', marginBottom: '30px', borderRadius: '10px'}}>
+        <h2 style={{color: '#333', marginBottom: '10px'}}>📋 Informações do Lote</h2>
+        <p><strong>ID:</strong> {loteId}</p>
+        <p><strong>Modo:</strong> {isEditMode ? 'Edição' : 'Novo'}</p>
+        <p><strong>Quadra:</strong> {parentQuadraId}</p>
+      </div>
+      
+      {/* Seção 2: Teste Nuclear */}
+      <NuclearGPSTest />
+      
+      {/* Seção 3: Teste de botões simples */}
+      <div style={{border: '3px solid purple', padding: '20px', marginTop: '30px', borderRadius: '10px'}}>
+        <h2 style={{color: 'purple', marginBottom: '15px'}}>🧪 Teste de Botões Simples</h2>
+        
+        <div style={{display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px'}}>
+          {/* Botão 1 - React */}
+          <button
+            onClick={() => alert('React funciona!')}
+            style={{padding: '12px 24px', background: 'green', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'}}
+          >
+            Botão React
+          </button>
+          
+          {/* Botão 2 - Teste GPS direto */}
+          <button
+            onClick={handleGeolocation}
+            style={{padding: '12px 24px', background: 'blue', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'}}
+          >
+            Teste GPS Função
+          </button>
+          
+          {/* Botão 3 - Teste Console */}
+          <button
+            onClick={() => {
+              console.log('✅ Botão funciona no console')
+              alert('Console log funcionando!')
+            }}
+            style={{padding: '12px 24px', background: 'orange', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'}}
+          >
+            Teste Console
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          {isEditMode && (
-            <Button variant="outline" size="icon" onClick={handlePrint}>
-              <Printer className="h-4 w-4" />
-            </Button>
-          )}
-          {isEditMode && canEdit && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="text-red-500 hover:bg-red-50"
-                  size="icon"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Excluir Lote?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Ação irreversível.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    className="bg-red-600"
-                  >
-                    Excluir
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+        
+        {/* Campos de teste */}
+        <div style={{marginTop: '20px'}}>
+          <h3 style={{marginBottom: '10px'}}>Campos de Teste:</h3>
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
+            <div>
+              <label style={{display: 'block', marginBottom: '5px'}}>Latitude</label>
+              <input
+                value={form.getValues('latitude') || ''}
+                onChange={(e) => form.setValue('latitude', e.target.value)}
+                placeholder="-0.036161"
+                style={{width: '100%', padding: '10px', border: '2px solid #ccc', borderRadius: '5px'}}
+              />
+            </div>
+            <div>
+              <label style={{display: 'block', marginBottom: '5px'}}>Longitude</label>
+              <input
+                value={form.getValues('longitude') || ''}
+                onChange={(e) => form.setValue('longitude', e.target.value)}
+                placeholder="-51.130895"
+                style={{width: '100%', padding: '10px', border: '2px solid #ccc', borderRadius: '5px'}}
+              />
+            </div>
+          </div>
         </div>
       </div>
-
-      <Tabs defaultValue={isEditMode ? "survey" : "lote"} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger
-            value="survey"
-            disabled={!isEditMode}
-            className="flex gap-2"
-          >
-            <FileText className="h-4 w-4" /> Vistoria
-          </TabsTrigger>
-          <TabsTrigger value="lote" className="flex gap-2">
-            <Image className="h-4 w-4" /> Dados & Fotos
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ABA LOTE - TESTE SIMPLES DIRETO */}
-        <TabsContent value="lote">
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-6 bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4"
-            >
-              {/* TESTE: BOTÃO FORA DO FORM FIELD - DIRETO NO HTML */}
-              <div className="border-2 border-red-500 p-4 rounded-lg">
-                <h3 className="text-lg font-bold text-red-600 mb-4">TESTE DE BOTÃO (DEVE APARECER)</h3>
-                
-                {/* BOTÃO FORA DE QUALQUER COMPONENTE */}
-                <Button
-                  type="button"
-                  onClick={handleGeolocation}
-                  className="bg-red-600 hover:bg-red-700 text-white mb-4"
-                >
-                  <MapPin className="mr-2 h-4 w-4" />
-                  TESTE: CAPTURAR LOCALIZAÇÃO
-                </Button>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Latitude</label>
-                    <input
-                      value={form.getValues('latitude')}
-                      onChange={(e) => form.setValue('latitude', e.target.value)}
-                      placeholder="Ex: -0.036161"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Longitude</label>
-                    <input
-                      value={form.getValues('longitude')}
-                      onChange={(e) => form.setValue('longitude', e.target.value)}
-                      placeholder="Ex: -51.130895"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-                
-                {/* OUTRO BOTÃO DEPOIS DOS CAMPOS */}
-                <Button
-                  type="button"
-                  onClick={handleGeolocation}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white w-full"
-                >
-                  <Navigation className="mr-2 h-4 w-4" />
-                  CAPTURAR LOCALIZAÇÃO (2)
-                </Button>
-              </div>
-
-              {/* VERSÃO COM FORM FIELD - PARA COMPARAÇÃO */}
-              <div className="border-2 border-blue-500 p-4 rounded-lg">
-                <h3 className="text-lg font-bold text-blue-600 mb-4">VERSÃO COM FORM FIELD</h3>
-                
-                {/* BOTÃO ANTES DO FORM FIELD */}
-                <Button
-                  type="button"
-                  onClick={handleGeolocation}
-                  className="mb-4 bg-green-600 hover:bg-green-700 text-white"
-                >
-                  BOTÃO ANTES DO FORM FIELD
-                </Button>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField 
-                    control={form.control} 
-                    name="latitude" 
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Latitude</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Ex: -0.036161" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} 
-                  />
-                  
-                  <FormField 
-                    control={form.control} 
-                    name="longitude" 
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Longitude</FormLabel>
-                        <FormControl>
-                          <Input {...field} placeholder="Ex: -51.130895" />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} 
-                  />
-                </div>
-                
-                {/* BOTÃO DEPOIS DO FORM FIELD */}
-                <Button
-                  type="button"
-                  onClick={handleGeolocation}
-                  className="mt-4 bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  BOTÃO DEPOIS DO FORM FIELD
-                </Button>
-              </div>
-
-              {/* RESTANTE DOS CAMPOS (ORIGINAL) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nome do Lote *</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status do Processo</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="not_surveyed">Não Vistoriado</SelectItem>
-                          <SelectItem value="surveyed">Vistoriado</SelectItem>
-                          <SelectItem value="in_analysis">Em Análise</SelectItem>
-                          <SelectItem value="regularized">Regularizado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="area"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Área (m²) *</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="address"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Endereço</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="images"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Fotos do Imóvel e Documentos</FormLabel>
-                    <FormControl>
-                      <PhotoCapture
-                        initialPhotos={field.value || []}
-                        onPhotosChange={(photos) => field.onChange(photos)}
-                        propertyId={loteId || 'temp'}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={loading}
-              >
-                {loading ? 'Salvando...' : 'Salvar Dados do Lote'}
-              </Button>
-            </form>
-          </Form>
-        </TabsContent>
-
-        <TabsContent value="survey">
-          {loteId && (
-            <div className="bg-white p-4 sm:p-6 rounded-lg border shadow-sm mt-4">
-              <SurveyForm propertyId={loteId} canEdit={true} />
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-          <div className="mt-8">
-            <TesteGPS />
-          </div>
+      
+      {/* Seção 4: Teste direto no console */}
+      <div style={{border: '3px solid #17a2b8', padding: '20px', marginTop: '30px', borderRadius: '10px'}}>
+        <h3 style={{color: '#17a2b8', marginBottom: '10px'}}>🛠️ Teste Direto no Console</h3>
+        <button
+          onClick={() => {
+            // Teste GPS direto no console
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                pos => console.log('✅ GPS DIRETO:', pos.coords),
+                err => console.log('❌ ERRO GPS:', err)
+              )
+            }
+          }}
+          style={{padding: '10px 20px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer'}}
+        >
+          Testar GPS no Console (F12)
+        </button>
+      </div>
+      
+      {/* Seção 5: Voltar ao normal */}
+      <div style={{marginTop: '40px', textAlign: 'center'}}>
+        <button
+          onClick={() => window.location.reload()}
+          style={{padding: '15px 30px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', fontSize: '16px', cursor: 'pointer'}}
+        >
+          🔄 Recarregar Página
+        </button>
+        <p style={{marginTop: '10px', color: '#666'}}>
+          Depois dos testes, volte ao código original
+        </p>
+      </div>
     </div>
-    
   )
 }
