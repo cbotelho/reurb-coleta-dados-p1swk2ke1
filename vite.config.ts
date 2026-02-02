@@ -47,6 +47,9 @@ export default defineConfig(({ mode }) => ({
             }
           }
         ]
+          ,
+          // Permite arquivos grandes no cache PWA (ex: index-B3JWHVMC.js)
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024 // 5 MiB
       }
     })
   ],
