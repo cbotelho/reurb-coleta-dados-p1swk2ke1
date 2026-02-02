@@ -124,11 +124,6 @@ const App = () => (
               <Route path="/importar-csv" element={<CSVImport />} />
               <Route path="/relatorio-pdf/:projectId" element={<ReportPDFGenerator />} />
             </Route>
-            return (
-                <div className="min-h-screen bg-gray-50">
-                  <ReportPDFGenerator />
-                </div>
-              );
             <Route path="*" element={<NotFound />} />
           </Routes>
         </SyncProvider>
