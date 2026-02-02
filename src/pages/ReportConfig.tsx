@@ -121,9 +121,16 @@ export default function ReportConfig() {
           </Button>
           <h2 className="text-2xl font-bold">Configurar Relatório</h2>
         </div>
-        <Button onClick={handlePrint}>
-          <Printer className="w-4 h-4 mr-2" /> Imprimir / Salvar PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handlePrint}>
+            <Printer className="w-4 h-4 mr-2" /> Imprimir / Salvar PDF
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={`/relatorio-pdf/${projectId}`}>
+              <Printer className="w-4 h-4 mr-2" /> Gerar PDF das Vistorias
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -227,7 +234,7 @@ export default function ReportConfig() {
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Pie>
-                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartTooltip content={<ChartTooltipContent payload={[]} />} />
                     <ChartLegend content={<ChartLegendContent />} />
                   </PieChart>
                 </ChartContainer>
