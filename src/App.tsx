@@ -30,7 +30,9 @@ import ReportConfig from './pages/ReportConfig'
 import SavedCoordinates from './pages/SavedCoordinates'
 import SocialReports from './pages/SocialReports'
 import React from 'react'
+import ReportPDFGenerator from './components/ReportPDFGenerator';
 import { StatusConexao } from './components/StatusConexao'
+
 
 const LoadingSpinner = () => (
   <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -120,8 +122,13 @@ const App = () => (
               <Route path="/pareceres" element={<SocialReports />} />
               <Route path="/relatorios/:projectId" element={<ReportConfig />} />
               <Route path="/importar-csv" element={<CSVImport />} />
+              <Route path="/relatorio-pdf/:projectId" element={<ReportPDFGenerator />} />
             </Route>
-
+            return (
+                <div className="min-h-screen bg-gray-50">
+                  <ReportPDFGenerator />
+                </div>
+              );
             <Route path="*" element={<NotFound />} />
           </Routes>
         </SyncProvider>

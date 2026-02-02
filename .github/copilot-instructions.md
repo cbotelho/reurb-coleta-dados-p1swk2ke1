@@ -4,48 +4,39 @@
 # Instruções para Agentes de IA — REURB Coleta
 
 ## Visão Geral e Arquitetura
-**REURB Coleta** é um PWA offline-first para coleta de dados de regularização fundiária, usando React 19, Vite, TypeScript, Shadcn UI, Tailwind CSS e Supabase. Usuários trabalham offline; a sincronização ocorre quando online.
+**REURB Coleta** é um PWA offline-first para coleta de dados de regularização fundiária.
+- **Stack:** React 19, Vite, TypeScript, Shadcn UI, Tailwind CSS, Supabase.
+- **Offline-first:** Todo dado lido ou escrito pela UI deve passar por `src/services/db.ts` (LocalStorage/LocalForage). Nunca acesse `api.ts` diretamente em componentes de visualização ou formulários.
+- **Fluxo de Dados:** UI -> `db.ts` (status 'pending') -> `syncService.ts` (background sync) -> `api.ts` -> Supabase.
 
-### Estrutura e Fluxos
-- **Fonte de verdade:** Sempre use `src/services/db.ts` (LocalStorage) para leitura/escrita de dados na UI. Nunca acesse `api.ts` diretamente em componentes.
-- **Sincronização:** O serviço `src/services/syncService.ts` faz push/pull com Supabase. Alterações locais recebem `sync_status: 'pending'` e são sincronizadas em background.
-- **IDs:** Use sempre `local_id` (UUID cliente) para chaves e relacionamentos. O campo `id` (backend) é só para debug/SQL.
-- **Uploads de Imagem:** Use `src/services/imageService.ts` para upload direto ao Supabase Storage; salve apenas a URL localmente.
-- **Formulários:** Validação sempre com `zod` inline. Veja exemplos em [src/components/SocialReportForm.tsx](../src/components/SocialReportForm.tsx).
-- **Mapeamento de campos:** Alinhe alterações entre [src/types/](../src/types/), SQL e zod. Consulte [FORMULARIOS-MAPEAMENTO-COMPLETO.md](../../FORMULARIOS-MAPEAMENTO-COMPLETO.md).
+### IDs e Relacionamentos
+- **Primary Key:** Use sempre `local_id` (UUID gerado no cliente) para chaves e relacionamentos (ex: `survey.property_id` aponta para `lote.local_id`).
+- **Backend ID:** O campo `id` (integer) vindo do Supabase é apenas para referência do banco e debug. Mapeie-o para `local_id` se necessário no `api.ts`.
+
+### Sincronização e Supabase
+- **Mapeamento:** O banco (Supabase) usa nomes de colunas técnicos ou legados (ex: `field_348` para `name`). Consulte `src/services/api.ts` para os mapeadores (`mapProject`, `mapLote`, etc.).
+- **Payload Clean-up:** Antes de enviar para o Supabase no `syncService.ts`, remova campos internos que não existem no banco (`sync_status`, `local_id`, `is_dirty`) para evitar Erros 400.
+- **Storage:** Use `src/services/imageService.ts` para uploads ao Supabase Storage. Salve apenas a URL resultante localmente.
 
 ## Convenções e Padrões
-- **Componentes:** Sempre funcionais. Não use classes.
+- **Componentes:** 100% Funcionais com Hooks. Proibido o uso de Classes.
 - **Estilo:** Tailwind CSS + Shadcn UI (`@/components/ui`). Ícones: `lucide-react`.
-- **Datas:** Armazene como ISO string; exiba com `date-fns` e locale `pt-BR`.
-- **Listas:** Use sempre `key={item.local_id}`.
-- **Lint:** Use `oxlint` (`npm run lint` ou `npm run lint:fix`).
-- **Testes:** Não crie arquivos de teste (`*.test.ts`, `*.spec.ts`). Não há test runner.
-- **Migrações:** Não crie scripts SQL sem solicitação explícita.
-- **API:** Nunca chame API direto em UI — use apenas via serviços locais.
+- **Formulários:** Gerenciados com `react-hook-form` e validação `zod` inline. Exemplo: `src/components/SocialReportForm.tsx`.
+- **Datas:** Armazenadas como ISO string; exibidas com `date-fns` (locale `pt-BR`).
+- **Tipagem:** Defina schemas em `src/types/index.ts` e alinhe com [FORMULARIOS-MAPEAMENTO-COMPLETO.md](../../FORMULARIOS-MAPEAMENTO-COMPLETO.md).
+- **PDF:** Use `jsPDF` e `html2canvas` para geração de relatórios. Veja `src/components/ReportPDFGenerator.tsx`.
 
 ## Workflows Essenciais
-- **Instalação:** `npm install`
-- **Desenvolvimento:** `npm start` ou `npm run dev`
-- **Build:** `npm run build` (produção) ou `npm run build:dev`
-- **Preview:** `npm run preview`
-- **Lint/Format:** `npm run lint`, `npm run lint:fix`, `npm run format`
-
-## Exemplos e Arquivos-Chave
-- **Formulários complexos:** [src/components/SocialReportForm.tsx](../src/components/SocialReportForm.tsx)
-- **Scripts SQL de diagnóstico:** [migration/check_*.sql](../migration/)
-- **Mapeamento de campos:** [src/types/](../src/types/), [FORMULARIOS-MAPEAMENTO-COMPLETO.md](../../FORMULARIOS-MAPEAMENTO-COMPLETO.md)
-
-## Integrações e Dependências
-- **Supabase:** Usado para sync, storage e autenticação. Não acesse Supabase diretamente fora dos serviços.
-- **React Hook Form:** Para formulários, sempre com zod.
-- **date-fns:** Para manipulação e exibição de datas.
+- **Dev:** `npm start` ou `npm run dev` (porta 5173).
+- **Build:** `npm run build` (produção).
+- **Qualidade:** `npm run lint:fix` (oxlint) e `npm run format` (prettier).
+- **Testes:** Não há test runner configurado. Validação é manual ou via lint.
 
 ## Dicas Práticas
-- **Simular offline:** Execute `window.dispatchEvent(new Event('offline'))` no console.
-- **Ver pendências locais:** `console.table(db.getPendingItems())`
-- **Corrigir lint:** `npm run lint:fix`
-- **Deploy:** Commit/push no GitHub; deploy AWS é automático.
+- **Depuração Local:** Verifique pendências com `console.table(db.getPendingItems())`.
+- **Cota de Memória:** `db.ts` possui lógica para limpar logs e vistorias sincronizadas se o `localStorage` exceder o limite.
+- **Simular Offline:** `window.dispatchEvent(new Event('offline'))` no console.
+- **Deploy:** Automático via AWS após push para o GitHub.
 
 ## Documentação Complementar
 - [README.md](../README.md) — stack, scripts, estrutura
@@ -53,4 +44,4 @@
 - [CSV-IMPORT-README.md](../../CSV-IMPORT-README.md) — importação CSV
 
 ---
-**Versão:** 1.4.6+ | **Status:** Produção | **Atualizado:** 29/01/2026
+**Versão:** 1.5.0 | **Status:** Produção | **Atualizado:** 02/02/2026
