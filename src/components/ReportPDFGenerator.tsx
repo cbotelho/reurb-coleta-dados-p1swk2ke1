@@ -1,10 +1,10 @@
 // components/ReportPDFGenerator.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Search, Filter, Download, Printer, FileText, Home, MapPin, User, Calendar, CheckCircle, ChevronDown, Eye, FileDown } from 'lucide-react';
+import { Search, Filter, Download, Printer, FileText, Home, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
- 
+
 interface Quadra {
   id: string;
   name: string;
@@ -26,26 +26,26 @@ interface Lote {
 interface Vistoria {
   id: string;
   property_id: string;
-  quadra_id?: string;
-  vistoriador_name: string;
-  vistoriador_matricula: string;
-  data_vistoria: string;
-  proprietario_nome: string;
-  proprietario_cpf: string;
-  proprietario_telefone: string;
-  tipo_construcao: string;
-  estado_conservacao: string;
-  possui_agua: boolean;
-  possui_energia: boolean;
-  possui_esgoto: boolean;
-  possui_pavimentacao: boolean;
-  possui_iluminacao_publica: boolean;
-  observacoes: string;
-  fotos_urls: string[];
+  form_number?: string;
+  survey_date: string;
+  applicant_name: string;
+  applicant_cpf: string;
+  applicant_telefone?: string;
+  construction_type: string;
+  conservation_state: string;
+  water_supply: boolean;
+  energy_supply: boolean;
+  sanitation: boolean;
+  street_paving: boolean;
+  public_lighting?: boolean;
+  observations: string;
+  fotos_urls?: string[];
+  surveyor_name: string;
+  surveyor_matricula?: string;
   status: string;
   created_at: string;
 }
-  
+
 const ReportPDFGenerator: React.FC = () => {
   const { projectId } = useParams();
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
@@ -82,15 +82,16 @@ const ReportPDFGenerator: React.FC = () => {
     }
   };
 
-  // Carregar todas as vistorias (todas as colunas)
+  // Carregar todas as vistorias
   const loadVistorias = async () => {
     try {
       setLoading(true);
-      // Seleção explícita das colunas conforme mapeamento
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,form_number,survey_date,city,state,applicant_name,applicant_cpf,applicant_rg,applicant_civil_status,applicant_profession,applicant_income,applicant_nis,spouse_name,spouse_cpf,residents_count,has_children,occupation_time,acquisition_mode,property_use,construction_type,roof_type,floor_type,rooms_count,conservation_state,fencing,water_supply,energy_supply,sanitation,street_paving,documents,observations,surveyor_name,status,created_at,updated_at`, { headers });
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=*&order=created_at.desc`, { headers });
       const data = await response.json();
+      console.log('Dados carregados do Supabase:', data); // Debug
       setVistorias(Array.isArray(data) ? data : []);
-      // Carregar lotes e quadras relacionados
+      
+      // Carregar lotes relacionados
       const loteIds = Array.isArray(data) ? [...new Set(data.map((v: Vistoria) => v.property_id))] : [];
       if (loteIds.length > 0) {
         await loadLotesByIds(loteIds);
@@ -111,6 +112,7 @@ const ReportPDFGenerator: React.FC = () => {
         { headers }
       );
       const data = await response.json();
+      console.log('Lotes carregados:', data); // Debug
       setLotes(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar lotes:', error);
@@ -122,13 +124,6 @@ const ReportPDFGenerator: React.FC = () => {
     loadVistorias();
   }, []);
 
-  // Debug: logar vistorias carregadas
-  useEffect(() => {
-    if (!loading) {
-      console.log('Vistorias carregadas:', vistorias);
-    }
-  }, [vistorias, loading]);
- 
   // Gerar PDF individual
   const generateSinglePDF = (vistoria: Vistoria) => {
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -137,12 +132,14 @@ const ReportPDFGenerator: React.FC = () => {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const lote = lotes.find(l => l.id === vistoria.property_id);
     const quadra = quadras.find(q => q.id === lote?.quadra_id);
+    
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('1. IDENTIFICAÇÃO DO IMÓVEL', margin, yPos);
     yPos += 10;
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
+    
     const basicInfo = [
       ['Quadra:', quadra?.name || 'Não informada'],
       ['Lote:', lote?.name || 'Não informado'],
@@ -150,11 +147,13 @@ const ReportPDFGenerator: React.FC = () => {
       ['Endereço:', lote?.address || 'Não informado'],
       ['Status do lote:', lote?.status || 'Não informado'],
     ];
+    
     basicInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
       yPos += 6;
     });
+    
     yPos += 5;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
@@ -162,17 +161,20 @@ const ReportPDFGenerator: React.FC = () => {
     yPos += 10;
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
+    
     const vistoriaInfo = [
-      ['Data:', new Date(vistoria.data_vistoria).toLocaleDateString('pt-BR')],
-      ['Vistoriador:', vistoria.vistoriador_name],
-      ['Matrícula:', vistoria.vistoriador_matricula],
+      ['Data:', new Date(vistoria.survey_date).toLocaleDateString('pt-BR')],
+      ['Vistoriador:', vistoria.surveyor_name],
+      ['Matrícula:', vistoria.surveyor_matricula || 'Não informada'],
       ['Status:', vistoria.status],
     ];
+    
     vistoriaInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
       yPos += 6;
     });
+    
     yPos += 5;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
@@ -180,16 +182,19 @@ const ReportPDFGenerator: React.FC = () => {
     yPos += 10;
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
+    
     const ownerInfo = [
-      ['Nome:', vistoria.proprietario_nome],
-      ['CPF:', vistoria.proprietario_cpf],
-      ['Telefone:', vistoria.proprietario_telefone || 'Não informado'],
+      ['Nome:', vistoria.applicant_name],
+      ['CPF:', vistoria.applicant_cpf],
+      ['Telefone:', vistoria.applicant_telefone || 'Não informado'],
     ];
+    
     ownerInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
       yPos += 6;
     });
+    
     yPos += 5;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
@@ -197,30 +202,36 @@ const ReportPDFGenerator: React.FC = () => {
     yPos += 10;
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
+    
     const characteristics = [
-      ['Tipo de Construção:', vistoria.tipo_construcao || 'Não informado'],
-      ['Estado de Conservação:', vistoria.estado_conservacao || 'Não informado'],
+      ['Tipo de Construção:', vistoria.construction_type || 'Não informado'],
+      ['Estado de Conservação:', vistoria.conservation_state || 'Não informado'],
     ];
+    
     characteristics.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 60, yPos);
       yPos += 6;
     });
+    
     yPos += 5;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('5. INFRAESTRUTURA DISPONÍVEL', margin, yPos);
     yPos += 10;
+    
     const infrastructure = [
-      ['Água encanada', vistoria.possui_agua],
-      ['Energia elétrica', vistoria.possui_energia],
-      ['Rede de esgoto', vistoria.possui_esgoto],
-      ['Pavimentação', vistoria.possui_pavimentacao],
-      ['Iluminação pública', vistoria.possui_iluminacao_publica],
+      ['Água encanada', vistoria.water_supply],
+      ['Energia elétrica', vistoria.energy_supply],
+      ['Rede de esgoto', vistoria.sanitation],
+      ['Pavimentação', vistoria.street_paving],
+      ['Iluminação pública', vistoria.public_lighting || false],
     ];
+    
     pdf.setFontSize(10);
     let col1Y = yPos;
     let col2Y = yPos;
+    
     infrastructure.forEach(([item, has], index) => {
       const y = index < 3 ? col1Y : col2Y;
       const x = index < 3 ? margin : margin + 80;
@@ -228,88 +239,67 @@ const ReportPDFGenerator: React.FC = () => {
       if (index < 3) col1Y += 6;
       else col2Y += 6;
     });
+    
     yPos = Math.max(col1Y, col2Y) + 5;
-    if (vistoria.observacoes) {
+    
+    if (vistoria.observations) {
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'bold');
       pdf.text('6. OBSERVAÇÕES', margin, yPos);
       yPos += 10;
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      const observations = pdf.splitTextToSize(vistoria.observacoes, pageWidth - (2 * margin));
+      const observations = pdf.splitTextToSize(vistoria.observations, pageWidth - (2 * margin));
       pdf.text(observations, margin, yPos);
       yPos += observations.length * 5 + 5;
     }
-    if (vistoria.fotos_urls && vistoria.fotos_urls.length > 0) {
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('7. FOTOS DA VISTORIA', margin, yPos);
-      yPos += 10;
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Total de fotos: ${vistoria.fotos_urls.length}`, margin, yPos);
-      yPos += 10;
-      vistoria.fotos_urls.forEach((url, index) => {
-        if (yPos > 250) {
-          pdf.addPage();
-          yPos = margin;
-        }
-        pdf.text(`${index + 1}. ${url}`, margin, yPos);
-        yPos += 6;
-      });
-    }
+    
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('8. ASSINATURAS', margin, yPos);
+    pdf.text('7. ASSINATURAS', margin, yPos);
     yPos += 15;
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
+    
     pdf.text('________________________________________', margin, yPos);
     pdf.text('Proprietário/Possuidor', margin + 20, yPos + 8);
-    pdf.text(vistoria.proprietario_nome, margin, yPos + 16);
-    pdf.text(`CPF: ${vistoria.proprietario_cpf}`, margin, yPos + 22);
+    pdf.text(vistoria.applicant_name, margin, yPos + 16);
+    pdf.text(`CPF: ${vistoria.applicant_cpf}`, margin, yPos + 22);
+    
     pdf.text('________________________________________', margin + 100, yPos);
     pdf.text('Vistoriador Técnico', margin + 120, yPos + 8);
-    pdf.text(vistoria.vistoriador_name, margin + 100, yPos + 16);
-    pdf.text(`Matrícula: ${vistoria.vistoriador_matricula}`, margin + 100, yPos + 22);
+    pdf.text(vistoria.surveyor_name, margin + 100, yPos + 16);
+    pdf.text(`Matrícula: ${vistoria.surveyor_matricula || 'Não informada'}`, margin + 100, yPos + 22);
+    
     yPos += 40;
     pdf.setFontSize(8);
     pdf.setTextColor(128, 128, 128);
     pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPos, { align: 'center' });
     pdf.text('Sistema REURB - Prefeitura Municipal', pageWidth / 2, yPos + 5, { align: 'center' });
     pdf.text(`ID da vistoria: ${vistoria.id.substring(0, 8)}...`, pageWidth / 2, yPos + 10, { align: 'center' });
-    const fileName = `VISTORIA_${quadra?.name || 'Q'}_${lote?.name || 'L'}_${vistoria.vistoriador_name.replace(/\s+/g, '_')}_${new Date(vistoria.data_vistoria).toISOString().split('T')[0]}.pdf`;
+    
+    const fileName = `VISTORIA_${quadra?.name || 'Q'}_${lote?.name || 'L'}_${vistoria.surveyor_name.replace(/\s+/g, '_')}_${new Date(vistoria.survey_date).toISOString().split('T')[0]}.pdf`;
     pdf.save(fileName);
-  };
-
-  // Gerar PDF para múltiplas vistorias
-  const generateBulkPDF = (selectedVistorias: Vistoria[]) => {
-    if (selectedVistorias.length === 0) {
-      alert('Selecione pelo menos uma vistoria para gerar os relatórios.');
-      return;
-    }
-
-    selectedVistorias.forEach((vistoria, index) => {
-      // Adicionar pequeno delay para não sobrecarregar
-      setTimeout(() => {
-        generateSinglePDF(vistoria);
-      }, index * 500);
-    });
-
-    alert(`${selectedVistorias.length} relatórios serão gerados em sequência.`);
   };
 
   // Gerar relatório consolidado
   const generateConsolidatedReport = () => {
+    if (vistorias.length === 0) {
+      alert('Não há vistorias para gerar relatório consolidado.');
+      return;
+    }
+
     const pdf = new jsPDF('p', 'mm', 'a4');
     pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
     pdf.text('RELATÓRIO CONSOLIDADO DE VISTORIAS', 105, 20, { align: 'center' });
+    
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text('SISTEMA REURB - PREFEITURA MUNICIPAL', 105, 27, { align: 'center' });
     pdf.text(`Período: ${dateFilter.start || 'Início'} até ${dateFilter.end || 'Fim'}`, 105, 34, { align: 'center' });
     pdf.text(`Total de vistorias: ${vistorias.length}`, 105, 41, { align: 'center' });
+    
     const tableData = vistorias.map((v, index) => {
       const lote = lotes.find(l => l.id === v.property_id);
       const quadra = quadras.find(q => q.id === lote?.quadra_id);
@@ -317,12 +307,13 @@ const ReportPDFGenerator: React.FC = () => {
         index + 1,
         quadra?.name || '',
         lote?.name || '',
-        v.vistoriador_name,
-        new Date(v.data_vistoria).toLocaleDateString('pt-BR'),
-        v.proprietario_nome,
+        v.surveyor_name,
+        new Date(v.survey_date).toLocaleDateString('pt-BR'),
+        v.applicant_name,
         v.status
       ];
     });
+    
     (pdf as any).autoTable({
       startY: 50,
       head: [['#', 'Quadra', 'Lote', 'Vistoriador', 'Data', 'Proprietário', 'Status']],
@@ -332,30 +323,35 @@ const ReportPDFGenerator: React.FC = () => {
       styles: { fontSize: 8, cellPadding: 3 },
       margin: { left: 20, right: 20 }
     });
+    
     const statsY = (pdf as any).lastAutoTable.finalY + 15;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('ESTATÍSTICAS', 20, statsY);
+    
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     const stats = [
       ['Total de vistorias:', vistorias.length.toString()],
       ['Vistorias concluídas:', vistorias.filter(v => v.status === 'completed').length.toString()],
       ['Vistorias pendentes:', vistorias.filter(v => v.status === 'pending').length.toString()],
-      ['Com água:', vistorias.filter(v => v.possui_agua).length.toString()],
-      ['Com energia:', vistorias.filter(v => v.possui_energia).length.toString()],
-      ['Com esgoto:', vistorias.filter(v => v.possui_esgoto).length.toString()],
+      ['Com água:', vistorias.filter(v => v.water_supply).length.toString()],
+      ['Com energia:', vistorias.filter(v => v.energy_supply).length.toString()],
+      ['Com esgoto:', vistorias.filter(v => v.sanitation).length.toString()],
     ];
+    
     let y = statsY + 10;
     stats.forEach(([label, value]) => {
       pdf.text(label, 20, y);
       pdf.text(value, 80, y);
       y += 6;
     });
+    
     pdf.setFontSize(8);
     pdf.setTextColor(128, 128, 128);
     pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 105, 280, { align: 'center' });
     pdf.text('Sistema REURB - Relatório Consolidado', 105, 285, { align: 'center' });
+    
     pdf.save(`RELATORIO_CONSOLIDADO_VISTORIAS_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -364,11 +360,12 @@ const ReportPDFGenerator: React.FC = () => {
     .filter(vistoria => {
       const lote = lotes.find(l => l.id === vistoria.property_id);
       const quadra = quadras.find(q => q.id === lote?.quadra_id);
+      
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         return (
-          (vistoria.vistoriador_name && vistoria.vistoriador_name.toLowerCase().includes(searchLower)) ||
-          (vistoria.proprietario_nome && vistoria.proprietario_nome.toLowerCase().includes(searchLower)) ||
+          (vistoria.surveyor_name && vistoria.surveyor_name.toLowerCase().includes(searchLower)) ||
+          (vistoria.applicant_name && vistoria.applicant_name.toLowerCase().includes(searchLower)) ||
           (lote?.name && lote.name.toLowerCase().includes(searchLower)) ||
           (quadra?.name && quadra.name.toLowerCase().includes(searchLower))
         );
@@ -380,8 +377,8 @@ const ReportPDFGenerator: React.FC = () => {
       return true;
     })
     .filter(vistoria => {
-      if (dateFilter.start && vistoria.data_vistoria < dateFilter.start) return false;
-      if (dateFilter.end && vistoria.data_vistoria > dateFilter.end) return false;
+      if (dateFilter.start && vistoria.survey_date < dateFilter.start) return false;
+      if (dateFilter.end && vistoria.survey_date > dateFilter.end) return false;
       return true;
     });
 
@@ -458,7 +455,7 @@ const ReportPDFGenerator: React.FC = () => {
               disabled={loading}
             >
               <Filter className="w-4 h-4" />
-              Aplicar Filtros
+              Atualizar Dados
             </button>
 
             <button
@@ -466,7 +463,6 @@ const ReportPDFGenerator: React.FC = () => {
                 setSearchTerm('');
                 setStatusFilter('');
                 setDateFilter({ start: '', end: '' });
-                loadVistorias();
               }}
               className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
@@ -496,23 +492,17 @@ const ReportPDFGenerator: React.FC = () => {
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Nenhuma vistoria encontrada</p>
               <p className="text-sm text-gray-400 mt-1">Tente ajustar os filtros de busca</p>
-              <pre className="text-xs text-gray-400 mt-2 text-left overflow-x-auto max-w-xl mx-auto bg-gray-100 p-2 rounded">{JSON.stringify(vistorias, null, 2)}</pre>
+              <p className="text-xs text-gray-400 mt-2">
+                Dados carregados: {vistorias.length} vistorias, {lotes.length} lotes, {quadras.length} quadras
+              </p>
             </div>
           ) : (
             <>
               <div className="px-6 py-4 border-b bg-gray-50">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="font-medium">{filteredVistorias.length} vistorias encontradas</span>
+                  <div className="text-sm font-medium text-gray-700">
+                    {filteredVistorias.length} vistorias encontradas
                   </div>
-                  <button
-                    onClick={() => generateBulkPDF(filteredVistorias)}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
-                  >
-                    <Download className="w-4 h-4" />
-                    Gerar Todos ({filteredVistorias.length})
-                  </button>
                 </div>
               </div>
 
@@ -563,19 +553,16 @@ const ReportPDFGenerator: React.FC = () => {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{vistoria.vistoriador_name}</div>
-                            <div className="text-sm text-gray-500">{vistoria.vistoriador_matricula}</div>
+                            <div className="text-sm text-gray-900">{vistoria.surveyor_name}</div>
+                            <div className="text-sm text-gray-500">{vistoria.surveyor_matricula || 'Sem matrícula'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{vistoria.proprietario_nome}</div>
-                            <div className="text-sm text-gray-500">{vistoria.proprietario_cpf}</div>
+                            <div className="text-sm text-gray-900">{vistoria.applicant_name}</div>
+                            <div className="text-sm text-gray-500">{vistoria.applicant_cpf}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
-                              {new Date(vistoria.data_vistoria).toLocaleDateString('pt-BR')}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {new Date(vistoria.created_at).toLocaleDateString('pt-BR')}
+                              {new Date(vistoria.survey_date).toLocaleDateString('pt-BR')}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -591,29 +578,13 @@ const ReportPDFGenerator: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => setSelectedVistoria(vistoria)}
-                                className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg"
-                                title="Visualizar detalhes"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => generateBulkPDF(vistorias)}
-                                className="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded-lg"
-                                title="Gerar PDF de todas as vistorias"
-                              >
-                                <Printer className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => generateBulkPDF(vistorias)}
-                                className="text-purple-600 hover:text-purple-900 p-2 hover:bg-purple-50 rounded-lg"
-                                title="Baixar PDF de todas as vistorias"
-                              >
-                                <Download className="w-4 h-4" />
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => generateSinglePDF(vistoria)}
+                              className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg"
+                              title="Gerar PDF"
+                            >
+                              <Printer className="w-5 h-5" />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -624,171 +595,6 @@ const ReportPDFGenerator: React.FC = () => {
             </>
           )}
         </div>
-
-        {/* Modal de detalhes */}
-        {selectedVistoria && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800">Detalhes da Vistoria</h2>
-                  <p className="text-gray-600">
-                    {lotes.find(l => l.id === selectedVistoria.property_id)?.name} - 
-                    {quadras.find(q => q.id === lotes.find(l => l.id === selectedVistoria.property_id)?.quadra_id)?.name}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedVistoria(null)}
-                  className="p-2 hover:bg-gray-100 rounded-lg"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="p-6 overflow-auto max-h-[70vh]">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="font-bold text-gray-700 mb-2">Informações do Imóvel</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        {(() => {
-                          const lote = lotes.find(l => l.id === selectedVistoria.property_id);
-                          const quadra = quadras.find(q => q.id === lote?.quadra_id);
-                          
-                          return (
-                            <>
-                              <p><strong>Quadra:</strong> {quadra?.name}</p>
-                              <p><strong>Lote:</strong> {lote?.name}</p>
-                              <p><strong>Área:</strong> {lote?.area} m²</p>
-                              <p><strong>Endereço:</strong> {lote?.address}</p>
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-gray-700 mb-2">Proprietário</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p><strong>Nome:</strong> {selectedVistoria.proprietario_nome}</p>
-                        <p><strong>CPF:</strong> {selectedVistoria.proprietario_cpf}</p>
-                        <p><strong>Telefone:</strong> {selectedVistoria.proprietario_telefone || 'Não informado'}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="font-bold text-gray-700 mb-2">Dados da Vistoria</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p><strong>Vistoriador:</strong> {selectedVistoria.vistoriador_name}</p>
-                        <p><strong>Matrícula:</strong> {selectedVistoria.vistoriador_matricula}</p>
-                        <p><strong>Data:</strong> {new Date(selectedVistoria.data_vistoria).toLocaleDateString('pt-BR')}</p>
-                        <p><strong>Status:</strong> 
-                          <span className={`ml-2 px-2 py-1 rounded text-xs ${
-                            selectedVistoria.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            selectedVistoria.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {selectedVistoria.status}
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-gray-700 mb-2">Características</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <p><strong>Tipo de construção:</strong> {selectedVistoria.tipo_construcao || 'Não informado'}</p>
-                        <p><strong>Estado de conservação:</strong> {selectedVistoria.estado_conservacao || 'Não informado'}</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="font-bold text-gray-700 mb-2">Infraestrutura</h3>
-                      <div className="bg-gray-50 p-4 rounded-lg grid grid-cols-2 gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${selectedVistoria.possui_agua ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span>Água encanada</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${selectedVistoria.possui_energia ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span>Energia elétrica</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${selectedVistoria.possui_esgoto ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span>Rede de esgoto</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${selectedVistoria.possui_pavimentacao ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span>Pavimentação</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${selectedVistoria.possui_iluminacao_publica ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                          <span>Iluminação pública</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedVistoria.observacoes && (
-                  <div className="mt-6">
-                    <h3 className="font-bold text-gray-700 mb-2">Observações</h3>
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <p>{selectedVistoria.observacoes}</p>
-                    </div>
-                  </div>
-                )}
-
-                {selectedVistoria.fotos_urls && selectedVistoria.fotos_urls.length > 0 && (
-                  <div className="mt-6">
-                    <h3 className="font-bold text-gray-700 mb-2">Fotos ({selectedVistoria.fotos_urls.length})</h3>
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-                      {selectedVistoria.fotos_urls.map((url, index) => (
-                        <a
-                          key={index}
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <img
-                            src={url}
-                            alt={`Foto ${index + 1}`}
-                            className="w-full h-24 object-cover rounded-lg hover:opacity-90 transition-opacity"
-                          />
-                          <p className="text-xs text-center mt-1 truncate">Foto {index + 1}</p>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="p-6 border-t bg-gray-50">
-                <div className="flex justify-between">
-                  <button
-                    onClick={() => setSelectedVistoria(null)}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                  >
-                    Fechar
-                  </button>
-                  <button
-                    onClick={() => {
-                      generateSinglePDF(selectedVistoria);
-                      setSelectedVistoria(null);
-                    }}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" />
-                    Gerar e Imprimir PDF
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
