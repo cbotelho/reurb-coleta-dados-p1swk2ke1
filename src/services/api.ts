@@ -293,16 +293,11 @@ export const api = {
         updated_at: new Date().toISOString()
       }
       
-      // Adicionar apenas os campos válidos da tabela
+      // Adicionar apenas os campos válidos da tabela reurb_projects
       const validFields = [
         'name', 'description', 'status', 'latitude', 'longitude', 'image_url',
-        'auto_update_map', 'last_map_update', 'tags', 'city', 'state',
-        'tipo_reurb', 'fases_processo', 'data_limite_conclusao',
-        'orgao_responsavel', 'status_legal', 'documentos_necessarios',
-        'responsavel_id', 'data_publicacao_edital', 'numero_processo',
-        'area_total_hectares'
+        'auto_update_map', 'last_map_update', 'tags', 'city', 'state'
       ]
-      
       validFields.forEach(key => {
         if (updates[key] !== undefined) {
           payload[key] = updates[key]
@@ -483,50 +478,48 @@ export const api = {
       const projects = db.getProjects()
       projects.push(newProject)
       db.saveItems('reurb_projects', projects)
-      return newProject
-    }
+      try {
+        const payload: any = {
+          name: project.name,
+          description: project.description,
+          status: project.status || 'Em andamento',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
 
-    try {
-      const payload: any = {
-        name: project.name,
-        description: project.description,
-        status: project.status || 'Em andamento',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
+        if (project.latitude) payload.latitude = parseFloat(project.latitude) || null
+        if (project.longitude) payload.longitude = parseFloat(project.longitude) || null
+        if (project.image_url) payload.image_url = project.image_url
+        if (project.city) payload.city = project.city
+        if (project.state) payload.state = project.state
+        if (project.tags) payload.tags = project.tags
 
-      if (project.latitude) payload.latitude = parseFloat(project.latitude) || null
-      if (project.longitude) payload.longitude = parseFloat(project.longitude) || null
-      if (project.image_url) payload.image_url = project.image_url
-      if (project.city) payload.city = project.city
-      if (project.state) payload.state = project.state
-      if (project.tags) payload.tags = project.tags
+        const { data, error } = await supabase
+          .from('reurb_projects')
+          .insert(payload)
+          .select()
+          .single()
 
-      const { data, error } = await supabase
-        .from('reurb_projects')
-        .insert(payload)
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Supabase error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        })
+        if (error) {
+          console.error('Supabase error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          })
+          throw error
+        }
+      
+        const mappedProject: Project = mapProject(data)
+      
+        const projects = db.getProjects()
+        projects.push(mappedProject)
+        db.saveItems('reurb_projects', projects)
+        return mappedProject
+      } catch (error) {
+        console.error('Error creating project:', error)
         throw error
       }
-      
-      const mappedProject: Project = mapProject(data)
-      
-      const projects = db.getProjects()
-      projects.push(mappedProject)
-      db.saveItems('reurb_projects', projects)
-      return mappedProject
-    } catch (error) {
-      console.error('Error creating project:', error)
-      throw error
     }
   },
 
@@ -1434,16 +1427,17 @@ export const api = {
     if (!isOnline()) return db.getModalitiesStats()
 
     try {
-      const { data: projects } = await supabase
-        .from('reurb_projects')
-        .select('tipo_reurb')
+      // Buscar a classificação da IA diretamente das vistorias (reurb_surveys)
+      const { data: surveys } = await supabase
+        .from('reurb_surveys')
+        .select('analise_ia_classificacao')
 
       let sCount = 0
       let eCount = 0
 
-      projects?.forEach((p: any) => {
-        if (p.tipo_reurb === 'REURB-S') sCount++
-        if (p.tipo_reurb === 'REURB-E') eCount++
+      surveys?.forEach((s: any) => {
+        if (s.analise_ia_classificacao === 'REURB-S') sCount++
+        if (s.analise_ia_classificacao === 'REURB-E') eCount++
       })
 
       if (sCount === 0 && eCount === 0) return db.getModalitiesStats()
