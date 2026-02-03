@@ -208,14 +208,15 @@ export const api = {
     if (!isOnline()) return { quadras: 0, lotes: 0 }
 
     try {
+
       const { count: quadras } = await supabase
         .from('reurb_quadras')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('project_id', projectId)
 
       const { count: lotes } = await supabase
         .from('reurb_properties')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('quadra_id', projectId)
 
       return {
@@ -1138,34 +1139,35 @@ export const api = {
   async getDashboardStats(): Promise<DashboardStats> {
     if (!isOnline()) return db.getDashboardStats()
     try {
+
       const { count: totalProjects } = await supabase
         .from('reurb_projects')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
 
       const { count: totalLotes } = await supabase
         .from('reurb_properties')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
 
       const { count: totalSurveyed } = await supabase
         .from('reurb_properties')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .eq('status', 'surveyed')
 
       const { count: totalFamilies } = await supabase
         .from('reurb_surveys')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
 
       const { count: totalQuadras } = await supabase
         .from('reurb_quadras')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
 
       const { count: totalContracts } = await supabase
         .from('reurb_contracts')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
 
       const { data: surveysData } = await supabase
         .from('reurb_surveys')
-        .select('property_id', { count: 'exact', head: true })
+        .select('property_id')
 
       const surveysCompleted = surveysData?.length || 0
 
@@ -1173,7 +1175,7 @@ export const api = {
 
       const { count: totalAnalyzedByAI } = await supabase
         .from('reurb_surveys')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .not('analise_ia_classificacao', 'is', null)
 
       const { data: contractsData } = await supabase
@@ -1184,12 +1186,12 @@ export const api = {
 
       const { count: countReurbS } = await supabase
         .from('reurb_surveys')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .ilike('analise_ia_classificacao', '%REURB-S%')
 
       const { count: countReurbE } = await supabase
         .from('reurb_surveys')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .ilike('analise_ia_classificacao', '%REURB-E%')
 
       const localStats = db.getDashboardStats()
@@ -1492,9 +1494,10 @@ export const api = {
 
     try {
       const startOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString()
+
       const { count } = await supabase
         .from('reurb_contracts')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact' })
         .gte('created_at', startOfYear)
 
       const current = count || 0
