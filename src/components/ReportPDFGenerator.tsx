@@ -127,7 +127,7 @@ const ReportPDFGenerator: React.FC = () => {
       console.log('Vistorias carregadas:', vistorias);
     }
   }, [vistorias, loading]);
-
+ 
   // Gerar PDF individual
   const generateSinglePDF = (vistoria: Vistoria) => {
     const pdf = new jsPDF('p', 'mm', 'a4');
