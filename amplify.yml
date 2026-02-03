@@ -1,0 +1,26 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "=== LIMPANDO CACHE COMPLETO ==="
+        - rm -rf node_modules
+        - rm -rf dist
+        - rm -rf .vite
+        - npm cache clean --force
+        - echo "=== INSTALANDO DEPENDÊNCIAS ==="
+        - npm install
+        - echo "=== VERIFICANDO ARQUIVO ==="
+        - grep "surveyor_name" src/components/ReportPDFGenerator.tsx | head -3
+    build:
+      commands:
+        - echo "=== INICIANDO BUILD ==="
+        - npm run build
+        - echo "=== BUILD COMPLETO ==="
+        - ls -la dist/assets/*.js | head -5
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths: []
