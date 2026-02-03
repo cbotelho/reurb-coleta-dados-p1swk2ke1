@@ -48,13 +48,14 @@ interface Vistoria {
 
 const ReportPDFGenerator: React.FC = () => {
   const { projectId } = useParams();
+  const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [quadras, setQuadras] = useState<Quadra[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
-  const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [statusFilter, setStatusFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState<{ start: string; end: string }>({ start: '', end: '' });
   const [selectedVistoria, setSelectedVistoria] = useState<Vistoria | null>(null);
 
   // Configurações do Supabase
@@ -71,7 +72,6 @@ const ReportPDFGenerator: React.FC = () => {
   // Carregar todas as quadras
   const loadQuadras = async () => {
     try {
-      setLoading(true);
       const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_quadras?select=id,name,area,description&order=name.asc`, {
         headers,
       });
@@ -79,51 +79,22 @@ const ReportPDFGenerator: React.FC = () => {
       setQuadras(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar quadras:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Carregar todas as vistorias
-  const loadVistorias = async (filters = {}) => {
+  // Carregar todas as vistorias (todas as colunas)
+  const loadVistorias = async () => {
     try {
       setLoading(true);
-      
-      // Construir query com filtros
-      let query = `${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,created_at,updated_at,applicant_name,applicant_cpf,city,state,residents_count,has_children,form_number,survey_date,occupation_time,acquisition_mode,property_use,construction_type,roof_type,floor_type,rooms_count,conservation_state,fencing,water_supply,energy_supply,sanitation,street_paving,observations,surveyor_name,surveyor_signature,assinatura_requerente,analise_ia_classificacao,analise_ia_parecer,analise_ia_proximo_passo,analise_ia_gerada_em,documents`;
-      
-      const queryParams = [];
-      if (statusFilter) {
-        queryParams.push(`status=eq.${statusFilter}`);
-      }
-      if (dateFilter.start) {
-        queryParams.push(`created_at=gte.${dateFilter.start}`);
-      }
-      if (dateFilter.end) {
-        queryParams.push(`created_at=lte.${dateFilter.end}`);
-      }
-      if (searchTerm) {
-        queryParams.push(`or=(vistoriador_name.ilike.%${searchTerm}%,proprietario_nome.ilike.%${searchTerm}%)`);
-      }
-      
-      if (queryParams.length > 0) {
-        query += `&${queryParams.join('&')}`;
-      }
-      
-      query += `&order=created_at.desc`;
-
-      const response = await fetch(query, { headers });
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=*`, { headers });
       const data = await response.json();
       setVistorias(Array.isArray(data) ? data : []);
-
-      // Carregar lotes relacionados
-      if (data.length > 0) {
-        const propertyIds = data.map(v => v.property_id).filter(id => id);
-        if (propertyIds.length > 0) {
-          await loadLotesByIds(propertyIds);
-        }
+      // Carregar lotes e quadras relacionados
+      const loteIds = Array.isArray(data) ? [...new Set(data.map((v: Vistoria) => v.property_id))] : [];
+      if (loteIds.length > 0) {
+        await loadLotesByIds(loteIds);
       }
-
+      await loadQuadras();
     } catch (error) {
       console.error('Erro ao carregar vistorias:', error);
     } finally {
@@ -147,58 +118,21 @@ const ReportPDFGenerator: React.FC = () => {
 
   // Inicializar
   useEffect(() => {
-    // Carregar quadras do projeto
-    const loadQuadrasProjeto = async () => {
-      await loadQuadras();
-      if (projectId) {
-        // Filtra lotes e vistorias pelo projectId
-        const quadrasProjeto = quadras.filter(q => q.id === projectId);
-        const lotesProjeto = lotes.filter(l => quadrasProjeto.some(q => q.id === l.quadra_id));
-        const vistoriasProjeto = vistorias.filter(v => lotesProjeto.some(l => l.id === v.property_id));
-        setQuadras(quadrasProjeto);
-        setLotes(lotesProjeto);
-        setVistorias(vistoriasProjeto);
-      } else {
-        loadVistorias();
-      }
-    };
-    loadQuadrasProjeto();
-  }, [projectId]);
+    loadVistorias();
+  }, []);
 
   // Gerar PDF individual
   const generateSinglePDF = (vistoria: Vistoria) => {
-    const lote = lotes.find(l => l.id === vistoria.property_id);
-    const quadra = quadras.find(q => q.id === lote?.quadra_id || vistoria.quadra_id);
-
     const pdf = new jsPDF('p', 'mm', 'a4');
-    
-    // Configurações
-    const pageWidth = pdf.internal.pageSize.getWidth();
     const margin = 20;
-    let yPos = margin;
-
-    // Cabeçalho
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('RELATÓRIO DE VISTORIA TÉCNICA', pageWidth / 2, yPos, { align: 'center' });
-    
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    yPos += 10;
-    pdf.text('SISTEMA REURB - GOVERNO DO ESTADO DO AMAPÁ', pageWidth / 2, yPos, { align: 'center' });
-    
-    yPos += 15;
-    pdf.setDrawColor(0, 0, 0);
-    pdf.setLineWidth(0.5);
-    pdf.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 10;
-
-    // Tabela de informações básicas
+    let yPos = 20;
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const lote = lotes.find(l => l.id === vistoria.property_id);
+    const quadra = quadras.find(q => q.id === lote?.quadra_id);
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('1. IDENTIFICAÇÃO DO IMÓVEL', margin, yPos);
     yPos += 10;
-
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     const basicInfo = [
@@ -208,21 +142,16 @@ const ReportPDFGenerator: React.FC = () => {
       ['Endereço:', lote?.address || 'Não informado'],
       ['Status do lote:', lote?.status || 'Não informado'],
     ];
-
     basicInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
       yPos += 6;
     });
-
     yPos += 5;
-
-    // Dados da vistoria
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('2. DADOS DA VISTORIA', margin, yPos);
     yPos += 10;
-
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     const vistoriaInfo = [
@@ -231,21 +160,16 @@ const ReportPDFGenerator: React.FC = () => {
       ['Matrícula:', vistoria.vistoriador_matricula],
       ['Status:', vistoria.status],
     ];
-
     vistoriaInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
       yPos += 6;
     });
-
     yPos += 5;
-
-    // Proprietário
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('3. PROPRIETÁRIO/POSSUIDOR', margin, yPos);
     yPos += 10;
-
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     const ownerInfo = [
@@ -253,42 +177,32 @@ const ReportPDFGenerator: React.FC = () => {
       ['CPF:', vistoria.proprietario_cpf],
       ['Telefone:', vistoria.proprietario_telefone || 'Não informado'],
     ];
- 
     ownerInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
       yPos += 6;
     });
-
     yPos += 5;
-
-    // Características
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('4. CARACTERÍSTICAS DA CONSTRUÇÃO', margin, yPos);
     yPos += 10;
-
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     const characteristics = [
       ['Tipo de Construção:', vistoria.tipo_construcao || 'Não informado'],
       ['Estado de Conservação:', vistoria.estado_conservacao || 'Não informado'],
     ];
-
     characteristics.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 60, yPos);
       yPos += 6;
     });
-
     yPos += 5;
-
-    // Infraestrutura
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('5. INFRAESTRUTURA DISPONÍVEL', margin, yPos);
     yPos += 10;
-
     const infrastructure = [
       ['Água encanada', vistoria.possui_agua],
       ['Energia elétrica', vistoria.possui_energia],
@@ -296,50 +210,37 @@ const ReportPDFGenerator: React.FC = () => {
       ['Pavimentação', vistoria.possui_pavimentacao],
       ['Iluminação pública', vistoria.possui_iluminacao_publica],
     ];
-
     pdf.setFontSize(10);
     let col1Y = yPos;
     let col2Y = yPos;
-    
     infrastructure.forEach(([item, has], index) => {
       const y = index < 3 ? col1Y : col2Y;
       const x = index < 3 ? margin : margin + 80;
-      
       pdf.text(`${has ? '✓' : '✗'} ${item}`, x, y);
-      
       if (index < 3) col1Y += 6;
       else col2Y += 6;
     });
-
     yPos = Math.max(col1Y, col2Y) + 5;
-
-    // Observações
     if (vistoria.observacoes) {
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'bold');
       pdf.text('6. OBSERVAÇÕES', margin, yPos);
       yPos += 10;
-
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
       const observations = pdf.splitTextToSize(vistoria.observacoes, pageWidth - (2 * margin));
       pdf.text(observations, margin, yPos);
       yPos += observations.length * 5 + 5;
     }
-
-    // Fotos (se houver)
     if (vistoria.fotos_urls && vistoria.fotos_urls.length > 0) {
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'bold');
       pdf.text('7. FOTOS DA VISTORIA', margin, yPos);
       yPos += 10;
-
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
       pdf.text(`Total de fotos: ${vistoria.fotos_urls.length}`, margin, yPos);
       yPos += 10;
-
-      // Listar URLs das fotos
       vistoria.fotos_urls.forEach((url, index) => {
         if (yPos > 250) {
           pdf.addPage();
@@ -349,38 +250,26 @@ const ReportPDFGenerator: React.FC = () => {
         yPos += 6;
       });
     }
-
-    // Assinaturas
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('8. ASSINATURAS', margin, yPos);
     yPos += 15;
-
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
-    
-    // Linha para assinatura do proprietário
     pdf.text('________________________________________', margin, yPos);
     pdf.text('Proprietário/Possuidor', margin + 20, yPos + 8);
     pdf.text(vistoria.proprietario_nome, margin, yPos + 16);
     pdf.text(`CPF: ${vistoria.proprietario_cpf}`, margin, yPos + 22);
-
-    // Linha para assinatura do vistoriador
     pdf.text('________________________________________', margin + 100, yPos);
     pdf.text('Vistoriador Técnico', margin + 120, yPos + 8);
     pdf.text(vistoria.vistoriador_name, margin + 100, yPos + 16);
     pdf.text(`Matrícula: ${vistoria.vistoriador_matricula}`, margin + 100, yPos + 22);
-
     yPos += 40;
-
-    // Rodapé
     pdf.setFontSize(8);
     pdf.setTextColor(128, 128, 128);
     pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPos, { align: 'center' });
     pdf.text('Sistema REURB - Prefeitura Municipal', pageWidth / 2, yPos + 5, { align: 'center' });
     pdf.text(`ID da vistoria: ${vistoria.id.substring(0, 8)}...`, pageWidth / 2, yPos + 10, { align: 'center' });
-
-    // Salvar PDF
     const fileName = `VISTORIA_${quadra?.name || 'Q'}_${lote?.name || 'L'}_${vistoria.vistoriador_name.replace(/\s+/g, '_')}_${new Date(vistoria.data_vistoria).toISOString().split('T')[0]}.pdf`;
     pdf.save(fileName);
   };
@@ -405,34 +294,27 @@ const ReportPDFGenerator: React.FC = () => {
   // Gerar relatório consolidado
   const generateConsolidatedReport = () => {
     const pdf = new jsPDF('p', 'mm', 'a4');
-    
-    // Cabeçalho
     pdf.setFontSize(16);
     pdf.setFont('helvetica', 'bold');
     pdf.text('RELATÓRIO CONSOLIDADO DE VISTORIAS', 105, 20, { align: 'center' });
-    
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text('SISTEMA REURB - PREFEITURA MUNICIPAL', 105, 27, { align: 'center' });
     pdf.text(`Período: ${dateFilter.start || 'Início'} até ${dateFilter.end || 'Fim'}`, 105, 34, { align: 'center' });
     pdf.text(`Total de vistorias: ${vistorias.length}`, 105, 41, { align: 'center' });
-
-    // Tabela com autotable
     const tableData = vistorias.map((v, index) => {
       const lote = lotes.find(l => l.id === v.property_id);
       const quadra = quadras.find(q => q.id === lote?.quadra_id);
-      
       return [
         index + 1,
-        quadra?.name || '-',
-        lote?.name || '-',
+        quadra?.name || '',
+        lote?.name || '',
         v.vistoriador_name,
         new Date(v.data_vistoria).toLocaleDateString('pt-BR'),
         v.proprietario_nome,
         v.status
       ];
     });
-
     (pdf as any).autoTable({
       startY: 50,
       head: [['#', 'Quadra', 'Lote', 'Vistoriador', 'Data', 'Proprietário', 'Status']],
@@ -442,16 +324,12 @@ const ReportPDFGenerator: React.FC = () => {
       styles: { fontSize: 8, cellPadding: 3 },
       margin: { left: 20, right: 20 }
     });
-
-    // Estatísticas
     const statsY = (pdf as any).lastAutoTable.finalY + 15;
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('ESTATÍSTICAS', 20, statsY);
-
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
-    
     const stats = [
       ['Total de vistorias:', vistorias.length.toString()],
       ['Vistorias concluídas:', vistorias.filter(v => v.status === 'completed').length.toString()],
@@ -460,20 +338,16 @@ const ReportPDFGenerator: React.FC = () => {
       ['Com energia:', vistorias.filter(v => v.possui_energia).length.toString()],
       ['Com esgoto:', vistorias.filter(v => v.possui_esgoto).length.toString()],
     ];
-
     let y = statsY + 10;
     stats.forEach(([label, value]) => {
       pdf.text(label, 20, y);
       pdf.text(value, 80, y);
       y += 6;
     });
-
-    // Rodapé
     pdf.setFontSize(8);
     pdf.setTextColor(128, 128, 128);
     pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 105, 280, { align: 'center' });
     pdf.text('Sistema REURB - Relatório Consolidado', 105, 285, { align: 'center' });
-
     pdf.save(`RELATORIO_CONSOLIDADO_VISTORIAS_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
