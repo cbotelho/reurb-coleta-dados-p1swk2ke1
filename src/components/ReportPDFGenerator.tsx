@@ -76,7 +76,7 @@ const ReportPDFGenerator: React.FC = () => {
         headers,
       });
       const data = await response.json();
-      setQuadras(data);
+      setQuadras(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar quadras:', error);
     } finally {
@@ -114,7 +114,7 @@ const ReportPDFGenerator: React.FC = () => {
 
       const response = await fetch(query, { headers });
       const data = await response.json();
-      setVistorias(data);
+      setVistorias(Array.isArray(data) ? data : []);
 
       // Carregar lotes relacionados
       if (data.length > 0) {
@@ -139,7 +139,7 @@ const ReportPDFGenerator: React.FC = () => {
         { headers }
       );
       const data = await response.json();
-      setLotes(data);
+      setLotes(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao carregar lotes:', error);
     }
