@@ -1,5 +1,6 @@
 // components/ReportPDFGenerator.tsx
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Search, Filter, Download, Printer, FileText, Home, MapPin, User, Calendar, CheckCircle, ChevronDown, Eye, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -46,6 +47,7 @@ interface Vistoria {
 }
 
 const ReportPDFGenerator: React.FC = () => {
+  const { projectId } = useParams();
   const [quadras, setQuadras] = useState<Quadra[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
@@ -145,9 +147,23 @@ const ReportPDFGenerator: React.FC = () => {
 
   // Inicializar
   useEffect(() => {
-    loadQuadras();
-    loadVistorias();
-  }, []);
+    // Carregar quadras do projeto
+    const loadQuadrasProjeto = async () => {
+      await loadQuadras();
+      if (projectId) {
+        // Filtra lotes e vistorias pelo projectId
+        const quadrasProjeto = quadras.filter(q => q.id === projectId);
+        const lotesProjeto = lotes.filter(l => quadrasProjeto.some(q => q.id === l.quadra_id));
+        const vistoriasProjeto = vistorias.filter(v => lotesProjeto.some(l => l.id === v.property_id));
+        setQuadras(quadrasProjeto);
+        setLotes(lotesProjeto);
+        setVistorias(vistoriasProjeto);
+      } else {
+        loadVistorias();
+      }
+    };
+    loadQuadrasProjeto();
+  }, [projectId]);
 
   // Gerar PDF individual
   const generateSinglePDF = (vistoria: Vistoria) => {
