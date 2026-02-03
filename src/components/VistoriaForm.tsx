@@ -45,7 +45,7 @@ const VistoriaForm: React.FC = () => {
       try {
         setIsLoading(true);
         const response = await fetch(
-          'https://mbcstctoikcnicmeyjgh.supabase.co/rest/v1/quadras?select=*',
+          'https://mbcstctoikcnicmeyjgh.supabase.co/rest/v1/quadras?select=id,name',
           {
             headers: {
               'apikey': 'sua_chave_aqui',
@@ -73,7 +73,7 @@ const VistoriaForm: React.FC = () => {
       try {
         setIsLoading(true);
         const response = await fetch(
-          `https://mbcstctoikcnicmeyjgh.supabase.co/rest/v1/lotes?quadra_id=eq.${selectedQuadra}&select=*`,
+          `https://mbcstctoikcnicmeyjgh.supabase.co/rest/v1/lotes?quadra_id=eq.${selectedQuadra}&select=id,name,address,area`,
           {
             headers: {
               'apikey': 'sua_chave_aqui',

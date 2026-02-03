@@ -70,7 +70,7 @@ const ReportPDFGenerator: React.FC = () => {
   const loadQuadras = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_quadras?select=*&order=name.asc`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_quadras?select=id,name,area,description&order=name.asc`, {
         headers,
       });
       const data = await response.json();
@@ -88,7 +88,7 @@ const ReportPDFGenerator: React.FC = () => {
       setLoading(true);
       
       // Construir query com filtros
-      let query = `${SUPABASE_URL}/rest/v1/reurb_surveys?select=*`;
+      let query = `${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,created_at,updated_at,applicant_name,applicant_cpf,city,state,residents_count,has_children,form_number,survey_date,occupation_time,acquisition_mode,property_use,construction_type,roof_type,floor_type,rooms_count,conservation_state,fencing,water_supply,energy_supply,sanitation,street_paving,observations,surveyor_name,surveyor_signature,assinatura_requerente,analise_ia_classificacao,analise_ia_parecer,analise_ia_proximo_passo,analise_ia_gerada_em,documents`;
       
       const queryParams = [];
       if (statusFilter) {
@@ -133,7 +133,7 @@ const ReportPDFGenerator: React.FC = () => {
   const loadLotesByIds = async (ids: string[]) => {
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/reurb_properties?id=in.(${ids.join(',')})&select=*`,
+        `${SUPABASE_URL}/rest/v1/reurb_properties?id=in.(${ids.join(',')})&select=id,name,address,area,description,latitude,longitude,status`,
         { headers }
       );
       const data = await response.json();
