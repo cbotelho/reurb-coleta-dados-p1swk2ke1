@@ -117,7 +117,7 @@ const getPermissionsForGroup = (group: string): string[] => {
 }
 
 const mapProfile = (row: any): User => ({
-  id: row.user_id,
+  id: row.id || row.user_id,
   username: row.nome_usuario || row.full_name || '',
   firstName: row.nome || row.full_name?.split(' ')[0] || '',
   lastName: row.sobrenome || row.full_name?.split(' ').slice(1).join(' ') || '',
@@ -125,16 +125,14 @@ const mapProfile = (row: any): User => ({
   email: row.email,
   photoUrl: row.foto || row.avatar_url || '',
   status: row.situacao === 'ativo' || row.is_active ? 'active' : 'inactive',
-  lastLoginAt: row.ultimo_login,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   createdById: row.criado_por,
   createdBy: undefined,
-  groupIds: [row.grupo_acesso || row.role],
-  groupNames: [row.grupo_acesso || row.role],
+  groupIds: [row.role],
+  groupNames: [row.role],
   active: row.situacao === 'ativo' || !!row.is_active,
-  role: row.grupo_acesso || row.role,
-  grupo_acesso: row.grupo_acesso || row.role,
+  role: row.role,
 })
 
 const mapSurvey = (row: any): Survey => ({
@@ -1251,7 +1249,6 @@ export const api = {
         sobrenome: user.lastName,
         email: user.email,
         foto: user.photoUrl,
-        grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'vistoriador',
         situacao: user.status === 'active' ? 'ativo' : 'inativo',
         updated_at: new Date().toISOString(),
       }
@@ -1260,7 +1257,7 @@ export const api = {
       const { error } = await supabaseAny
         .from('reurb_user_profiles')
         .update(payload)
-        .eq('user_id', user.id)
+        .eq('id', user.id)
 
       if (error) throw error
     } else {
@@ -1271,7 +1268,6 @@ export const api = {
           nome_usuario: user.name || '',
           nome: user.firstName || '',
           sobrenome: user.lastName || '',
-          grupo_acesso: user.groupIds && user.groupIds.length > 0 ? user.groupIds[0] : 'vistoriador',
           foto: user.photoUrl,
           situacao: user.status === 'active' ? 'ativo' : 'inativo',
           criado_por: user.createdById || 'system',
