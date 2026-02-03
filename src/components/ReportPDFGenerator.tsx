@@ -19,7 +19,7 @@ interface Vistoria {
   street_paving?: boolean;
   observations?: string;
   surveyor_name: string;
-  status: string;
+  state: string;
   created_at: string;
 }
 
@@ -67,7 +67,7 @@ const ReportPDFGenerator: React.FC = () => {
       console.log('Carregando vistorias...');
       
       // Primeiro, tente carregar apenas algumas colunas básicas
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,survey_date,applicant_name,applicant_cpf,construction_type,conservation_state,water_supply,energy_supply,sanitation,street_paving,observations,surveyor_name,status,created_at`, {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,survey_date,applicant_name,applicant_cpf,construction_type,conservation_state,water_supply,energy_supply,sanitation,street_paving,observations,surveyor_name,state,created_at`, {
         headers,
       });
       
@@ -210,7 +210,7 @@ const ReportPDFGenerator: React.FC = () => {
       const vistoriaInfo = [
         ['Data:', new Date(vistoria.survey_date).toLocaleDateString('pt-BR')],
         ['Vistoriador:', vistoria.surveyor_name],
-        ['Status:', vistoria.status],
+        ['Status:', vistoria.state],
       ];
       
       vistoriaInfo.forEach(([label, value]) => {
@@ -289,7 +289,7 @@ const ReportPDFGenerator: React.FC = () => {
           v.surveyor_name,
           new Date(v.survey_date).toLocaleDateString('pt-BR'),
           v.applicant_name,
-          v.status
+          v.state
         ];
       });
       
@@ -336,7 +336,7 @@ const ReportPDFGenerator: React.FC = () => {
     return true;
   }).filter(vistoria => {
     // Filtro por status
-    if (statusFilter) return vistoria.status === statusFilter;
+    if (statusFilter) return vistoria.state === statusFilter;
     return true;
   }).filter(vistoria => {
     // Filtro por data
@@ -563,15 +563,15 @@ const ReportPDFGenerator: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              vistoria.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              vistoria.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              vistoria.status === 'approved' ? 'bg-blue-100 text-blue-800' :
+                              vistoria.state === 'completed' ? 'bg-green-100 text-green-800' :
+                              vistoria.state === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              vistoria.state === 'approved' ? 'bg-blue-100 text-blue-800' :
                               'bg-red-100 text-red-800'
                             }`}>
-                              {vistoria.status === 'completed' ? 'Concluída' :
-                               vistoria.status === 'pending' ? 'Pendente' :
-                               vistoria.status === 'approved' ? 'Aprovada' : 
-                               vistoria.status === 'rejected' ? 'Rejeitada' : vistoria.status}
+                              {vistoria.state === 'completed' ? 'Concluída' :
+                               vistoria.state === 'pending' ? 'Pendente' :
+                               vistoria.state === 'approved' ? 'Aprovada' : 
+                               vistoria.state === 'rejected' ? 'Rejeitada' : vistoria.state}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
