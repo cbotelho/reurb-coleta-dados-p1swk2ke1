@@ -163,7 +163,7 @@ export interface User {
   groupNames?: string[]
   active: boolean // Legacy boolean, mapped from status
   role?: string // Adicionado para compatibilidade
-  grupo_acesso?: string // Grupo de acesso do REURB
+  // grupo_acesso removido, usar apenas role e group_ids
 }
 
 export interface UserGroup {

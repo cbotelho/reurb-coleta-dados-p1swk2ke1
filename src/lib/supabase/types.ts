@@ -186,7 +186,7 @@ export type Database = {
       reurb_user_profiles: {
         Row: {
           id: string
-          grupo_acesso: string | null
+          // grupo_acesso removido do schema
           nome_usuario: string | null
           nome: string | null
           sobrenome: string | null
@@ -200,7 +200,7 @@ export type Database = {
         }
         Insert: {
           id: string
-          grupo_acesso?: string | null
+          // grupo_acesso removido do schema
           nome_usuario?: string | null
           nome?: string | null
           sobrenome?: string | null

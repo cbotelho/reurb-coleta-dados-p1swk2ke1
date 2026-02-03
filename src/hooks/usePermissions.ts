@@ -11,7 +11,7 @@ interface UsePermissionsReturn {
 export function usePermissions(): UsePermissionsReturn {
   const { hasPermission: checkPermission, user } = useAuth();
 
-  const isAdmin = user?.grupo_acesso === 'Administrador' || user?.grupo_acesso === 'Administradores' || false;
+  const isAdmin = user?.role === 'Administrador' || user?.role === 'Administradores' || false;
 
   const hasPermission = useCallback(
     async (permission: string): Promise<boolean> => {

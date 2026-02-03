@@ -169,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: profile.created_at,
         groupIds: [profile.role || ''],
         role: profile.role || '',
-        grupo_acesso: profile.role || ''
+        // grupo_acesso removido, usar apenas role
       }
 
       setUser(mappedUser)
@@ -242,9 +242,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return false
     
     // Se for admin, tem todas as permissões
-    if (user.grupo_acesso === 'admin' || 
-        user.grupo_acesso === 'Administrador' || 
-        user.grupo_acesso === 'Administradores') return true
+    if (user.role === 'admin' || 
+      user.role === 'Administrador' || 
+      user.role === 'Administradores') return true
     
     // Verifica a permissão no banco de dados
     try {

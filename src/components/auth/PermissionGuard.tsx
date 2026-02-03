@@ -29,9 +29,9 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
         setHasAccess(false);
         return;
       }
-
+ 
       // Verifica se tem a role necessária
-      if (requiredRole && user.grupo_acesso !== requiredRole) {
+      if (requiredRole && user.role !== requiredRole) {
         setHasAccess(false);
         if (redirectTo) {
           navigate(redirectTo);
