@@ -121,6 +121,13 @@ const ReportPDFGenerator: React.FC = () => {
     loadVistorias();
   }, []);
 
+  // Debug: logar vistorias carregadas
+  useEffect(() => {
+    if (!loading) {
+      console.log('Vistorias carregadas:', vistorias);
+    }
+  }, [vistorias, loading]);
+
   // Gerar PDF individual
   const generateSinglePDF = (vistoria: Vistoria) => {
     const pdf = new jsPDF('p', 'mm', 'a4');
@@ -352,21 +359,30 @@ const ReportPDFGenerator: React.FC = () => {
   };
 
   // Filtrar vistorias
-  const filteredVistorias = vistorias.filter(vistoria => {
-    const lote = lotes.find(l => l.id === vistoria.property_id);
-    const quadra = quadras.find(q => q.id === lote?.quadra_id);
-    
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        vistoria.vistoriador_name.toLowerCase().includes(searchLower) ||
-        vistoria.proprietario_nome.toLowerCase().includes(searchLower) ||
-        (lote?.name.toLowerCase().includes(searchLower) || false) ||
-        (quadra?.name.toLowerCase().includes(searchLower) || false)
-      );
-    }
-    return true;
-  });
+  const filteredVistorias = vistorias
+    .filter(vistoria => {
+      const lote = lotes.find(l => l.id === vistoria.property_id);
+      const quadra = quadras.find(q => q.id === lote?.quadra_id);
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          (vistoria.vistoriador_name && vistoria.vistoriador_name.toLowerCase().includes(searchLower)) ||
+          (vistoria.proprietario_nome && vistoria.proprietario_nome.toLowerCase().includes(searchLower)) ||
+          (lote?.name && lote.name.toLowerCase().includes(searchLower)) ||
+          (quadra?.name && quadra.name.toLowerCase().includes(searchLower))
+        );
+      }
+      return true;
+    })
+    .filter(vistoria => {
+      if (statusFilter) return vistoria.status === statusFilter;
+      return true;
+    })
+    .filter(vistoria => {
+      if (dateFilter.start && vistoria.data_vistoria < dateFilter.start) return false;
+      if (dateFilter.end && vistoria.data_vistoria > dateFilter.end) return false;
+      return true;
+    });
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -479,6 +495,7 @@ const ReportPDFGenerator: React.FC = () => {
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">Nenhuma vistoria encontrada</p>
               <p className="text-sm text-gray-400 mt-1">Tente ajustar os filtros de busca</p>
+              <pre className="text-xs text-gray-400 mt-2 text-left overflow-x-auto max-w-xl mx-auto bg-gray-100 p-2 rounded">{JSON.stringify(vistorias, null, 2)}</pre>
             </div>
           ) : (
             <>
