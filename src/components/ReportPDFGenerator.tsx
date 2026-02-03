@@ -4,10 +4,22 @@ import { useParams } from 'react-router-dom';
 import { Search, Filter, Download, Printer, FileText, Home, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
- 
-interface Quadra {
+
+interface Vistoria {
   id: string;
-  name: string;
+  property_id: string;
+  survey_date: string;
+  applicant_name: string;
+  applicant_cpf: string;
+  construction_type?: string;
+  conservation_state?: string;
+  water_supply?: boolean;
+  energy_supply?: boolean;
+  sanitation?: boolean;
+  street_paving?: boolean;
+  observations?: string;
+  surveyor_name: string;
+  status: string;
   created_at: string;
 }
 
@@ -18,45 +30,22 @@ interface Lote {
   area: string;
   address: string;
   status: string;
-  description?: string;
-  latitude?: number;
-  longitude?: number;
 }
 
-interface Vistoria {
+interface Quadra {
   id: string;
-  property_id: string;
-  form_number?: string;
-  survey_date: string;
-  applicant_name: string;
-  applicant_cpf: string;
-  applicant_telefone?: string;
-  construction_type: string;
-  conservation_state: string;
-  water_supply: boolean;
-  energy_supply: boolean;
-  sanitation: boolean;
-  street_paving: boolean;
-  public_lighting?: boolean;
-  observations: string;
-  fotos_urls?: string[];
-  surveyor_name: string;
-  surveyor_matricula?: string;
-  status: string;
-  created_at: string;
+  name: string;
 }
 
 const ReportPDFGenerator: React.FC = () => {
-  const { projectId } = useParams();
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
-  const [quadras, setQuadras] = useState<Quadra[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
+  const [quadras, setQuadras] = useState<Quadra[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState<{ start: string; end: string }>({ start: '', end: '' });
-  const [selectedVistoria, setSelectedVistoria] = useState<Vistoria | null>(null);
+  const [error, setError] = useState<string>('');
 
   // Configurações do Supabase
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
@@ -69,53 +58,92 @@ const ReportPDFGenerator: React.FC = () => {
     'Content-Type': 'application/json',
   };
 
-  // Carregar todas as quadras
-  const loadQuadras = async () => {
-    try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_quadras?select=id,name,area,description&order=name.asc`, {
-        headers,
-      });
-      const data = await response.json();
-      setQuadras(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Erro ao carregar quadras:', error);
-    }
-  };
-
-  // Carregar todas as vistorias
+  // Carregar todas as vistorias (consulta simples)
   const loadVistorias = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=*&order=created_at.desc`, { headers });
+      setError('');
+      
+      console.log('Carregando vistorias...');
+      
+      // Primeiro, tente carregar apenas algumas colunas básicas
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,survey_date,applicant_name,applicant_cpf,construction_type,conservation_state,water_supply,energy_supply,sanitation,street_paving,observations,surveyor_name,status,created_at`, {
+        headers,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao carregar vistorias: ${response.status} ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      console.log('Dados carregados do Supabase:', data); // Debug
+      console.log('Vistorias carregadas:', data);
       setVistorias(Array.isArray(data) ? data : []);
       
-      // Carregar lotes relacionados
-      const loteIds = Array.isArray(data) ? [...new Set(data.map((v: Vistoria) => v.property_id))] : [];
-      if (loteIds.length > 0) {
-        await loadLotesByIds(loteIds);
+      // Se houver vistorias, carregar lotes relacionados
+      if (Array.isArray(data) && data.length > 0) {
+        await loadLotes();
       }
-      await loadQuadras();
+      
     } catch (error) {
       console.error('Erro ao carregar vistorias:', error);
+      setError('Erro ao carregar vistorias. Verifique o console para mais detalhes.');
+      
+      // Tenta uma consulta ainda mais simples
+      try {
+        const simpleResponse = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,survey_date,applicant_name,surveyor_name,status`, {
+          headers,
+        });
+        
+        if (simpleResponse.ok) {
+          const simpleData = await simpleResponse.json();
+          console.log('Vistorias carregadas (consulta simples):', simpleData);
+          setVistorias(Array.isArray(simpleData) ? simpleData : []);
+        }
+      } catch (innerError) {
+        console.error('Erro na consulta simples:', innerError);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Carregar lotes por IDs
-  const loadLotesByIds = async (ids: string[]) => {
+  // Carregar todos os lotes
+  const loadLotes = async () => {
     try {
       const response = await fetch(
-        `${SUPABASE_URL}/rest/v1/reurb_properties?id=in.(${ids.join(',')})&select=id,name,address,area,description,latitude,longitude,status`,
+        `${SUPABASE_URL}/rest/v1/reurb_properties?select=id,quadra_id,name,address,area,status`,
         { headers }
       );
-      const data = await response.json();
-      console.log('Lotes carregados:', data); // Debug
-      setLotes(Array.isArray(data) ? data : []);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Lotes carregados:', data);
+        setLotes(Array.isArray(data) ? data : []);
+        
+        // Se houver lotes, carregar quadras
+        if (Array.isArray(data) && data.length > 0) {
+          await loadQuadras();
+        }
+      }
     } catch (error) {
       console.error('Erro ao carregar lotes:', error);
+    }
+  };
+
+  // Carregar todas as quadras
+  const loadQuadras = async () => {
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_quadras?select=id,name`, {
+        headers,
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Quadras carregadas:', data);
+        setQuadras(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar quadras:', error);
     }
   };
 
@@ -126,160 +154,108 @@ const ReportPDFGenerator: React.FC = () => {
 
   // Gerar PDF individual
   const generateSinglePDF = (vistoria: Vistoria) => {
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const margin = 20;
-    let yPos = 20;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const lote = lotes.find(l => l.id === vistoria.property_id);
-    const quadra = quadras.find(q => q.id === lote?.quadra_id);
-    
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('1. IDENTIFICAÇÃO DO IMÓVEL', margin, yPos);
-    yPos += 10;
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    
-    const basicInfo = [
-      ['Quadra:', quadra?.name || 'Não informada'],
-      ['Lote:', lote?.name || 'Não informado'],
-      ['Área:', `${lote?.area || '0'} m²`],
-      ['Endereço:', lote?.address || 'Não informado'],
-      ['Status do lote:', lote?.status || 'Não informado'],
-    ];
-    
-    basicInfo.forEach(([label, value]) => {
-      pdf.text(label, margin, yPos);
-      pdf.text(value, margin + 40, yPos);
-      yPos += 6;
-    });
-    
-    yPos += 5;
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('2. DADOS DA VISTORIA', margin, yPos);
-    yPos += 10;
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    
-    const vistoriaInfo = [
-      ['Data:', new Date(vistoria.survey_date).toLocaleDateString('pt-BR')],
-      ['Vistoriador:', vistoria.surveyor_name],
-      ['Matrícula:', vistoria.surveyor_matricula || 'Não informada'],
-      ['Status:', vistoria.status],
-    ];
-    
-    vistoriaInfo.forEach(([label, value]) => {
-      pdf.text(label, margin, yPos);
-      pdf.text(value, margin + 40, yPos);
-      yPos += 6;
-    });
-    
-    yPos += 5;
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('3. PROPRIETÁRIO/POSSUIDOR', margin, yPos);
-    yPos += 10;
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    
-    const ownerInfo = [
-      ['Nome:', vistoria.applicant_name],
-      ['CPF:', vistoria.applicant_cpf],
-      ['Telefone:', vistoria.applicant_telefone || 'Não informado'],
-    ];
-    
-    ownerInfo.forEach(([label, value]) => {
-      pdf.text(label, margin, yPos);
-      pdf.text(value, margin + 40, yPos);
-      yPos += 6;
-    });
-    
-    yPos += 5;
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('4. CARACTERÍSTICAS DA CONSTRUÇÃO', margin, yPos);
-    yPos += 10;
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    
-    const characteristics = [
-      ['Tipo de Construção:', vistoria.construction_type || 'Não informado'],
-      ['Estado de Conservação:', vistoria.conservation_state || 'Não informado'],
-    ];
-    
-    characteristics.forEach(([label, value]) => {
-      pdf.text(label, margin, yPos);
-      pdf.text(value, margin + 60, yPos);
-      yPos += 6;
-    });
-    
-    yPos += 5;
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('5. INFRAESTRUTURA DISPONÍVEL', margin, yPos);
-    yPos += 10;
-    
-    const infrastructure = [
-      ['Água encanada', vistoria.water_supply],
-      ['Energia elétrica', vistoria.energy_supply],
-      ['Rede de esgoto', vistoria.sanitation],
-      ['Pavimentação', vistoria.street_paving],
-      ['Iluminação pública', vistoria.public_lighting || false],
-    ];
-    
-    pdf.setFontSize(10);
-    let col1Y = yPos;
-    let col2Y = yPos;
-    
-    infrastructure.forEach(([item, has], index) => {
-      const y = index < 3 ? col1Y : col2Y;
-      const x = index < 3 ? margin : margin + 80;
-      pdf.text(`${has ? '✓' : '✗'} ${item}`, x, y);
-      if (index < 3) col1Y += 6;
-      else col2Y += 6;
-    });
-    
-    yPos = Math.max(col1Y, col2Y) + 5;
-    
-    if (vistoria.observations) {
-      pdf.setFontSize(12);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const margin = 20;
+      let yPos = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      
+      const lote = lotes.find(l => l.id === vistoria.property_id);
+      const quadra = quadras.find(q => q.id === lote?.quadra_id);
+      
+      // Cabeçalho
+      pdf.setFontSize(16);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('6. OBSERVAÇÕES', margin, yPos);
+      pdf.text('RELATÓRIO DE VISTORIA', margin, yPos);
       yPos += 10;
+      
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      const observations = pdf.splitTextToSize(vistoria.observations, pageWidth - (2 * margin));
-      pdf.text(observations, margin, yPos);
-      yPos += observations.length * 5 + 5;
+      pdf.text('Sistema REURB - Prefeitura Municipal', margin, yPos);
+      yPos += 15;
+      
+      // 1. Identificação do Imóvel
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('1. IDENTIFICAÇÃO DO IMÓVEL', margin, yPos);
+      yPos += 10;
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      
+      const basicInfo = [
+        ['Quadra:', quadra?.name || 'Não informada'],
+        ['Lote:', lote?.name || 'Não informado'],
+        ['Área:', `${lote?.area || '0'} m²`],
+        ['Endereço:', lote?.address || 'Não informado'],
+      ];
+      
+      basicInfo.forEach(([label, value]) => {
+        pdf.text(label, margin, yPos);
+        pdf.text(value, margin + 40, yPos);
+        yPos += 6;
+      });
+      
+      yPos += 5;
+      
+      // 2. Dados da Vistoria
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('2. DADOS DA VISTORIA', margin, yPos);
+      yPos += 10;
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      
+      const vistoriaInfo = [
+        ['Data:', new Date(vistoria.survey_date).toLocaleDateString('pt-BR')],
+        ['Vistoriador:', vistoria.surveyor_name],
+        ['Status:', vistoria.status],
+      ];
+      
+      vistoriaInfo.forEach(([label, value]) => {
+        pdf.text(label, margin, yPos);
+        pdf.text(value, margin + 40, yPos);
+        yPos += 6;
+      });
+      
+      yPos += 5;
+      
+      // 3. Proprietário
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('3. PROPRIETÁRIO/POSSUIDOR', margin, yPos);
+      yPos += 10;
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      
+      const ownerInfo = [
+        ['Nome:', vistoria.applicant_name],
+        ['CPF:', vistoria.applicant_cpf || 'Não informado'],
+      ];
+      
+      ownerInfo.forEach(([label, value]) => {
+        pdf.text(label, margin, yPos);
+        pdf.text(value, margin + 40, yPos);
+        yPos += 6;
+      });
+      
+      yPos += 10;
+      
+      // Rodapé
+      pdf.setFontSize(8);
+      pdf.setTextColor(128, 128, 128);
+      pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 280, { align: 'center' });
+      pdf.text(`ID da vistoria: ${vistoria.id.substring(0, 8)}...`, pageWidth / 2, 285, { align: 'center' });
+      
+      const fileName = `VISTORIA_${vistoria.id.substring(0, 8)}_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('Erro ao gerar o PDF. Verifique o console para mais detalhes.');
     }
-    
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('7. ASSINATURAS', margin, yPos);
-    yPos += 15;
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    
-    pdf.text('________________________________________', margin, yPos);
-    pdf.text('Proprietário/Possuidor', margin + 20, yPos + 8);
-    pdf.text(vistoria.applicant_name, margin, yPos + 16);
-    pdf.text(`CPF: ${vistoria.applicant_cpf}`, margin, yPos + 22);
-    
-    pdf.text('________________________________________', margin + 100, yPos);
-    pdf.text('Vistoriador Técnico', margin + 120, yPos + 8);
-    pdf.text(vistoria.surveyor_name, margin + 100, yPos + 16);
-    pdf.text(`Matrícula: ${vistoria.surveyor_matricula || 'Não informada'}`, margin + 100, yPos + 22);
-    
-    yPos += 40;
-    pdf.setFontSize(8);
-    pdf.setTextColor(128, 128, 128);
-    pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPos, { align: 'center' });
-    pdf.text('Sistema REURB - Prefeitura Municipal', pageWidth / 2, yPos + 5, { align: 'center' });
-    pdf.text(`ID da vistoria: ${vistoria.id.substring(0, 8)}...`, pageWidth / 2, yPos + 10, { align: 'center' });
-    
-    const fileName = `VISTORIA_${quadra?.name || 'Q'}_${lote?.name || 'L'}_${vistoria.surveyor_name.replace(/\s+/g, '_')}_${new Date(vistoria.survey_date).toISOString().split('T')[0]}.pdf`;
-    pdf.save(fileName);
   };
 
   // Gerar relatório consolidado
@@ -289,98 +265,85 @@ const ReportPDFGenerator: React.FC = () => {
       return;
     }
 
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    pdf.setFontSize(16);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('RELATÓRIO CONSOLIDADO DE VISTORIAS', 105, 20, { align: 'center' });
-    
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('SISTEMA REURB - PREFEITURA MUNICIPAL', 105, 27, { align: 'center' });
-    pdf.text(`Período: ${dateFilter.start || 'Início'} até ${dateFilter.end || 'Fim'}`, 105, 34, { align: 'center' });
-    pdf.text(`Total de vistorias: ${vistorias.length}`, 105, 41, { align: 'center' });
-    
-    const tableData = vistorias.map((v, index) => {
-      const lote = lotes.find(l => l.id === v.property_id);
-      const quadra = quadras.find(q => q.id === lote?.quadra_id);
-      return [
-        index + 1,
-        quadra?.name || '',
-        lote?.name || '',
-        v.surveyor_name,
-        new Date(v.survey_date).toLocaleDateString('pt-BR'),
-        v.applicant_name,
-        v.status
-      ];
-    });
-    
-    (pdf as any).autoTable({
-      startY: 50,
-      head: [['#', 'Quadra', 'Lote', 'Vistoriador', 'Data', 'Proprietário', 'Status']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [0, 102, 204] },
-      styles: { fontSize: 8, cellPadding: 3 },
-      margin: { left: 20, right: 20 }
-    });
-    
-    const statsY = (pdf as any).lastAutoTable.finalY + 15;
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('ESTATÍSTICAS', 20, statsY);
-    
-    pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
-    const stats = [
-      ['Total de vistorias:', vistorias.length.toString()],
-      ['Vistorias concluídas:', vistorias.filter(v => v.status === 'completed').length.toString()],
-      ['Vistorias pendentes:', vistorias.filter(v => v.status === 'pending').length.toString()],
-      ['Com água:', vistorias.filter(v => v.water_supply).length.toString()],
-      ['Com energia:', vistorias.filter(v => v.energy_supply).length.toString()],
-      ['Com esgoto:', vistorias.filter(v => v.sanitation).length.toString()],
-    ];
-    
-    let y = statsY + 10;
-    stats.forEach(([label, value]) => {
-      pdf.text(label, 20, y);
-      pdf.text(value, 80, y);
-      y += 6;
-    });
-    
-    pdf.setFontSize(8);
-    pdf.setTextColor(128, 128, 128);
-    pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 105, 280, { align: 'center' });
-    pdf.text('Sistema REURB - Relatório Consolidado', 105, 285, { align: 'center' });
-    
-    pdf.save(`RELATORIO_CONSOLIDADO_VISTORIAS_${new Date().toISOString().split('T')[0]}.pdf`);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Título
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('RELATÓRIO CONSOLIDADO DE VISTORIAS', 105, 20, { align: 'center' });
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('SISTEMA REURB - PREFEITURA MUNICIPAL', 105, 27, { align: 'center' });
+      pdf.text(`Total de vistorias: ${vistorias.length}`, 105, 34, { align: 'center' });
+      
+      // Tabela
+      const tableData = vistorias.map((v, index) => {
+        const lote = lotes.find(l => l.id === v.property_id);
+        const quadra = quadras.find(q => q.id === lote?.quadra_id);
+        return [
+          index + 1,
+          quadra?.name || '',
+          lote?.name || '',
+          v.surveyor_name,
+          new Date(v.survey_date).toLocaleDateString('pt-BR'),
+          v.applicant_name,
+          v.status
+        ];
+      });
+      
+      (pdf as any).autoTable({
+        startY: 40,
+        head: [['#', 'Quadra', 'Lote', 'Vistoriador', 'Data', 'Proprietário', 'Status']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [0, 102, 204] },
+        styles: { fontSize: 8, cellPadding: 3 },
+        margin: { left: 10, right: 10 }
+      });
+      
+      // Rodapé
+      pdf.setFontSize(8);
+      pdf.setTextColor(128, 128, 128);
+      pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 105, 280, { align: 'center' });
+      
+      pdf.save(`RELATORIO_CONSOLIDADO_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+    } catch (error) {
+      console.error('Erro ao gerar relatório consolidado:', error);
+      alert('Erro ao gerar o relatório consolidado.');
+    }
   };
 
   // Filtrar vistorias
-  const filteredVistorias = vistorias
-    .filter(vistoria => {
+  const filteredVistorias = vistorias.filter(vistoria => {
+    // Filtro por busca
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const matches = 
+        vistoria.surveyor_name?.toLowerCase().includes(searchLower) ||
+        vistoria.applicant_name?.toLowerCase().includes(searchLower);
+      
+      // Também verifica no lote e quadra se disponíveis
       const lote = lotes.find(l => l.id === vistoria.property_id);
       const quadra = quadras.find(q => q.id === lote?.quadra_id);
       
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
-        return (
-          (vistoria.surveyor_name && vistoria.surveyor_name.toLowerCase().includes(searchLower)) ||
-          (vistoria.applicant_name && vistoria.applicant_name.toLowerCase().includes(searchLower)) ||
-          (lote?.name && lote.name.toLowerCase().includes(searchLower)) ||
-          (quadra?.name && quadra.name.toLowerCase().includes(searchLower))
-        );
-      }
-      return true;
-    })
-    .filter(vistoria => {
-      if (statusFilter) return vistoria.status === statusFilter;
-      return true;
-    })
-    .filter(vistoria => {
-      if (dateFilter.start && vistoria.survey_date < dateFilter.start) return false;
-      if (dateFilter.end && vistoria.survey_date > dateFilter.end) return false;
-      return true;
-    });
+      return matches ||
+        (lote?.name?.toLowerCase().includes(searchLower)) ||
+        (quadra?.name?.toLowerCase().includes(searchLower));
+    }
+    return true;
+  }).filter(vistoria => {
+    // Filtro por status
+    if (statusFilter) return vistoria.status === statusFilter;
+    return true;
+  }).filter(vistoria => {
+    // Filtro por data
+    if (dateFilter.start && vistoria.survey_date < dateFilter.start) return false;
+    if (dateFilter.end && vistoria.survey_date > dateFilter.end) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
@@ -399,6 +362,18 @@ const ReportPDFGenerator: React.FC = () => {
               Total: {vistorias.length} vistorias
             </div>
           </div>
+          
+          {error && (
+            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+              <button 
+                onClick={() => loadVistorias()}
+                className="mt-2 text-sm text-red-700 hover:text-red-900 underline"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Filtros */}
@@ -455,7 +430,7 @@ const ReportPDFGenerator: React.FC = () => {
               disabled={loading}
             >
               <Filter className="w-4 h-4" />
-              Atualizar Dados
+              {loading ? 'Carregando...' : 'Atualizar Dados'}
             </button>
 
             <button
@@ -487,21 +462,43 @@ const ReportPDFGenerator: React.FC = () => {
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-4 text-gray-600">Carregando vistorias...</p>
             </div>
+          ) : vistorias.length === 0 ? (
+            <div className="p-12 text-center">
+              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Nenhuma vistoria encontrada no banco de dados</p>
+              <p className="text-sm text-gray-400 mt-1">Verifique se existem vistorias cadastradas</p>
+              <button
+                onClick={() => loadVistorias()}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Tentar carregar novamente
+              </button>
+            </div>
           ) : filteredVistorias.length === 0 ? (
             <div className="p-12 text-center">
               <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhuma vistoria encontrada</p>
+              <p className="text-gray-500">Nenhuma vistoria encontrada com os filtros atuais</p>
               <p className="text-sm text-gray-400 mt-1">Tente ajustar os filtros de busca</p>
-              <p className="text-xs text-gray-400 mt-2">
-                Dados carregados: {vistorias.length} vistorias, {lotes.length} lotes, {quadras.length} quadras
-              </p>
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('');
+                  setDateFilter({ start: '', end: '' });
+                }}
+                className="mt-4 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Limpar filtros
+              </button>
             </div>
           ) : (
             <>
               <div className="px-6 py-4 border-b bg-gray-50">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-medium text-gray-700">
-                    {filteredVistorias.length} vistorias encontradas
+                    Mostrando {filteredVistorias.length} de {vistorias.length} vistorias
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {lotes.length} lotes, {quadras.length} quadras carregadas
                   </div>
                 </div>
               </div>
@@ -554,11 +551,10 @@ const ReportPDFGenerator: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">{vistoria.surveyor_name}</div>
-                            <div className="text-sm text-gray-500">{vistoria.surveyor_matricula || 'Sem matrícula'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">{vistoria.applicant_name}</div>
-                            <div className="text-sm text-gray-500">{vistoria.applicant_cpf}</div>
+                            <div className="text-sm text-gray-500">{vistoria.applicant_cpf || 'CPF não informado'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
@@ -574,14 +570,15 @@ const ReportPDFGenerator: React.FC = () => {
                             }`}>
                               {vistoria.status === 'completed' ? 'Concluída' :
                                vistoria.status === 'pending' ? 'Pendente' :
-                               vistoria.status === 'approved' ? 'Aprovada' : 'Rejeitada'}
+                               vistoria.status === 'approved' ? 'Aprovada' : 
+                               vistoria.status === 'rejected' ? 'Rejeitada' : vistoria.status}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
                               onClick={() => generateSinglePDF(vistoria)}
-                              className="text-blue-600 hover:text-blue-900 p-2 hover:bg-blue-50 rounded-lg"
-                              title="Gerar PDF"
+                              className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                              title="Gerar PDF desta vistoria"
                             >
                               <Printer className="w-5 h-5" />
                             </button>
