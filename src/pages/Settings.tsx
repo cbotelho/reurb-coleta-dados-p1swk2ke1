@@ -46,8 +46,8 @@ export default function Settings() {
   const [showCSVImport, setShowCSVImport] = useStateHook(false)
   
   // Verificar se é administrador usando o novo sistema
-  const isAdmin = user?.grupo_acesso === 'Administrador' || 
-                   user?.grupo_acesso === 'Administradores'
+  const isAdmin = user?.role === 'Administrador' ||
+                   user?.role === 'Administradores';
 
   useEffect(() => {
     setSettings(db.getSettings())

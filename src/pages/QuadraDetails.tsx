@@ -27,7 +27,7 @@ export default function QuadraDetails() {
   const [loading, setLoading] = useState(true)
 
   const canEditProjects = hasPermission('all') || hasPermission('edit_projects')
-  const isAdminOrAssistant = user?.grupo_acesso === 'Administrador' || user?.grupo_acesso === 'Administradores' || user?.grupo_acesso === 'Assistente Social'
+  const isAdminOrAssistant = user?.role === 'Administrador' || user?.role === 'Administradores' || user?.role === 'Assistente Social';
 
   useEffect(() => {
     const loadData = async () => {

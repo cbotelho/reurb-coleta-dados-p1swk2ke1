@@ -112,7 +112,7 @@ export default function LoteForm() {
 
   // 🔒 PERMISSÕES CORRIGIDAS
   const isAdminOrAssistant = () => {
-    const userRole = user?.grupo_acesso?.toLowerCase() || '';
+    const userRole = user?.role?.toLowerCase() || '';
     return userRole.includes('admin') || userRole === 'assistente social';
   };
 

@@ -75,8 +75,8 @@ export default function SocialReports() {
   const [reportToDelete, setReportToDelete] = useState<string | null>(null)
 
   // Permissões
-  const canEdit = user?.grupo_acesso === 'admin' || 
-                  user?.grupo_acesso === 'Assistente Social'
+  const canEdit = user?.role === 'admin' ||
+                  user?.role === 'Assistente Social';
 
   useEffect(() => {
     loadReports()

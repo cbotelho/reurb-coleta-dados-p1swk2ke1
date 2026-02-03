@@ -214,7 +214,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          grupo_acesso?: string | null
+          grupo_acesso?: string | null //aqui ta com erro
           nome_usuario?: string | null
           nome?: string | null
           sobrenome?: string | null
