@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import { Search, Filter, Download, Printer, FileText, Home, FileDown } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-
+ 
 interface Quadra {
   id: string;
   name: string;
