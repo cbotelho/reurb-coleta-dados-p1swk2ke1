@@ -155,7 +155,7 @@ export const api = {
     try {
       const { data, error } = await supabase
         .from('reurb_app_config')
-        .select('*')
+        .select('key,value,description,created_at,updated_at')
       if (error) {
         console.error('Error fetching app config:', error)
         return {}
