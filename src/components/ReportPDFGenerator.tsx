@@ -253,7 +253,7 @@ const ReportPDFGenerator: React.FC = () => {
       ['CPF:', vistoria.proprietario_cpf],
       ['Telefone:', vistoria.proprietario_telefone || 'Não informado'],
     ];
-
+ 
     ownerInfo.forEach(([label, value]) => {
       pdf.text(label, margin, yPos);
       pdf.text(value, margin + 40, yPos);
