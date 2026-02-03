@@ -150,6 +150,7 @@ const mapSurvey = (row: any): Survey => ({
 const isOnline = () => navigator.onLine
 
 export const api = {
+  /*
   async getAppConfig(): Promise<Record<string, string>> {
     if (!isOnline()) return {}
     try {
@@ -201,7 +202,7 @@ export const api = {
       return false
     }
   },
-
+  */
   // Projects
   async getProjectStats(projectId: string): Promise<{ quadras: number; lotes: number }> {
     if (!isOnline()) return { quadras: 0, lotes: 0 }
