@@ -90,7 +90,7 @@ const ReportPDFGenerator: React.FC = () => {
       
       // Tenta uma consulta ainda mais simples
       try {
-        const simpleResponse = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,survey_date,applicant_name,surveyor_name,status`, {
+        const simpleResponse = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,survey_date,applicant_name,surveyor_name,state`, {
           headers,
         });
         
