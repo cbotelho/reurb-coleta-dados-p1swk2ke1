@@ -45,7 +45,7 @@ interface Vistoria {
   status: string;
   created_at: string;
 }
-
+ 
 const ReportPDFGenerator: React.FC = () => {
   const { projectId } = useParams();
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
