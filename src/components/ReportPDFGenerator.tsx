@@ -86,7 +86,8 @@ const ReportPDFGenerator: React.FC = () => {
   const loadVistorias = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=*`, { headers });
+      // Seleção explícita das colunas conforme mapeamento
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/reurb_surveys?select=id,property_id,form_number,survey_date,city,state,applicant_name,applicant_cpf,applicant_rg,applicant_civil_status,applicant_profession,applicant_income,applicant_nis,spouse_name,spouse_cpf,residents_count,has_children,occupation_time,acquisition_mode,property_use,construction_type,roof_type,floor_type,rooms_count,conservation_state,fencing,water_supply,energy_supply,sanitation,street_paving,documents,observations,surveyor_name,status,created_at,updated_at`, { headers });
       const data = await response.json();
       setVistorias(Array.isArray(data) ? data : []);
       // Carregar lotes e quadras relacionados
@@ -599,16 +600,16 @@ const ReportPDFGenerator: React.FC = () => {
                                 <Eye className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => generateSinglePDF(vistoria)}
+                                onClick={() => generateBulkPDF(vistorias)}
                                 className="text-green-600 hover:text-green-900 p-2 hover:bg-green-50 rounded-lg"
-                                title="Gerar PDF"
+                                title="Gerar PDF de todas as vistorias"
                               >
                                 <Printer className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => generateSinglePDF(vistoria)}
+                                onClick={() => generateBulkPDF(vistorias)}
                                 className="text-purple-600 hover:text-purple-900 p-2 hover:bg-purple-50 rounded-lg"
-                                title="Baixar PDF"
+                                title="Baixar PDF de todas as vistorias"
                               >
                                 <Download className="w-4 h-4" />
                               </button>
