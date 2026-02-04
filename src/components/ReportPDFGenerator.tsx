@@ -1,7 +1,6 @@
 // components/ReportPDFGenerator.tsx
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { Search, Filter, Download, Printer, FileText, Home, FileDown } from 'lucide-react';
+import { Search, Printer, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -37,7 +36,149 @@ interface Quadra {
   name: string;
 }
 
-const ReportPDFGenerator: React.FC = () => {
+// --- NOVO COMPONENTE: Grid de Pesquisa e Seleção ---
+interface SurveyAdmin {
+  id: string;
+  formulario: string;
+  projeto: string;
+  quadra: string;
+  lote: string;
+  requerente: string;
+  cpf: string;
+}
+
+const SurveyAdminGrid: React.FC<{
+  onSelect: (id: string) => void;
+  printedIds: string[];
+  markPrinted: (id: string) => void;
+}> = ({ onSelect, printedIds, markPrinted }) => {
+  const [data, setData] = useState<SurveyAdmin[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Consulta Supabase REST API (vw_reurb_surveys_admin)
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
+  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const resp = await fetch(
+          `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,formulario,projeto,quadra,lote,requerente,cpf`,
+          { headers }
+        );
+        if (!resp.ok) throw new Error('Erro ao buscar dados');
+        const rows = await resp.json();
+        setData(Array.isArray(rows) ? rows : []);
+      } catch (e: any) {
+        setError('Erro ao carregar dados da grid.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Filtro de pesquisa
+  const filtered = data.filter(row => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      row.formulario?.toLowerCase().includes(s) ||
+      row.quadra?.toLowerCase().includes(s) ||
+      row.lote?.toLowerCase().includes(s) ||
+      row.requerente?.toLowerCase().includes(s) ||
+      row.cpf?.toLowerCase().includes(s)
+    );
+  });
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <FileText className="w-6 h-6 text-blue-600" />
+        Relatórios de Vistorias (Admin)
+      </h2>
+      <div className="flex gap-2 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Pesquisar por Formulário, Quadra, Lote, Requerente ou CPF"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </div>
+      {error && <div className="text-red-600 mb-2">{error}</div>}
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">ID</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Formulário</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Projeto</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Quadra</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Lote</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Requerente</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">CPF</th>
+              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Ação</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loading ? (
+              <tr><td colSpan={8} className="text-center py-8">Carregando...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={8} className="text-center py-8">Nenhum registro encontrado</td></tr>
+            ) : (
+              filtered.map(row => (
+                <tr key={row.id}
+                  className={
+                    printedIds.includes(row.id)
+                      ? 'bg-green-50'
+                      : ''
+                  }
+                >
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.id}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.formulario}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.projeto}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.quadra}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.lote}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.requerente}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">{row.cpf}</td>
+                  <td className="px-3 py-2 text-xs text-gray-700">
+                    <button
+                      title="Visualizar/Imprimir PDF"
+                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+                      onClick={() => {
+                        onSelect(row.id);
+                        markPrinted(row.id);
+                      }}
+                    >
+                      <Printer className="w-5 h-5" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// --- FIM GRID ---
+
+const ReportPDFGenerator: React.FC<{ surveyId?: string; onClose?: () => void }> = ({ surveyId, onClose }) => {
   const [vistorias, setVistorias] = useState<Vistoria[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [quadras, setQuadras] = useState<Quadra[]>([]);
@@ -152,109 +293,57 @@ const ReportPDFGenerator: React.FC = () => {
     loadVistorias();
   }, []);
 
-  // Gerar PDF individual
-  const generateSinglePDF = (vistoria: Vistoria) => {
+  // Gerar PDF individual por ID (busca Supabase e monta PDF)
+  const generateSinglePDFById = async (surveyId: string) => {
     try {
+      // Buscar dados detalhados da vistoria pelo ID
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const headers = {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+      };
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${surveyId}`,
+        { headers }
+      );
+      if (!resp.ok) throw new Error('Erro ao buscar dados do relatório');
+      const [row] = await resp.json();
+      if (!row) throw new Error('Registro não encontrado');
+
+      // Montar PDF (exemplo simples, pode ser expandido)
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const margin = 20;
-      let yPos = 20;
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      
-      const lote = lotes.find(l => l.id === vistoria.property_id);
-      const quadra = quadras.find(q => q.id === lote?.quadra_id);
-      
-      // Cabeçalho
+      let y = 20;
       pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('RELATÓRIO DE VISTORIA', margin, yPos);
-      yPos += 10;
-      
+      pdf.text('RELATÓRIO DE VISTORIA', 20, y);
+      y += 10;
       pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Sistema REURB - Prefeitura Municipal', margin, yPos);
-      yPos += 15;
-      
-      // 1. Identificação do Imóvel
+      pdf.text('Sistema REURB - Prefeitura Municipal', 20, y);
+      y += 15;
       pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('1. IDENTIFICAÇÃO DO IMÓVEL', margin, yPos);
-      yPos += 10;
-      
+      pdf.text('1. DADOS DO FORMULÁRIO', 20, y);
+      y += 8;
       pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      
-      const basicInfo = [
-        ['Quadra:', quadra?.name || 'Não informada'],
-        ['Lote:', lote?.name || 'Não informado'],
-        ['Área:', `${lote?.area || '0'} m²`],
-        ['Endereço:', lote?.address || 'Não informado'],
-      ];
-      
-      basicInfo.forEach(([label, value]) => {
-        pdf.text(label, margin, yPos);
-        pdf.text(value, margin + 40, yPos);
-        yPos += 6;
-      });
-      
-      yPos += 5;
-      
-      // 2. Dados da Vistoria
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('2. DADOS DA VISTORIA', margin, yPos);
-      yPos += 10;
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      
-      const vistoriaInfo = [
-        ['Data:', new Date(vistoria.survey_date).toLocaleDateString('pt-BR')],
-        ['Vistoriador:', vistoria.surveyor_name],
-        ['Status:', vistoria.state],
-      ];
-      
-      vistoriaInfo.forEach(([label, value]) => {
-        pdf.text(label, margin, yPos);
-        pdf.text(value, margin + 40, yPos);
-        yPos += 6;
-      });
-      
-      yPos += 5;
-      
-      // 3. Proprietário
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('3. PROPRIETÁRIO/POSSUIDOR', margin, yPos);
-      yPos += 10;
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      
-      const ownerInfo = [
-        ['Nome:', vistoria.applicant_name],
-        ['CPF:', vistoria.applicant_cpf || 'Não informado'],
-      ];
-      
-      ownerInfo.forEach(([label, value]) => {
-        pdf.text(label, margin, yPos);
-        pdf.text(value, margin + 40, yPos);
-        yPos += 6;
-      });
-      
-      yPos += 10;
-      
-      // Rodapé
+      pdf.text(`ID: ${row.id}`, 20, y); y += 6;
+      pdf.text(`Formulário: ${row.formulario}`, 20, y); y += 6;
+      pdf.text(`Projeto: ${row.projeto}`, 20, y); y += 6;
+      pdf.text(`Quadra: ${row.quadra}`, 20, y); y += 6;
+      pdf.text(`Lote: ${row.lote}`, 20, y); y += 6;
+      pdf.text(`Requerente: ${row.requerente}`, 20, y); y += 6;
+      pdf.text(`CPF: ${row.cpf}`, 20, y); y += 10;
       pdf.setFontSize(8);
       pdf.setTextColor(128, 128, 128);
-      pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 280, { align: 'center' });
-      pdf.text(`ID da vistoria: ${vistoria.id.substring(0, 8)}...`, pageWidth / 2, 285, { align: 'center' });
-      
-      const fileName = `VISTORIA_${vistoria.id.substring(0, 8)}_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
-      
+      pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')}`, 105, 280, { align: 'center' });
+      pdf.text(`ID: ${row.id}`, 105, 285, { align: 'center' });
+
+      // Abrir PDF em nova aba
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
     } catch (error) {
-      console.error('Erro ao gerar PDF:', error);
-      alert('Erro ao gerar o PDF. Verifique o console para mais detalhes.');
+      alert('Erro ao gerar PDF. Verifique o console.');
+      console.error(error);
     }
   };
 
@@ -345,253 +434,32 @@ const ReportPDFGenerator: React.FC = () => {
     return true;
   });
 
+  // Estado para controlar IDs impressos e seleção
+  const [printedIds, setPrintedIds] = useState<string[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Marcar registro como impresso
+  const markPrinted = (id: string) => {
+    setPrintedIds(prev => prev.includes(id) ? prev : [...prev, id]);
+  };
+
+  // Quando seleciona um registro, gera PDF
+  useEffect(() => {
+    if (selectedId) {
+      generateSinglePDFById(selectedId);
+    }
+    // eslint-disable-next-line
+  }, [selectedId]);
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileText className="w-10 h-10 text-blue-600" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Gerador de Relatórios PDF</h1>
-                <p className="text-gray-600">Gere relatórios das vistorias já cadastradas</p>
-              </div>
-            </div>
-            <div className="text-sm text-gray-500">
-              Total: {vistorias.length} vistorias
-            </div>
-          </div>
-          
-          {error && (
-            <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-600 text-sm">{error}</p>
-              <button 
-                onClick={() => loadVistorias()}
-                className="mt-2 text-sm text-red-700 hover:text-red-900 underline"
-              >
-                Tentar novamente
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Filtros */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            {/* Busca */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar vistoriador, proprietário, lote..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            {/* Filtro por status */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Todos os status</option>
-              <option value="completed">Concluída</option>
-              <option value="pending">Pendente</option>
-              <option value="approved">Aprovada</option>
-              <option value="rejected">Rejeitada</option>
-            </select>
-
-            {/* Data inicial */}
-            <input
-              type="date"
-              value={dateFilter.start}
-              onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Data inicial"
-            />
-            
-            {/* Data final */}
-            <input
-              type="date"
-              value={dateFilter.end}
-              onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
-              className="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Data final"
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => loadVistorias()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              disabled={loading}
-            >
-              <Filter className="w-4 h-4" />
-              {loading ? 'Carregando...' : 'Atualizar Dados'}
-            </button>
-
-            <button
-              onClick={() => {
-                setSearchTerm('');
-                setStatusFilter('');
-                setDateFilter({ start: '', end: '' });
-              }}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Limpar Filtros
-            </button>
-
-            <button
-              onClick={generateConsolidatedReport}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-              disabled={vistorias.length === 0}
-            >
-              <FileDown className="w-4 h-4" />
-              Relatório Consolidado
-            </button>
-          </div>
-        </div>
-
-        {/* Lista de Vistorias */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Carregando vistorias...</p>
-            </div>
-          ) : vistorias.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhuma vistoria encontrada no banco de dados</p>
-              <p className="text-sm text-gray-400 mt-1">Verifique se existem vistorias cadastradas</p>
-              <button
-                onClick={() => loadVistorias()}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Tentar carregar novamente
-              </button>
-            </div>
-          ) : filteredVistorias.length === 0 ? (
-            <div className="p-12 text-center">
-              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Nenhuma vistoria encontrada com os filtros atuais</p>
-              <p className="text-sm text-gray-400 mt-1">Tente ajustar os filtros de busca</p>
-              <button
-                onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('');
-                  setDateFilter({ start: '', end: '' });
-                }}
-                className="mt-4 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Limpar filtros
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="px-6 py-4 border-b bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium text-gray-700">
-                    Mostrando {filteredVistorias.length} de {vistorias.length} vistorias
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {lotes.length} lotes, {quadras.length} quadras carregadas
-                  </div>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quadra/Lote
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Vistoriador
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Proprietário
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Data
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredVistorias.map((vistoria) => {
-                      const lote = lotes.find(l => l.id === vistoria.property_id);
-                      const quadra = quadras.find(q => q.id === lote?.quadra_id);
-
-                      return (
-                        <tr key={vistoria.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <Home className="h-5 w-5 text-blue-600" />
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {quadra?.name || 'Quadra N/A'} / {lote?.name || 'Lote N/A'}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {lote?.area || '0'} m²
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{vistoria.surveyor_name}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{vistoria.applicant_name}</div>
-                            <div className="text-sm text-gray-500">{vistoria.applicant_cpf || 'CPF não informado'}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {new Date(vistoria.survey_date).toLocaleDateString('pt-BR')}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              vistoria.state === 'completed' ? 'bg-green-100 text-green-800' :
-                              vistoria.state === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                              vistoria.state === 'approved' ? 'bg-blue-100 text-blue-800' :
-                              'bg-red-100 text-red-800'
-                            }`}>
-                              {vistoria.state === 'completed' ? 'Concluída' :
-                               vistoria.state === 'pending' ? 'Pendente' :
-                               vistoria.state === 'approved' ? 'Aprovada' : 
-                               vistoria.state === 'rejected' ? 'Rejeitada' : vistoria.state}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button
-                              onClick={() => generateSinglePDF(vistoria)}
-                              className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                              title="Gerar PDF desta vistoria"
-                            >
-                              <Printer className="w-5 h-5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Grid de Pesquisa e Seleção */}
+        <SurveyAdminGrid
+          onSelect={id => setSelectedId(id)}
+          printedIds={printedIds}
+          markPrinted={markPrinted}
+        />
       </div>
     </div>
   );
