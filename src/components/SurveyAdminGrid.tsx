@@ -3,12 +3,12 @@ import { Search, Printer, FileText } from 'lucide-react';
 
 interface SurveyAdmin {
   id: string;
-  formulario: string;
-  projeto: string;
-  quadra: string;
-  lote: string;
-  requerente: string;
-  cpf: string;
+  Formulario: string;
+  Projeto: string;
+  Quadra: string;
+  Lote: string;
+  Requerente: string;
+  CPF: string;
 }
 
 interface SurveyAdminGridProps {
@@ -33,10 +33,15 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
-  // Função para obter headers
+  console.log('🔧 Configuração Supabase:', {
+    url: SUPABASE_URL,
+    keyPresent: !!SUPABASE_KEY
+  });
+
+  // Headers para Supabase
   const getHeaders = () => {
     if (!SUPABASE_KEY) {
-      console.error('Supabase key não encontrada!');
+      console.error('ERRO: Chave do Supabase não encontrada!');
       return {};
     }
     
@@ -47,83 +52,88 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     };
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        console.log('Iniciando fetch...');
-        console.log('Supabase URL:', SUPABASE_URL);
-        
-        // Verificar se a chave está disponível
-        if (!SUPABASE_KEY) {
-          throw new Error('Chave do Supabase não configurada');
-        }
-        
-        // Construir URL de forma mais simples
-        let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,formulario,projeto,quadra,lote,requerente,cpf`;
-        
-        // Adicionar filtro de projeto se existir
-        if (projectId) {
-          url += `&projeto=eq.${encodeURIComponent(projectId)}`;
-        }
-        
-        console.log('URL final:', url);
-        
-        const headers = getHeaders();
-        console.log('Headers:', headers);
-        
-        const resp = await fetch(url, {
-          method: 'GET',
-          headers: headers,
-          mode: 'cors'
-        });
-        
-        console.log('Status da resposta:', resp.status, resp.statusText);
-        
-        if (!resp.ok) {
-          // Tentar obter mais detalhes do erro
-          let errorDetail = resp.statusText;
-          try {
-            const errorJson = await resp.json();
-            errorDetail = JSON.stringify(errorJson);
-          } catch (e) {
-            // Ignora se não for JSON
-          }
-          throw new Error(`Erro ${resp.status}: ${errorDetail}`);
-        }
-        
-        const rows = await resp.json();
-        console.log('Dados recebidos:', rows);
-        
-        if (Array.isArray(rows)) {
-          setData(rows);
-          console.log(`${rows.length} registros carregados`);
-        } else {
-          console.error('Resposta não é array:', rows);
-          setData([]);
-        }
-      } catch (e: any) {
-        console.error('Erro completo:', e);
-        setError(`Falha ao carregar dados: ${e.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Buscar dados da view vw_reurb_surveys_admin
+  const fetchSurveyData = async () => {
+    setLoading(true);
+    setError('');
     
-    fetchData();
+    try {
+      console.log('🔄 Buscando dados da view vw_reurb_surveys_admin...');
+      
+      if (!SUPABASE_KEY) {
+        throw new Error('Chave do Supabase não configurada. Verifique o arquivo .env');
+      }
+      
+      // Selecionando APENAS as colunas solicitadas
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,Formulario,Projeto,Quadra,Lote,Requerente,CPF`;
+      
+      // Ordenar por ID decrescente (mais recentes primeiro)
+      url += '&order=id.desc';
+      
+      console.log('🌐 URL da requisição:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      
+      console.log('📊 Status da resposta:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erro na resposta:', errorText);
+        
+        if (response.status === 401) {
+          throw new Error('Não autorizado. Verifique a chave do Supabase.');
+        } else if (response.status === 404) {
+          throw new Error('View vw_reurb_surveys_admin não encontrada.');
+        } else {
+          throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+      }
+      
+      const result = await response.json();
+      console.log(`✅ ${result.length} registros carregados`);
+      console.log('📋 Primeiro registro:', result[0]);
+      
+      // Filtrar por projeto se especificado
+      let filteredData = result;
+      if (projectId) {
+        filteredData = result.filter((item: SurveyAdmin) => 
+          item.Projeto && item.Projeto.toString().includes(projectId)
+        );
+      }
+      
+      setData(filteredData);
+      
+    } catch (err: any) {
+      console.error('💥 Erro ao carregar dados:', err);
+      setError(err.message || 'Erro desconhecido ao carregar dados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Carregar dados quando o componente montar
+  useEffect(() => {
+    fetchSurveyData();
   }, [projectId]);
 
   // Filtro de pesquisa no frontend
   const filtered = data.filter(row => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      (row.formulario?.toLowerCase() || '').includes(s) ||
-      (row.quadra?.toLowerCase() || '').includes(s) ||
-      (row.lote?.toLowerCase() || '').includes(s) ||
-      (row.requerente?.toLowerCase() || '').includes(s) ||
-      (row.cpf?.toLowerCase() || '').includes(s)
+    if (!search.trim()) return true;
+    
+    const searchTerm = search.toLowerCase().trim();
+    const fields = [
+      row.Formulario || '',
+      row.Quadra || '',
+      row.Lote || '',
+      row.Requerente || '',
+      row.CPF || ''
+    ];
+    
+    return fields.some(field => 
+      field.toString().toLowerCase().includes(searchTerm)
     );
   });
 
@@ -133,17 +143,51 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
   const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
-  const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
-  const nextPage = () => currentPage < totalPages && setCurrentPage(currentPage + 1);
-  const prevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1);
+  // Navegação de páginas
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <FileText className="w-6 h-6 text-blue-600" />
-        Relatórios de Vistorias (Admin)
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <FileText className="w-6 h-6 text-blue-600" />
+          Relatórios de Vistorias
+        </h2>
+        
+        <div className="text-sm text-gray-600">
+          {loading ? 'Carregando...' : `${filtered.length} registro(s)`}
+          {projectId && ` para o projeto ${projectId}`}
+        </div>
+      </div>
       
+      {/* Área de Pesquisa */}
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Pesquisar por Formulário, Quadra, Lote, Requerente ou CPF"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        
+        {search && (
+          <div className="mt-2 text-sm text-gray-500">
+            {filtered.length} resultado(s) encontrado(s)
+          </div>
+        )}
+      </div>
+      
+      {/* Mensagem de Erro */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-start">
@@ -152,46 +196,17 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
               <p className="text-sm text-red-600 mt-1">{error}</p>
             </div>
             <button
-              onClick={() => window.location.reload()}
+              onClick={fetchSurveyData}
               className="ml-4 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
             >
-              Recarregar
+              Tentar novamente
             </button>
           </div>
         </div>
       )}
       
-      {/* Contador de resultados */}
-      <div className="mb-4 text-sm text-gray-600">
-        {loading ? (
-          <span>Carregando registros...</span>
-        ) : data.length > 0 ? (
-          <span>
-            Mostrando {currentItems.length} de {filtered.length} registro(s)
-            {projectId && ` para o projeto ${projectId}`}
-          </span>
-        ) : (
-          <span>Nenhum registro encontrado</span>
-        )}
-      </div>
-      
-      <div className="flex gap-2 mb-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Pesquisar por Formulário, Quadra, Lote, Requerente ou CPF"
-            value={search}
-            onChange={e => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-      </div>
-      
-      <div className="overflow-x-auto">
+      {/* Tabela de Dados */}
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -222,22 +237,24 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                 </td>
               </tr>
             ) : (
-              currentItems.map(row => (
+              currentItems.map((row) => (
                 <tr 
                   key={row.id}
-                  className={`hover:bg-gray-50 ${printedIds.includes(row.id) ? 'bg-green-50' : ''}`}
+                  className={`hover:bg-gray-50 transition-colors ${
+                    printedIds.includes(row.id) ? 'bg-green-50' : ''
+                  }`}
                 >
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.formulario || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.projeto || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.quadra || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.lote || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.requerente || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.cpf || '-'}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900">{row.id}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.Formulario || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Projeto || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Quadra || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Lote || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Requerente || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.CPF || '-'}</td>
                   <td className="px-4 py-3">
                     <button
-                      title="Visualizar/Imprimir PDF"
-                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                      title="Gerar PDF deste relatório"
+                      className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => onSelect(row)}
                       disabled={loading}
                     >
@@ -253,20 +270,18 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       {/* Paginação */}
       {filtered.length > itemsPerPage && (
-        <div className="flex items-center justify-between mt-4 px-4 py-3 border-t border-gray-200">
-          <div className="text-sm text-gray-700">
-            Página {currentPage} de {totalPages}
+        <div className="flex flex-col sm:flex-row items-center justify-between mt-6 px-4 py-3 border-t border-gray-200">
+          <div className="text-sm text-gray-700 mb-2 sm:mb-0">
+            Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, filtered.length)} de {filtered.length} registros
           </div>
           
           <div className="flex items-center gap-2">
             <button
-              onClick={prevPage}
+              onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded-lg ${currentPage === 1 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+              className="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ← Anterior
+              Anterior
             </button>
             
             <div className="flex items-center gap-1">
@@ -285,27 +300,51 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                 return (
                   <button
                     key={pageNum}
-                    onClick={() => paginate(pageNum)}
-                    className={`px-3 py-1 rounded-lg ${currentPage === pageNum 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                    onClick={() => goToPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
                   >
                     {pageNum}
                   </button>
                 );
               })}
+              
+              {totalPages > 5 && currentPage < totalPages - 2 && (
+                <>
+                  <span className="px-2">...</span>
+                  <button
+                    onClick={() => goToPage(totalPages)}
+                    className="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
             </div>
             
             <button
-              onClick={nextPage}
+              onClick={() => goToPage(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded-lg ${currentPage === totalPages 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+              className="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Próxima →
+              Próxima
             </button>
           </div>
+        </div>
+      )}
+      
+      {/* Botão de recarregar se houver erro */}
+      {error && !loading && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={fetchSurveyData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Recarregar dados
+          </button>
         </div>
       )}
     </div>
