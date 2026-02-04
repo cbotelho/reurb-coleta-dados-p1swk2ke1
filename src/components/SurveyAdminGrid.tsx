@@ -14,9 +14,14 @@ interface SurveyAdmin {
 interface SurveyAdminGridProps {
   onSelect: (surveyData: SurveyAdmin) => void;
   printedIds: string[];
+  projectId?: string;
 }
 
-const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds }) => {
+const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ 
+  onSelect, 
+  printedIds,
+  projectId 
+}) => {
   const [data, setData] = useState<SurveyAdmin[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,14 +29,22 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // Consulta Supabase
+  // Configurações do Supabase
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
-  const headers = {
-    'apikey': SUPABASE_KEY,
-    'Authorization': `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json',
+  // Função para obter headers
+  const getHeaders = () => {
+    if (!SUPABASE_KEY) {
+      console.error('Supabase key não encontrada!');
+      return {};
+    }
+    
+    return {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+    };
   };
 
   useEffect(() => {
@@ -39,32 +52,78 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
       setLoading(true);
       setError('');
       try {
-        const resp = await fetch(
-          `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,formulario,projeto,quadra,lote,requerente,cpf`,
-          { headers }
-        );
-        if (!resp.ok) throw new Error('Erro ao buscar dados');
+        console.log('Iniciando fetch...');
+        console.log('Supabase URL:', SUPABASE_URL);
+        
+        // Verificar se a chave está disponível
+        if (!SUPABASE_KEY) {
+          throw new Error('Chave do Supabase não configurada');
+        }
+        
+        // Construir URL de forma mais simples
+        let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,formulario,projeto,quadra,lote,requerente,cpf`;
+        
+        // Adicionar filtro de projeto se existir
+        if (projectId) {
+          url += `&projeto=eq.${encodeURIComponent(projectId)}`;
+        }
+        
+        console.log('URL final:', url);
+        
+        const headers = getHeaders();
+        console.log('Headers:', headers);
+        
+        const resp = await fetch(url, {
+          method: 'GET',
+          headers: headers,
+          mode: 'cors'
+        });
+        
+        console.log('Status da resposta:', resp.status, resp.statusText);
+        
+        if (!resp.ok) {
+          // Tentar obter mais detalhes do erro
+          let errorDetail = resp.statusText;
+          try {
+            const errorJson = await resp.json();
+            errorDetail = JSON.stringify(errorJson);
+          } catch (e) {
+            // Ignora se não for JSON
+          }
+          throw new Error(`Erro ${resp.status}: ${errorDetail}`);
+        }
+        
         const rows = await resp.json();
-        setData(Array.isArray(rows) ? rows : []);
+        console.log('Dados recebidos:', rows);
+        
+        if (Array.isArray(rows)) {
+          setData(rows);
+          console.log(`${rows.length} registros carregados`);
+        } else {
+          console.error('Resposta não é array:', rows);
+          setData([]);
+        }
       } catch (e: any) {
-        setError('Erro ao carregar dados da grid.');
+        console.error('Erro completo:', e);
+        setError(`Falha ao carregar dados: ${e.message}`);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchData();
-  }, []);
+  }, [projectId]);
 
-  // Filtro de pesquisa
+  // Filtro de pesquisa no frontend
   const filtered = data.filter(row => {
     if (!search) return true;
     const s = search.toLowerCase();
     return (
-      row.formulario?.toLowerCase().includes(s) ||
-      row.quadra?.toLowerCase().includes(s) ||
-      row.lote?.toLowerCase().includes(s) ||
-      row.requerente?.toLowerCase().includes(s) ||
-      row.cpf?.toLowerCase().includes(s)
+      (row.formulario?.toLowerCase() || '').includes(s) ||
+      (row.quadra?.toLowerCase() || '').includes(s) ||
+      (row.lote?.toLowerCase() || '').includes(s) ||
+      (row.requerente?.toLowerCase() || '').includes(s) ||
+      (row.cpf?.toLowerCase() || '').includes(s)
     );
   });
 
@@ -85,6 +144,37 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
         Relatórios de Vistorias (Admin)
       </h2>
       
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div className="flex items-start">
+            <div className="flex-1">
+              <h3 className="font-medium text-red-800">Erro ao carregar dados</h3>
+              <p className="text-sm text-red-600 mt-1">{error}</p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="ml-4 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+            >
+              Recarregar
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Contador de resultados */}
+      <div className="mb-4 text-sm text-gray-600">
+        {loading ? (
+          <span>Carregando registros...</span>
+        ) : data.length > 0 ? (
+          <span>
+            Mostrando {currentItems.length} de {filtered.length} registro(s)
+            {projectId && ` para o projeto ${projectId}`}
+          </span>
+        ) : (
+          <span>Nenhum registro encontrado</span>
+        )}
+      </div>
+      
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -101,48 +191,55 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
         </div>
       </div>
       
-      {error && <div className="text-red-600 mb-2">{error}</div>}
-      
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">ID</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Formulário</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Projeto</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Quadra</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Lote</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Requerente</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">CPF</th>
-              <th className="px-3 py-2 text-xs font-semibold text-gray-500">Ação</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">ID</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Formulário</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Projeto</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Quadra</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lote</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Requerente</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">CPF</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ação</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={8} className="text-center py-8">Carregando...</td></tr>
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                    <span className="text-gray-600">Carregando vistorias...</span>
+                  </div>
+                </td>
+              </tr>
             ) : currentItems.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8">Nenhum registro encontrado</td></tr>
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  {search ? 'Nenhum registro encontrado para a pesquisa' : 'Nenhum registro disponível'}
+                </td>
+              </tr>
             ) : (
               currentItems.map(row => (
-                <tr key={row.id}
-                  className={
-                    printedIds.includes(row.id)
-                      ? 'bg-green-50 hover:bg-green-100'
-                      : 'hover:bg-gray-50'
-                  }
+                <tr 
+                  key={row.id}
+                  className={`hover:bg-gray-50 ${printedIds.includes(row.id) ? 'bg-green-50' : ''}`}
                 >
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.id}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.formulario}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.projeto}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.quadra}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.lote}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.requerente}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">{row.cpf}</td>
-                  <td className="px-3 py-2 text-xs text-gray-700">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.id}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.formulario || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.projeto || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.quadra || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.lote || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.requerente || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.cpf || '-'}</td>
+                  <td className="px-4 py-3">
                     <button
                       title="Visualizar/Imprimir PDF"
                       className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                       onClick={() => onSelect(row)}
+                      disabled={loading}
                     >
                       <Printer className="w-5 h-5" />
                     </button>
