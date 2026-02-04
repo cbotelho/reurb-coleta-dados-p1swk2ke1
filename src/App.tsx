@@ -122,8 +122,7 @@ const App = () => (
               <Route path="/pareceres" element={<SocialReports />} />
               <Route path="/relatorios/:projectId" element={<ReportConfig />} />
               <Route path="/importar-csv" element={<CSVImport />} />
-              <Route path="/relatorio-pdf/:projectId" element={<ReportPDFGenerator />} />
-            </Route>
+              </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </SyncProvider>

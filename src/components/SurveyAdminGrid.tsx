@@ -24,7 +24,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // Consulta Supabase REST API (vw_reurb_surveys_admin)
+  // Consulta Supabase
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   
@@ -74,17 +74,12 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
   const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
-  // Navegação de páginas
   const paginate = (pageNumber: number) => setCurrentPage(pageNumber);
-  const nextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-  };
-  const prevPage = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
-  };
+  const nextPage = () => currentPage < totalPages && setCurrentPage(currentPage + 1);
+  const prevPage = () => currentPage > 1 && setCurrentPage(currentPage - 1);
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+    <div className="bg-white rounded-lg shadow-md p-6">
       <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
         <FileText className="w-6 h-6 text-blue-600" />
         Relatórios de Vistorias (Admin)
@@ -99,7 +94,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
             value={search}
             onChange={e => {
               setSearch(e.target.value);
-              setCurrentPage(1); // Resetar para primeira página ao pesquisar
+              setCurrentPage(1);
             }}
             className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
@@ -163,11 +158,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
       {filtered.length > itemsPerPage && (
         <div className="flex items-center justify-between mt-4 px-4 py-3 border-t border-gray-200">
           <div className="text-sm text-gray-700">
-            Mostrando <span className="font-medium">{indexOfFirstItem + 1}</span> a{' '}
-            <span className="font-medium">
-              {Math.min(indexOfLastItem, filtered.length)}
-            </span>{' '}
-            de <span className="font-medium">{filtered.length}</span> resultados
+            Página {currentPage} de {totalPages}
           </div>
           
           <div className="flex items-center gap-2">
@@ -178,7 +169,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                 : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
             >
-              Anterior
+              ← Anterior
             </button>
             
             <div className="flex items-center gap-1">
@@ -215,7 +206,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ onSelect, printedIds 
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                 : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
             >
-              Próxima
+              Próxima →
             </button>
           </div>
         </div>
