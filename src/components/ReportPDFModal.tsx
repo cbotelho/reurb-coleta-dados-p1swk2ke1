@@ -1,18 +1,12 @@
 // components/ReportPDFModal.tsx - MODAL PARA GERAR PDF
+
 import React, { useState, useEffect } from 'react';
 import { X, Download, Printer, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-interface SurveyAdmin {
-  id: string;
-  formulario: string;
-  projeto: string;
-  quadra: string;
-  lote: string;
-  requerente: string;
-  cpf: string;
-}
+// Não tipar fixo, pois queremos todos os campos
+type SurveyRecord = Record<string, any>;
 
 interface ReportPDFModalProps {
   surveyId: string; // Mudei de surveyData para surveyId
@@ -30,38 +24,34 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [pdfGenerated, setPdfGenerated] = useState(false);
-  const [surveyData, setSurveyData] = useState<SurveyAdmin | null>(null);
+  const [surveyData, setSurveyData] = useState<SurveyRecord | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Função para buscar os dados completos do registro
+  // Função para buscar todos os campos do registro na view vw_reurb_surveys_admin
   const fetchSurveyData = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
-      
-      // Aqui você precisa implementar a busca dos dados completos
-      // Exemplo com fetch para sua API:
-      const response = await fetch(`/api/surveys/${id}`);
-      
-      if (!response.ok) {
-        throw new Error('Erro ao buscar dados do registro');
-      }
-      
+
+      // Buscar direto do Supabase REST API
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
+      const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!SUPABASE_KEY) throw new Error('Chave do Supabase não configurada.');
+
+      const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${id}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) throw new Error('Erro ao buscar dados do registro');
       const data = await response.json();
-      setSurveyData(data);
-      
-      // Se os dados vierem de outro lugar, ajuste aqui:
-      // setSurveyData({
-      //   id: data.id,
-      //   formulario: data.form_number,
-      //   projeto: data.project_name,
-      //   quadra: data.block,
-      //   lote: data.lot,
-      //   requerente: data.applicant,
-      //   cpf: data.cpf
-      // });
-      
-      return data;
+      if (!data || !data[0]) throw new Error('Registro não encontrado');
+      setSurveyData(data[0]);
+      return data[0];
     } catch (error) {
       console.error('Erro ao buscar dados:', error);
       setError('Não foi possível carregar os dados do registro');
@@ -76,97 +66,57 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       setError('Dados do registro não disponíveis');
       return;
     }
-    
     setLoading(true);
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
       let y = 20;
-      
-      // Título
       pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
       pdf.text('RELATÓRIO DE VISTORIA - REURB', 105, y, { align: 'center' });
-      
       y += 10;
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
       pdf.text('NEXTREURB - Sistema de Regularização Fundiária Urbana', 105, y, { align: 'center' });
       pdf.text('Governo do Estado do Amapá', 105, y + 6, { align: 'center' });
-      
       y += 20;
-      
-      // Informações do formulário
-      pdf.setFontSize(14);
+
+      // Exibir todos os campos do registro
+      pdf.setFontSize(13);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('DADOS DO FORMULÁRIO', 20, y);
+      pdf.text('DADOS COMPLETOS DO REGISTRO', 20, y);
       y += 10;
-      
-      pdf.setFontSize(11);
+      pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      
-      const dados = [
-        `ID do Registro: ${surveyData.id}`,
-        `Número do Formulário: ${surveyData.formulario || 'N/A'}`,
-        `Projeto REURB: ${surveyData.projeto || 'N/A'}`,
-        `Quadra: ${surveyData.quadra || 'N/A'}`,
-        `Lote: ${surveyData.lote || 'N/A'}`,
-        `Requerente: ${surveyData.requerente || 'N/A'}`,
-        `CPF: ${surveyData.cpf || 'N/A'}`
-      ];
-      
-      dados.forEach(item => {
-        pdf.text(item, 25, y);
-        y += 7;
+
+      // Montar tabela de campos
+      const entries = Object.entries(surveyData);
+      const tableRows = entries.map(([key, value]) => [key, value === null || value === undefined ? '' : String(value)]);
+      // Se muitos campos, dividir em páginas
+      (pdf as any).autoTable({
+        head: [['Campo', 'Valor']],
+        body: tableRows,
+        startY: y,
+        theme: 'grid',
+        headStyles: { fillColor: [33, 150, 243] },
+        styles: { fontSize: 9 },
+        margin: { left: 20, right: 20 },
+        tableWidth: 170,
       });
-      
-      y += 10;
-      
-      // Seção de observações
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('INFORMAÇÕES ADICIONAIS', 20, y);
-      y += 10;
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('A presente vistoria foi realizada de acordo com as normas estabelecidas', 20, y);
-      y += 5;
-      pdf.text('pelo Programa REURB - Regularização Fundiária Urbana.', 20, y);
-      
-      y += 15;
-      
-      // Assinaturas
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('ASSINATURAS', 105, y, { align: 'center' });
-      y += 10;
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('_________________________________', 25, y);
-      pdf.text('_________________________________', 110, y);
-      y += 5;
-      pdf.text('Vistoriador Responsável', 40, y);
-      pdf.text('Coordenador REURB', 125, y);
-      
+
       // Rodapé
       const dataAtual = new Date().toLocaleDateString('pt-BR');
       const horaAtual = new Date().toLocaleTimeString('pt-BR');
-      
       pdf.setFontSize(8);
       pdf.setTextColor(100, 100, 100);
       pdf.text(`Documento gerado em: ${dataAtual} às ${horaAtual}`, 105, 280, { align: 'center' });
-      pdf.text(`ID do registro: ${surveyData.id}`, 105, 285, { align: 'center' });
-      
+      pdf.text(`ID do registro: ${surveyData.id || ''}`, 105, 285, { align: 'center' });
+
       // Gerar URL do PDF
       const blob = pdf.output('blob');
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
       setPdfGenerated(true);
-      
-      // Marcar como impresso
       onMarkPrinted(surveyData.id);
-      
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
       setError('Erro ao gerar o PDF');
@@ -316,18 +266,11 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
           <div className="text-sm text-gray-600">
             {surveyData ? (
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <span className="font-medium">Requerente:</span> {surveyData.requerente || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">CPF:</span> {surveyData.cpf || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">Quadra/Lote:</span> {surveyData.quadra || 'N/A'} / {surveyData.lote || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">Projeto:</span> {surveyData.projeto || 'N/A'}
-                </div>
+                {Object.entries(surveyData).map(([key, value]) => (
+                  <div key={key} className="truncate">
+                    <span className="font-medium">{key}:</span> {String(value)}
+                  </div>
+                ))}
               </div>
             ) : (
               <p>Carregando informações do registro...</p>
