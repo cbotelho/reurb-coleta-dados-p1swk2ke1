@@ -90,8 +90,8 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       y += 10;
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'normal');
-      pdf.text('Sistema de Regularização Fundiária Urbana', 105, y, { align: 'center' });
-      pdf.text('Prefeitura Municipal', 105, y + 6, { align: 'center' });
+      pdf.text('NEXTREURB - Sistema de Regularização Fundiária Urbana', 105, y, { align: 'center' });
+      pdf.text('Governo do Estado do Amapá', 105, y + 6, { align: 'center' });
       
       y += 20;
       
