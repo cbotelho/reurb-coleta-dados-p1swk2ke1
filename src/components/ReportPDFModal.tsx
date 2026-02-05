@@ -1,5 +1,5 @@
-// components/ReportPDFModal.tsx - VERSÃO ESTÁVEL SEM LOOP INFINITO
-import React, { useState, useEffect, useRef } from 'react';
+// components/ReportPDFModal.tsx - VERSÃO CORRIGIDA
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Printer, FileText, AlertCircle, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
@@ -22,7 +22,8 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
   const [pdfReady, setPdfReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
-  // Ref para controlar se já carregamos os dados para este ID específico e evitar loops
+  // Controle de estado de processamento
+  const isProcessing = useRef(false);
   const lastProcessedId = useRef<string>('');
 
   const formatValue = (value: any): string => {
@@ -30,11 +31,12 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
     return String(value);
   };
 
-  // Função principal de processamento - definida fora do useEffect para clareza
-  const processReport = async (id: string) => {
-    if (!id) return;
+  // Função principal de processamento - memoizada para evitar recriações
+  const processReport = useCallback(async (id: string) => {
+    if (!id || isProcessing.current) return;
     
     try {
+      isProcessing.current = true;
       setLoading(true);
       setError(null);
       setPdfReady(false);
@@ -46,8 +48,8 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
         throw new Error("Configurações do Supabase não encontradas.");
       }
 
-      // 1. Buscar Dados
-      const query = `id=eq.${id}&select=projeto,quadra,lote,formulario,requerente,cpf,rg,estado_civil,profissao,renda_familiar,nis,endereco,conjuge,cpf_conjuge,num_moradores,num_filhos,filhos_menores,tempo_moradia,tipo_aquisicao,uso_imovel,construcao,telhado,piso,divisa,comodos,agua,energy:energia,esgoto,pavimentacao,analise_ia,assinatura_vistoriador,assinatura_requerente`;
+      // 1. Buscar Dados - corrigido o campo "energy" para "energia"
+      const query = `id=eq.${id}&select=projeto,quadra,lote,formulario,requerente,cpf,rg,estado_civil,profissao,renda_familiar,nis,endereco,conjuge,cpf_conjuge,num_moradores,num_filhos,filhos_menores,tempo_moradia,tipo_aquisicao,uso_imovel,construcao,telhado,piso,divisa,comodos,agua,energia,esgoto,pavimentacao,analise_ia,assinatura_vistoriador,assinatura_requerente`;
       
       const response = await fetch(`${supabaseUrl}/rest/v1/vw_reurb_surveys_admin?${query}`, {
         method: 'GET',
@@ -74,7 +76,6 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       
       y += 15;
       pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
       
       const addRow = (label: string, value: any, label2: string, value2: any) => {
         pdf.setFont('helvetica', 'bold');
@@ -101,7 +102,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       
       addRow('Construção:', record.construcao, 'Telhado:', record.telhado);
       addRow('Piso:', record.piso, 'Divisa:', record.divisa);
-      addRow('Água:', record.agua, 'Energia:', record.energy);
+      addRow('Água:', record.agua, 'Energia:', record.energia);
       
       if (record.analise_ia) {
         y += 5;
@@ -116,6 +117,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       // 3. Finalizar
       const blob = pdf.output('blob');
       const url = URL.createObjectURL(blob);
+      
       setPdfUrl(url);
       setPdfReady(true);
       
@@ -126,25 +128,37 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       setError(err.message || "Erro desconhecido");
     } finally {
       setLoading(false);
+      isProcessing.current = false;
     }
-  };
+  }, [onMarkPrinted]);
 
-  // Efeito de controle principal - ÚNICA entrada para o processamento
+  // Efeito de controle principal
   useEffect(() => {
     if (isOpen && surveyId && surveyId !== lastProcessedId.current) {
       lastProcessedId.current = surveyId;
       processReport(surveyId);
     }
 
-    // Cleanup quando o modal fecha
+    return () => {
+      // Cleanup quando o componente desmonta ou surveyId muda
+      isProcessing.current = false;
+    };
+  }, [isOpen, surveyId, processReport]);
+
+  // Cleanup específico para quando o modal fecha
+  useEffect(() => {
     if (!isOpen) {
       lastProcessedId.current = '';
+      isProcessing.current = false;
+      
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
         setPdfUrl('');
       }
+      setPdfReady(false);
+      setError(null);
     }
-  }, [isOpen, surveyId]);
+  }, [isOpen, pdfUrl]);
 
   if (!isOpen) return null;
 
@@ -173,13 +187,16 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
               <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
               <p className="text-red-600 font-medium mb-4">{error}</p>
               <button 
-                onClick={() => { lastProcessedId.current = ''; processReport(surveyId); }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                onClick={() => {
+                  lastProcessedId.current = '';
+                  processReport(surveyId);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Tentar Novamente
               </button>
             </div>
-          ) : pdfReady ? (
+          ) : pdfReady && pdfUrl ? (
             <div className="h-full flex flex-col">
               <div className="p-2 bg-white border-b flex gap-2 justify-center">
                 <button 
@@ -187,24 +204,32 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
                     const a = document.createElement('a');
                     a.href = pdfUrl;
                     a.download = `Relatorio_${surveyId}.pdf`;
+                    document.body.appendChild(a);
                     a.click();
+                    document.body.removeChild(a);
                   }}
-                  className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2"
+                  className="px-4 py-2 bg-green-600 text-white rounded flex items-center gap-2 hover:bg-green-700"
                 >
                   <Download size={16} /> Baixar
                 </button>
                 <button 
                   onClick={() => iframeRef.current?.contentWindow?.print()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded flex items-center gap-2"
+                  className="px-4 py-2 bg-blue-600 text-white rounded flex items-center gap-2 hover:bg-blue-700"
                 >
                   <Printer size={16} /> Imprimir
                 </button>
               </div>
-              <iframe ref={iframeRef} src={pdfUrl} className="flex-1 w-full border-none" />
+              <iframe 
+                ref={iframeRef} 
+                src={pdfUrl} 
+                className="flex-1 w-full border-none" 
+                title="Visualizador de PDF"
+              />
             </div>
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <p>Iniciando...</p>
+              <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-2" />
+              <p>Preparando relatório...</p>
             </div>
           )}
         </div>
