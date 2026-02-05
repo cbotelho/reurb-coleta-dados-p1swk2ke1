@@ -1,4 +1,4 @@
-// components/SurveyAdminGrid.tsx - VERSÃO FINAL COM APENAS UM MODAL
+// components/SurveyAdminGrid.tsx - VERSÃO CORRIGIDA
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Printer, FileText, X, Download, AlertCircle, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -73,7 +73,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     setErrorPdf(null);
   };
 
-  // Efeito para gerar PDF
+  // Efeito para gerar PDF (VERSÃO QUE FUNCIONAVA ANTES)
   useEffect(() => {
     if (!modalOpen || !selectedSurveyId) {
       console.log('📭 Modal não está aberto ou sem ID');
@@ -96,18 +96,8 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           throw new Error("Configurações do Supabase não encontradas.");
         }
 
-        // CONSULTA COMPLETA
-        const fields = [
-          'id', 'projeto', 'quadra', 'lote', 'formulario', 'requerente', 'cpf',
-          'rg', 'estado_civil', 'profissao', 'renda_familiar', 'nis', 'endereco',
-          'conjuge', 'cpf_conjuge', 'num_moradores', 'num_filhos', 'filhos_menores',
-          'tempo_moradia', 'tipo_aquisicao', 'uso_imovel', 'construcao', 'telhado',
-          'piso', 'divisa', 'comodos', 'agua', 'energia', 'esgoto', 'pavimentacao',
-          'analise_ia', 'assinatura_vistoriador', 'assinatura_requerente'
-        ];
-        
-        const query = `id=eq.${selectedSurveyId}&select=${fields.join(',')}`;
-        const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?${query}`;
+        // URL ORIGINAL QUE FUNCIONAVA - MANTÉM A MESMA ESTRUTURA
+        const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${selectedSurveyId}`;
         
         console.log('🌐 Buscando dados em:', url);
         
@@ -121,10 +111,11 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         });
         
         if (!response.ok) {
-          throw new Error(`Erro ${response.status}`);
+          throw new Error(`Erro ${response.status} ao buscar dados`);
         }
         
         const data = await response.json();
+        console.log('✅ Dados recebidos:', data);
         
         if (!data || data.length === 0) {
           throw new Error("Registro não encontrado.");
@@ -132,7 +123,13 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         
         const record = data[0];
         
-        // Gerar PDF
+        // DEBUG: Mostrar todos os campos
+        console.log('📋 CAMPOS DISPONÍVEIS:');
+        Object.keys(record).forEach(key => {
+          console.log(`${key}:`, record[key]);
+        });
+        
+        // Gerar PDF com verificação de campos
         const pdf = new jsPDF();
         let y = 20;
         
@@ -143,7 +140,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         pdf.setFontSize(10);
         
         const formatValue = (value: any): string => {
-          if (value === null || value === undefined || value === '') return 'N/A';
+          if (value === null || value === undefined || value === '') return 'Não informado';
           return String(value);
         };
         
@@ -160,52 +157,105 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           y += 8;
         };
 
-        // Dados
+        // Dados Básicos (que sabemos que existem)
         addRow('Projeto:', record.projeto, 'Formulário:', record.formulario);
         addRow('Quadra:', record.quadra, 'Lote:', record.lote);
         addRow('Requerente:', record.requerente, 'CPF:', record.cpf);
-        addRow('RG:', record.rg, 'Estado Civil:', record.estado_civil);
-        addRow('Profissão:', record.profissao, 'Renda:', record.renda_familiar);
         
-        // Assinaturas (base64)
+        // Dados Adicionais (verifica se existem antes de usar)
+        if (record.rg || record.estado_civil) {
+          addRow('RG:', record.rg, 'Estado Civil:', record.estado_civil);
+        }
+        
+        if (record.profissao || record.renda_familiar) {
+          addRow('Profissão:', record.profissao, 'Renda Familiar:', record.renda_familiar);
+        }
+        
+        if (record.nis || record.endereco) {
+          addRow('NIS:', record.nis, 'Endereço:', record.endereco);
+        }
+        
+        if (record.conjuge || record.cpf_conjuge) {
+          addRow('Cônjuge:', record.conjuge, 'CPF Cônjuge:', record.cpf_conjuge);
+        }
+        
+        if (record.num_moradores || record.num_filhos) {
+          addRow('Moradores:', record.num_moradores, 'Filhos:', record.num_filhos);
+        }
+        
+        if (record.tempo_moradia || record.tipo_aquisicao) {
+          addRow('Tempo Moradia:', record.tempo_moradia, 'Tipo Aquisição:', record.tipo_aquisicao);
+        }
+        
+        if (record.construcao || record.telhado) {
+          addRow('Construção:', record.construcao, 'Telhado:', record.telhado);
+        }
+        
+        if (record.piso || record.divisa) {
+          addRow('Piso:', record.piso, 'Divisa:', record.divisa);
+        }
+        
+        if (record.agua || record.energia) {
+          addRow('Água:', record.agua, 'Energia:', record.energia);
+        }
+        
+        if (record.esgoto || record.pavimentacao) {
+          addRow('Esgoto:', record.esgoto, 'Pavimentação:', record.pavimentacao);
+        }
+        
+        // Seção de Assinaturas (com tratamento de erro)
         const addSignature = (label: string, base64Data: string) => {
-          if (base64Data) {
+          y += 5; // Espaço antes da assinatura
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${label}:`, 20, y);
+          
+          if (base64Data && base64Data.trim() !== '') {
             try {
               const imgData = base64Data.includes(',') 
                 ? base64Data.split(',')[1] 
                 : base64Data;
               
-              pdf.text(label + ':', 20, y);
+              // Tenta adicionar a imagem
               pdf.addImage(imgData, 'PNG', 50, y - 5, 40, 20);
               y += 25;
             } catch (err) {
-              pdf.text(label + ': Erro ao carregar assinatura', 20, y);
+              console.error(`Erro ao processar assinatura ${label}:`, err);
+              pdf.setFont('helvetica', 'normal');
+              pdf.text('(assinatura não disponível)', 50, y);
               y += 8;
             }
           } else {
-            pdf.text(label + ': Não assinado', 20, y);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text('(não assinado)', 50, y);
             y += 8;
           }
         };
 
+        // Adicionar assinaturas se existirem
         y += 10;
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('Assinaturas:', 20, y);
-        y += 8;
+        pdf.setFontSize(12);
+        pdf.text('ASSINATURAS', 105, y, { align: 'center' });
+        y += 10;
         
-        addSignature('Vistoriador', record.assinatura_vistoriador);
-        addSignature('Requerente', record.assinatura_requerente);
+        if (record.assinatura_vistoriador || record.assinatura_requerente) {
+          addSignature('Vistoriador', record.assinatura_vistoriador);
+          addSignature('Requerente', record.assinatura_requerente);
+        } else {
+          pdf.setFontSize(10);
+          pdf.text('Documento sem assinaturas digitais', 105, y, { align: 'center' });
+        }
 
+        // Finalizar PDF
         const blob = pdf.output('blob');
         const urlObj = URL.createObjectURL(blob);
         
-        console.log('✅ PDF gerado com sucesso!');
+        console.log('✅ PDF gerado com sucesso! Tamanho:', blob.size, 'bytes');
         setPdfUrl(urlObj);
         
       } catch (err: any) {
-        console.error('❌ Erro:', err);
+        console.error('❌ Erro ao gerar PDF:', err);
         setErrorPdf(err.message || 'Erro ao gerar PDF');
-        hasProcessedRef.current = '';
+        hasProcessedRef.current = ''; // Permite tentar novamente
       } finally {
         setLoadingPdf(false);
       }
@@ -213,8 +263,11 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     
     generatePDF();
     
+    // Cleanup
     return () => {
-      console.log('🧹 Cleanup do PDF');
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
     };
   }, [modalOpen, selectedSurveyId]);
 
@@ -324,7 +377,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Pesquisar..."
+              placeholder="Pesquisar por formulário, quadra, lote, requerente ou CPF..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -389,8 +442,9 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                     <td className="px-4 py-3">
                       <button
                         title="Gerar PDF"
-                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                         onClick={() => openPdfModal(row.id)}
+                        disabled={loadingPdf}
                       >
                         <Printer className="w-5 h-5" />
                       </button>
@@ -427,7 +481,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         )}
       </div>
 
-      {/* APENAS UM MODAL - INTEGRADO DIRETAMENTE */}
+      {/* MODAL DO PDF */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col">
@@ -439,7 +493,11 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                   <p className="text-sm text-gray-500">ID: {selectedSurveyId.substring(0, 8)}...</p>
                 </div>
               </div>
-              <button onClick={closePdfModal} className="p-2 hover:bg-gray-100 rounded-full">
+              <button 
+                onClick={closePdfModal} 
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                disabled={loadingPdf}
+              >
                 <X className="w-6 h-6 text-gray-500" />
               </button>
             </div>
@@ -453,16 +511,25 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
               ) : errorPdf ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                   <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-                  <p className="text-red-600 font-medium mb-4">{errorPdf}</p>
-                  <button 
-                    onClick={() => {
-                      hasProcessedRef.current = '';
-                      setErrorPdf(null);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Tentar Novamente
-                  </button>
+                  <p className="text-red-600 font-medium mb-2">Erro ao gerar PDF</p>
+                  <p className="text-gray-600 text-sm mb-4">{errorPdf}</p>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => {
+                        hasProcessedRef.current = '';
+                        setErrorPdf(null);
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Tentar Novamente
+                    </button>
+                    <button 
+                      onClick={closePdfModal}
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
               ) : pdfUrl ? (
                 <div className="h-full flex flex-col">
@@ -471,16 +538,16 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                       onClick={() => {
                         const a = document.createElement('a');
                         a.href = pdfUrl;
-                        a.download = `Relatorio_${selectedSurveyId}.pdf`;
+                        a.download = `Vistoria_${selectedSurveyId}.pdf`;
                         a.click();
                       }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700"
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors"
                     >
                       <Download size={18} /> Baixar PDF
                     </button>
                     <button 
                       onClick={() => iframeRef.current?.contentWindow?.print()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors"
                     >
                       <Printer size={18} /> Imprimir
                     </button>
@@ -494,7 +561,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                 </div>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <p>Preparando...</p>
+                  <p className="text-gray-500">Preparando visualização...</p>
                 </div>
               )}
             </div>
