@@ -7,12 +7,14 @@ import { MapPin, Upload, PenLine, Trash2 } from 'lucide-react'
 import { SurveyFormValues, UF_OPTIONS } from './schema'
 import { Lote } from '@/types'
 
+// Atualizei a interface removendo props não utilizadas
 interface SurveyGeneralTabProps {
   form: UseFormReturn<SurveyFormValues>
   canEdit: boolean
   lote: Lote | null
   projectName: string
   quadraName: string
+  // REMOVIDAS: loteAddress, loteLatitude, loteLongitude (não são usadas)
   handlePrintLote: () => void
   handleDeleteLote: () => void
   getCurrentLocation: () => void

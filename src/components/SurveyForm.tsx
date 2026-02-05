@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -68,10 +68,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       surveyor_signature: '',
       assinatura_requerente: '',
 
-      address: '',
-      latitude: '',
-      longitude: '',
-
       applicant_name: '',
       applicant_cpf: '',
       applicant_rg: '',
@@ -119,19 +115,12 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
     setRequerenteSignatureDialogOpen(false)
   }
   
-  // Just a helper to force resize if needed, passed to sub-components
+  // Adicionada função vazia para satisfazer a prop obrigatória
   const resizeRequerenteCanvas = () => {
-    // This logic is now internal to SignaturePad, but we might keep it if button triggers something
-    // The previous code had setTimeout(() => resizeRequerenteCanvas(), 0). 
-    // Since SignaturePad now handles its own resize on open, we might not need this explicitly exposed,
-    // but the sub-component button calls it. We can pass a no-op or remove the requirement.
-    // Actually, let's keep it simple. The button inside SurveyApplicantTab calls it. 
-    // We can just pass a dummy function or remove it from the prop interface if not needed.
-    // Let's check SignaturePad usage in SurveyApplicantTab.
-    // It calls `onOpenRequerenteSignatureDialog` and `resizeRequerenteCanvas`.
-    // Since `SignaturePad` handles resize in useEffect, we might not need to manually call it anymore.
+    // Função vazia - não é mais necessária, mas mantida para compatibilidade
+    console.log('resizeRequerenteCanvas chamada (função de compatibilidade)')
   }
-
+  
   const handleSignatureFile = (file: File) => {
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -193,11 +182,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
         if (loteData) {
           setLote(loteData)
-          // ... (logs removed for brevity, kept consistent with logic)
-          
-          form.setValue('address', loteData.address || '')
-          form.setValue('latitude', loteData.latitude || '')
-          form.setValue('longitude', loteData.longitude || '')
 
           const quadra = loteData.parent_item_id
             ? await api.getQuadra(loteData.parent_item_id)
@@ -223,10 +207,6 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
             state: (surveyData as any).state ?? 'AP',
             surveyor_name: (surveyData as any).surveyor_name ?? '',
             surveyor_signature: (surveyData as any).surveyor_signature ?? '',
-
-            address: loteData?.address ?? '',
-            latitude: loteData?.latitude ?? '',
-            longitude: loteData?.longitude ?? '',
 
             applicant_name: (surveyData as any).applicant_name ?? '',
             applicant_cpf: (surveyData as any).applicant_cpf ?? '',
@@ -345,23 +325,17 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
   }
 
   const getCurrentLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          form.setValue('latitude', position.coords.latitude.toFixed(6))
-          form.setValue('longitude', position.coords.longitude.toFixed(6))
-          toast({ title: 'Localização obtida', description: 'Coordenadas atualizadas.' })
-        },
-        (error) => {
-          toast({ title: 'Erro', description: 'Não foi possível obter a localização.', variant: 'destructive' })
-        },
-      )
-    }
+    // REMOVIDO: A vistoria não deve atualizar coordenadas do lote
+    toast({ 
+      title: 'Função não disponível', 
+      description: 'A atualização de coordenadas deve ser feita no formulário do lote.',
+      variant: 'destructive' 
+    })
   }
 
   const performBackgroundSync = async (data: any) => {
     try {
-      // Tenta o envio. Nota: api.saveSurvey deve suportar upsert
+      // Tenta o envio
       await api.saveSurvey(data)
       
       // Se deu certo, marca como sincronizado no banco local
@@ -373,9 +347,9 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       db.saveSurvey(syncedData)
       console.log('✅ Sincronização em background concluída.')
 
-      // Opcional: Atualizar status do lote também
+      // Apenas atualiza status do lote (não as coordenadas)
       if (lote) {
-         api.updateLote(propertyId, { status: 'surveyed' }).catch(console.warn)
+        api.updateLote(propertyId, { status: 'surveyed' }).catch(console.warn)
       }
 
     } catch (err) {
@@ -417,22 +391,9 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         }
       })
 
-
-      // Remover campos que pertencem ao Lote, não à Vistoria (reforçado)
-      if ('address' in surveyPayload) delete surveyPayload.address;
-      if ('latitude' in surveyPayload) delete surveyPayload.latitude;
-      if ('longitude' in surveyPayload) delete surveyPayload.longitude;
-
-      // 1. SALVAMENTO LOCAL IMEDIATO (Prioridade Máxima)
-      // db.saveSurvey salva no LocalStorage (síncrono/rápido)
+      // 1. SALVAMENTO LOCAL IMEDIATO (APENAS VISTORIA)
       const savedSurvey = db.saveSurvey(surveyPayload)
       setSurveyId(savedSurvey.id as string)
-
-      // Atualizar status do lote localmente se possível (simulado)
-      if (lote) {
-        // Se tivéssemos db.saveLote local, faríamos aqui. 
-        // Por hora, apenas confiamos que o sync cuidará disso.
-      }
 
       // 2. TRIGGER BACKGROUND SYNC
       if (isOnline) {
@@ -440,7 +401,7 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
       } else {
          toast({
           title: 'Vistoria Salva Localmente',
-          description: 'A vitoria foi salva no dispositivo e será enviada quando houver conexão.',
+          description: 'A vistoria foi salva no dispositivo e será enviada quando houver conexão.',
           className: 'bg-orange-50 border-orange-200 text-orange-800',
         })
       }
@@ -493,44 +454,44 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
 
       <form onSubmit={form.handleSubmit(onSubmit, onSubmitInvalid)} className="space-y-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="flex flex-col h-auto sm:grid sm:h-10 sm:grid-cols-6 w-full bg-muted p-1 rounded-md mb-4">
-              <TabsTrigger
-                value="geral"
-                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
-              >
-                Geral
-              </TabsTrigger>
-              <TabsTrigger
-                value="requerente"
-                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
-              >
-                Requerente
-              </TabsTrigger>
-              <TabsTrigger
-                value="imovel"
-                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
-              >
-                Imóvel
-              </TabsTrigger>
-              <TabsTrigger
-                value="infra"
-                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
-              >
-                Infraestrutura
-              </TabsTrigger>
-              <TabsTrigger
-                value="documentos"
-                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
-              >
-                Documentos
-              </TabsTrigger>
-              <TabsTrigger
-                value="observacoes"
-                className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
-              >
-                Observações
-              </TabsTrigger>
-            </TabsList>
+          <TabsList className="flex flex-col h-auto sm:grid sm:h-10 sm:grid-cols-6 w-full bg-muted p-1 rounded-md mb-4">
+            <TabsTrigger
+              value="geral"
+              className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+            >
+              Geral
+            </TabsTrigger>
+            <TabsTrigger
+              value="requerente"
+              className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+            >
+              Requerente
+            </TabsTrigger>
+            <TabsTrigger
+              value="imovel"
+              className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+            >
+              Imóvel
+            </TabsTrigger>
+            <TabsTrigger
+              value="infra"
+              className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+            >
+              Infraestrutura
+            </TabsTrigger>
+            <TabsTrigger
+              value="documentos"
+              className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+            >
+              Documentos
+            </TabsTrigger>
+            <TabsTrigger
+              value="observacoes"
+              className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700"
+            >
+              Observações
+            </TabsTrigger>
+          </TabsList>
 
           <TabsContent value="geral">
             <SurveyGeneralTab 
