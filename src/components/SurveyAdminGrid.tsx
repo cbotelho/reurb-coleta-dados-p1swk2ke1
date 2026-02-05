@@ -54,55 +54,83 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
 
   // Função para extrair ID de forma segura
   const extractId = (item: any): string => {
-    if (!item || !item.id) {
+    if (!item) {
       return 'unknown';
     }
     
-    // Se o ID for um objeto, tenta extrair de diferentes formatos
-    if (typeof item.id === 'object') {
-      // Log para debug
-      console.log('⚠️ ID é um objeto:', item.id);
-      
-      // Tenta diferentes propriedades comuns
-      if (item.id.id) return String(item.id.id);
-      if (item.id.value) return String(item.id.value);
-      if (item.id[0]) return String(item.id[0]);
-      
-      // Se for um array, pega o primeiro elemento
-      if (Array.isArray(item.id) && item.id.length > 0) {
-        return String(item.id[0]);
-      }
-      
-      // Tenta converter para string
-      try {
-        return JSON.stringify(item.id);
-      } catch {
-        return 'invalid-id';
+    // Tenta diferentes nomes de coluna para o ID
+    const possibleIdFields = ['id', 'ID', 'Id', 'survey_id', 'property_id'];
+    
+    for (const field of possibleIdFields) {
+      if (item[field]) {
+        return String(item[field]);
       }
     }
     
-    // Se for string ou número, converte para string
-    return String(item.id);
+    // Se não encontrar, tenta usar o primeiro campo não-vazio
+    const firstField = Object.values(item).find(val => val && val !== '');
+    return firstField ? String(firstField) : 'no-id';
   };
 
   // Função para formatar os dados recebidos
   const formatSurveyData = (rawData: any[]): SurveyAdmin[] => {
     return rawData.map(item => {
-      console.log('📋 Item bruto recebido:', item);
+      console.log('📋 Item bruto recebido para formatação:', item);
       
       const id = extractId(item);
       
-      // Garante que todos os campos sejam strings
+      // Tenta diferentes nomes de colunas para cada campo
+      const getField = (possibleNames: string[]): string => {
+        for (const name of possibleNames) {
+          if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
+            return String(item[name]);
+          }
+        }
+        return '';
+      };
+      
       return {
         id,
-        Formulario: item.formulario ? String(item.formulario) : '',
-        Projeto: item.projeto ? String(item.projeto) : '',
-        Quadra: item.quadra ? String(item.quadra) : '',
-        Lote: item.lote ? String(item.lote) : '',
-        Requerente: item.requerente ? String(item.requerente) : '',
-        CPF: item.cpf ? String(item.cpf) : '',
+        Formulario: getField(['formulario', 'form_number', 'numero_formulario']),
+        Projeto: getField(['projeto', 'project', 'nome_projeto']),
+        Quadra: getField(['quadra', 'block', 'nome_quadra']),
+        Lote: getField(['lote', 'lot', 'numero_lote']),
+        Requerente: getField(['requerente', 'applicant_name', 'nome_requerente']),
+        CPF: getField(['cpf', 'applicant_cpf', 'cpf_requerente']),
       };
     });
+  };
+
+  // Primeiro, vamos descobrir a estrutura da view
+  const discoverViewStructure = async (): Promise<string[]> => {
+    try {
+      console.log('🔍 Descobrindo estrutura da view...');
+      
+      // Faz uma consulta limitada apenas para descobrir colunas
+      const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=*&limit=1`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        console.log('⚠️ Não conseguiu descobrir estrutura com select=*, tentando abordagem alternativa...');
+        return ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'];
+      }
+      
+      const result = await response.json();
+      if (result.length > 0) {
+        const columns = Object.keys(result[0]);
+        console.log('✅ Colunas descobertas:', columns);
+        return columns;
+      }
+      
+      return ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'];
+    } catch (err) {
+      console.error('❌ Erro ao descobrir estrutura:', err);
+      return ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'];
+    }
   };
 
   // Buscar dados da view vw_reurb_surveys_admin
@@ -117,11 +145,28 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         throw new Error('Chave do Supabase não configurada. Verifique o arquivo .env');
       }
       
-      // ALTERADO: Selecionando TODAS as colunas para debug
-      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=*`;
+      // Primeiro descobrimos a estrutura
+      const columns = await discoverViewStructure();
       
-      // Ordenar por ID decrescente (mais recentes primeiro)
-      url += '&order=id.desc';
+      // Cria o select baseado nas colunas descobertas
+      // Limita para colunas principais para evitar timeout
+      const selectColumns = columns.filter(col => 
+        ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'].some(
+          mainCol => col.toLowerCase().includes(mainCol)
+        )
+      ).slice(0, 10); // Limita a 10 colunas
+      
+      console.log('📋 Colunas selecionadas para query:', selectColumns);
+      
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=${selectColumns.join(',')}`;
+      
+      // Adiciona limite para evitar timeout
+      url += '&limit=100';
+      
+      // Ordenar (se tiver coluna id)
+      if (selectColumns.includes('id')) {
+        url += '&order=id.desc';
+      }
       
       console.log('🌐 URL da requisição:', url);
       
@@ -147,12 +192,18 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       const result = await response.json();
       console.log(`✅ ${result.length} registros carregados`);
-      console.log('📋 Estrutura do primeiro registro:', Object.keys(result[0]));
-      console.log('📋 Primeiro registro completo:', result[0]);
+      
+      if (result.length > 0) {
+        console.log('📋 Estrutura do primeiro registro:', Object.keys(result[0]));
+        console.log('📋 Primeiro registro completo:', result[0]);
+      }
       
       // Formatar os dados
       const formattedData = formatSurveyData(result);
-      console.log('📋 Dados formatados:', formattedData[0]);
+      
+      if (formattedData.length > 0) {
+        console.log('📋 Dados formatados primeiro registro:', formattedData[0]);
+      }
       
       // Filtrar por projeto se especificado
       let filteredData = formattedData;
@@ -410,6 +461,21 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           </button>
         </div>
       )}
+      
+      {/* Botão para teste de estrutura */}
+      <div className="mt-4 text-center">
+        <button
+          onClick={async () => {
+            console.log('🔍 Testando estrutura da view...');
+            const columns = await discoverViewStructure();
+            console.log('📋 Colunas encontradas:', columns);
+            alert(`Colunas encontradas: ${columns.join(', ')}`);
+          }}
+          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+        >
+          Testar Estrutura da View
+        </button>
+      </div>
     </div>
   );
 };
