@@ -12,7 +12,7 @@ interface SurveyAdmin {
 }
 
 interface SurveyAdminGridProps {
-  onSelect: (surveyData: SurveyAdmin) => void;
+  onSelect: (surveyId: string) => void; // MUDADO: agora só precisa do ID
   printedIds: string[];
   projectId?: string;
 }
@@ -52,88 +52,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     };
   };
 
-  // Função para extrair ID de forma segura
-  const extractId = (item: any): string => {
-    if (!item) {
-      return 'unknown';
-    }
-    
-    // Tenta diferentes nomes de coluna para o ID
-    const possibleIdFields = ['id', 'ID', 'Id', 'survey_id', 'property_id'];
-    
-    for (const field of possibleIdFields) {
-      if (item[field]) {
-        return String(item[field]);
-      }
-    }
-    
-    // Se não encontrar, tenta usar o primeiro campo não-vazio
-    const firstField = Object.values(item).find(val => val && val !== '');
-    return firstField ? String(firstField) : 'no-id';
-  };
-
-  // Função para formatar os dados recebidos
-  const formatSurveyData = (rawData: any[]): SurveyAdmin[] => {
-    return rawData.map(item => {
-      console.log('📋 Item bruto recebido para formatação:', item);
-      
-      const id = extractId(item);
-      
-      // Tenta diferentes nomes de colunas para cada campo
-      const getField = (possibleNames: string[]): string => {
-        for (const name of possibleNames) {
-          if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
-            return String(item[name]);
-          }
-        }
-        return '';
-      };
-      
-      return {
-        id,
-        Formulario: getField(['formulario', 'form_number', 'numero_formulario']),
-        Projeto: getField(['projeto', 'project', 'nome_projeto']),
-        Quadra: getField(['quadra', 'block', 'nome_quadra']),
-        Lote: getField(['lote', 'lot', 'numero_lote']),
-        Requerente: getField(['requerente', 'applicant_name', 'nome_requerente']),
-        CPF: getField(['cpf', 'applicant_cpf', 'cpf_requerente']),
-      };
-    });
-  };
-
-  // Primeiro, vamos descobrir a estrutura da view
-  const discoverViewStructure = async (): Promise<string[]> => {
-    try {
-      console.log('🔍 Descobrindo estrutura da view...');
-      
-      // Faz uma consulta limitada apenas para descobrir colunas
-      const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=*&limit=1`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) {
-        console.log('⚠️ Não conseguiu descobrir estrutura com select=*, tentando abordagem alternativa...');
-        return ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'];
-      }
-      
-      const result = await response.json();
-      if (result.length > 0) {
-        const columns = Object.keys(result[0]);
-        console.log('✅ Colunas descobertas:', columns);
-        return columns;
-      }
-      
-      return ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'];
-    } catch (err) {
-      console.error('❌ Erro ao descobrir estrutura:', err);
-      return ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'];
-    }
-  };
-
-  // Buscar dados da view vw_reurb_surveys_admin
+  // Buscar dados da view vw_reurb_surveys_admin - APENAS COLUNAS NECESSÁRIAS
   const fetchSurveyData = async () => {
     setLoading(true);
     setError('');
@@ -145,30 +64,21 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         throw new Error('Chave do Supabase não configurada. Verifique o arquivo .env');
       }
       
-      // Primeiro descobrimos a estrutura
-      const columns = await discoverViewStructure();
+      // IMPORTANTE: Vamos tentar uma consulta mais leve
+      // Selecionando apenas as colunas necessárias para a grid
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
       
-      // Cria o select baseado nas colunas descobertas
-      // Limita para colunas principais para evitar timeout
-      const selectColumns = columns.filter(col => 
-        ['id', 'formulario', 'projeto', 'quadra', 'lote', 'requerente', 'cpf'].some(
-          mainCol => col.toLowerCase().includes(mainCol)
-        )
-      ).slice(0, 10); // Limita a 10 colunas
+      // Parâmetros da query
+      const params = new URLSearchParams();
+      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf');
+      params.append('order', 'id.desc');
       
-      console.log('📋 Colunas selecionadas para query:', selectColumns);
+      // Adiciona limite para performance
+      params.append('limit', '200');
       
-      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=${selectColumns.join(',')}`;
+      url = `${url}?${params.toString()}`;
       
-      // Adiciona limite para evitar timeout
-      url += '&limit=100';
-      
-      // Ordenar (se tiver coluna id)
-      if (selectColumns.includes('id')) {
-        url += '&order=id.desc';
-      }
-      
-      console.log('🌐 URL da requisição:', url);
+      console.log('🌐 URL da requisição (resumida):', url);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -180,6 +90,14 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ Erro na resposta:', errorText);
+        
+        // Tenta uma abordagem alternativa se der timeout
+        if (response.status === 500 && errorText.includes('timeout')) {
+          console.log('⏰ Timeout detectado, tentando abordagem alternativa...');
+          
+          // Tenta uma consulta ainda mais leve
+          return await tryAlternativeQuery();
+        }
         
         if (response.status === 401) {
           throw new Error('Não autorizado. Verifique a chave do Supabase.');
@@ -194,16 +112,27 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       console.log(`✅ ${result.length} registros carregados`);
       
       if (result.length > 0) {
-        console.log('📋 Estrutura do primeiro registro:', Object.keys(result[0]));
-        console.log('📋 Primeiro registro completo:', result[0]);
+        console.log('📋 Primeiro registro (apenas campos da grid):', {
+          id: result[0].id,
+          formulario: result[0].formulario,
+          projeto: result[0].projeto,
+          quadra: result[0].quadra,
+          lote: result[0].lote,
+          requerente: result[0].requerente,
+          cpf: result[0].cpf
+        });
       }
       
       // Formatar os dados
-      const formattedData = formatSurveyData(result);
-      
-      if (formattedData.length > 0) {
-        console.log('📋 Dados formatados primeiro registro:', formattedData[0]);
-      }
+      const formattedData = result.map((item: any) => ({
+        id: String(item.id || ''),
+        Formulario: item.formulario ? String(item.formulario) : '-',
+        Projeto: item.projeto ? String(item.projeto) : '-',
+        Quadra: item.quadra ? String(item.quadra) : '-',
+        Lote: item.lote ? String(item.lote) : '-',
+        Requerente: item.requerente ? String(item.requerente) : '-',
+        CPF: item.cpf ? String(item.cpf) : '-'
+      }));
       
       // Filtrar por projeto se especificado
       let filteredData = formattedData;
@@ -220,6 +149,56 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       setError(err.message || 'Erro desconhecido ao carregar dados');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Abordagem alternativa para consulta
+  const tryAlternativeQuery = async () => {
+    console.log('🔄 Tentando consulta alternativa...');
+    
+    try {
+      // Tenta uma consulta ainda mais simples
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
+      
+      const params = new URLSearchParams();
+      params.append('select', 'id,projeto,quadra,lote');
+      params.append('order', 'id.desc');
+      params.append('limit', '100');
+      
+      url = `${url}?${params.toString()}`;
+      
+      console.log('🌐 URL da consulta alternativa:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Consulta alternativa falhou: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log(`✅ ${result.length} registros carregados (alternativa)`);
+      
+      // Como não temos todos os campos, preenchemos com placeholders
+      const formattedData = result.map((item: any) => ({
+        id: String(item.id || ''),
+        Formulario: 'N/A', // Não disponível nesta consulta
+        Projeto: item.projeto ? String(item.projeto) : '-',
+        Quadra: item.quadra ? String(item.quadra) : '-',
+        Lote: item.lote ? String(item.lote) : '-',
+        Requerente: 'N/A', // Não disponível nesta consulta
+        CPF: 'N/A' // Não disponível nesta consulta
+      }));
+      
+      setData(formattedData);
+      
+      // Mostra aviso
+      setError('⚠️ Dados limitados carregados (alguns campos não disponíveis devido a limitações de performance)');
+      
+    } catch (altErr: any) {
+      throw new Error(`Falha na consulta alternativa: ${altErr.message}`);
     }
   };
 
@@ -301,8 +280,12 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-start">
             <div className="flex-1">
-              <h3 className="font-medium text-red-800">Erro ao carregar dados</h3>
+              <h3 className="font-medium text-red-800">Aviso</h3>
               <p className="text-sm text-red-600 mt-1">{error}</p>
+              <p className="text-sm text-gray-600 mt-2">
+                Para melhorar performance, considere criar uma view otimizada no Supabase 
+                com apenas os campos necessários para a grid.
+              </p>
             </div>
             <button
               onClick={fetchSurveyData}
@@ -356,19 +339,19 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                   <td className="px-4 py-3 text-sm font-mono text-gray-900">
                     {row.id.length > 20 ? `${row.id.substring(0, 20)}...` : row.id}
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.Formulario || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.Projeto || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.Quadra || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.Lote || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.Requerente || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.CPF || '-'}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.Formulario}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Projeto}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Quadra}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Lote}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.Requerente}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{row.CPF}</td>
                   <td className="px-4 py-3">
                     <button
                       title="Gerar PDF deste relatório"
                       className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       onClick={() => {
-                        console.log('📋 Dados sendo enviados para PDF:', row);
-                        onSelect(row);
+                        console.log('📋 ID da vistoria para PDF:', row.id);
+                        onSelect(row.id); // MUDADO: passa apenas o ID
                       }}
                       disabled={loading}
                     >
@@ -461,21 +444,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           </button>
         </div>
       )}
-      
-      {/* Botão para teste de estrutura */}
-      <div className="mt-4 text-center">
-        <button
-          onClick={async () => {
-            console.log('🔍 Testando estrutura da view...');
-            const columns = await discoverViewStructure();
-            console.log('📋 Colunas encontradas:', columns);
-            alert(`Colunas encontradas: ${columns.join(', ')}`);
-          }}
-          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
-        >
-          Testar Estrutura da View
-        </button>
-      </div>
     </div>
   );
 };
