@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Printer } from 'lucide-react';
 import { Button } from '../components/ui/button'; // ajuste conforme seu projeto
 import SurveyAdminGrid from '../components/SurveyAdminGrid';
-import ReportPDFModal from '../components/ReportPDFModal';
 
 interface SurveyAdmin {
   id: string;
@@ -71,23 +70,9 @@ const ReportConfig: React.FC = () => {
             </Button>
           </div>
           
-          {/* Grid de Pesquisa */}
-          <SurveyAdminGrid
-            onSelect={handleSelectSurvey}
-            printedIds={printedIds}
-          />
         </div>
       )}
       
-      {/* Modal do PDF */}
-      {selectedSurvey && (
-        <ReportPDFModal
-          surveyData={selectedSurvey}
-          isOpen={isPdfModalOpen}
-          onClose={handleClosePdfModal}
-          onMarkPrinted={handleMarkPrinted}
-        />
-      )}
     </div>
   );
 };
