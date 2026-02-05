@@ -1,6 +1,6 @@
 // components/ReportPDFModal.tsx - MODAL PARA GERAR PDF
 import React, { useState, useEffect } from 'react';
-import { X, Download, Printer, FileText } from 'lucide-react'; // ADICIONEI FileText AQUI
+import { X, Download, Printer, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -15,14 +15,14 @@ interface SurveyAdmin {
 }
 
 interface ReportPDFModalProps {
-  surveyData: SurveyAdmin;
+  surveyId: string; // Mudei de surveyData para surveyId
   isOpen: boolean;
   onClose: () => void;
   onMarkPrinted: (id: string) => void;
 }
 
 const ReportPDFModal: React.FC<ReportPDFModalProps> = ({ 
-  surveyData, 
+  surveyId, 
   isOpen, 
   onClose, 
   onMarkPrinted 
@@ -30,9 +30,52 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [pdfGenerated, setPdfGenerated] = useState(false);
+  const [surveyData, setSurveyData] = useState<SurveyAdmin | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Função para buscar os dados completos do registro
+  const fetchSurveyData = async (id: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Aqui você precisa implementar a busca dos dados completos
+      // Exemplo com fetch para sua API:
+      const response = await fetch(`/api/surveys/${id}`);
+      
+      if (!response.ok) {
+        throw new Error('Erro ao buscar dados do registro');
+      }
+      
+      const data = await response.json();
+      setSurveyData(data);
+      
+      // Se os dados vierem de outro lugar, ajuste aqui:
+      // setSurveyData({
+      //   id: data.id,
+      //   formulario: data.form_number,
+      //   projeto: data.project_name,
+      //   quadra: data.block,
+      //   lote: data.lot,
+      //   requerente: data.applicant,
+      //   cpf: data.cpf
+      // });
+      
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
+      setError('Não foi possível carregar os dados do registro');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const generatePDF = async () => {
-    if (!surveyData) return;
+    if (!surveyData) {
+      setError('Dados do registro não disponíveis');
+      return;
+    }
     
     setLoading(true);
     try {
@@ -63,12 +106,12 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       
       const dados = [
         `ID do Registro: ${surveyData.id}`,
-        `Número do Formulário: ${surveyData.formulario}`,
-        `Projeto REURB: ${surveyData.projeto}`,
-        `Quadra: ${surveyData.quadra}`,
-        `Lote: ${surveyData.lote}`,
-        `Requerente: ${surveyData.requerente}`,
-        `CPF: ${surveyData.cpf}`
+        `Número do Formulário: ${surveyData.formulario || 'N/A'}`,
+        `Projeto REURB: ${surveyData.projeto || 'N/A'}`,
+        `Quadra: ${surveyData.quadra || 'N/A'}`,
+        `Lote: ${surveyData.lote || 'N/A'}`,
+        `Requerente: ${surveyData.requerente || 'N/A'}`,
+        `CPF: ${surveyData.cpf || 'N/A'}`
       ];
       
       dados.forEach(item => {
@@ -126,6 +169,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
       
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
+      setError('Erro ao gerar o PDF');
     } finally {
       setLoading(false);
     }
@@ -136,7 +180,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
     
     const link = document.createElement('a');
     link.href = pdfUrl;
-    link.download = `RELATORIO_${surveyData.formulario}_${surveyData.cpf}.pdf`;
+    link.download = `RELATORIO_${surveyData?.formulario || surveyId}_${surveyData?.cpf || ''}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -155,8 +199,15 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
   };
 
   useEffect(() => {
-    if (isOpen && surveyData && !pdfGenerated) {
-      generatePDF();
+    if (isOpen && surveyId) {
+      // Buscar dados sempre que o modal abrir com um novo ID
+      if (!surveyData || surveyData.id !== surveyId) {
+        fetchSurveyData(surveyId).then(data => {
+          if (data && !pdfGenerated) {
+            generatePDF();
+          }
+        });
+      }
     }
     
     // Limpar URL ao fechar
@@ -165,7 +216,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
         URL.revokeObjectURL(pdfUrl);
       }
     };
-  }, [isOpen, surveyData]);
+  }, [isOpen, surveyId]);
 
   if (!isOpen) return null;
 
@@ -181,7 +232,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
                 Relatório de Vistoria
               </h2>
               <p className="text-sm text-gray-600">
-                Formulário: {surveyData.formulario}
+                Registro ID: {surveyId}
               </p>
             </div>
           </div>
@@ -196,10 +247,24 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
         
         {/* Conteúdo */}
         <div className="flex-1 p-6 overflow-auto">
-          {loading ? (
+          {error ? (
+            <div className="text-center py-12">
+              <div className="bg-red-50 text-red-700 p-4 rounded-lg mb-4">
+                <p className="font-medium">Erro: {error}</p>
+              </div>
+              <button
+                onClick={() => fetchSurveyData(surveyId)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center h-64">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-              <p className="text-gray-600">Gerando PDF...</p>
+              <p className="text-gray-600">
+                {surveyData ? 'Gerando PDF...' : 'Carregando dados...'}
+              </p>
             </div>
           ) : pdfUrl ? (
             <div className="space-y-4">
@@ -220,7 +285,7 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
                 </button>
                 <div className="ml-auto text-sm text-gray-500 flex items-center">
                   <span className="bg-gray-100 px-3 py-1 rounded">
-                    ID: {surveyData.id}
+                    ID: {surveyId}
                   </span>
                 </div>
               </div>
@@ -235,12 +300,12 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-gray-600">Erro ao gerar o PDF.</p>
+              <p className="text-gray-600">Pronto para gerar o PDF</p>
               <button
                 onClick={generatePDF}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                Tentar novamente
+                Gerar PDF
               </button>
             </div>
           )}
@@ -249,20 +314,24 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
         {/* Rodapé */}
         <div className="p-4 border-t bg-gray-50">
           <div className="text-sm text-gray-600">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="font-medium">Requerente:</span> {surveyData.requerente}
+            {surveyData ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="font-medium">Requerente:</span> {surveyData.requerente || 'N/A'}
+                </div>
+                <div>
+                  <span className="font-medium">CPF:</span> {surveyData.cpf || 'N/A'}
+                </div>
+                <div>
+                  <span className="font-medium">Quadra/Lote:</span> {surveyData.quadra || 'N/A'} / {surveyData.lote || 'N/A'}
+                </div>
+                <div>
+                  <span className="font-medium">Projeto:</span> {surveyData.projeto || 'N/A'}
+                </div>
               </div>
-              <div>
-                <span className="font-medium">CPF:</span> {surveyData.cpf}
-              </div>
-              <div>
-                <span className="font-medium">Quadra/Lote:</span> {surveyData.quadra} / {surveyData.lote}
-              </div>
-              <div>
-                <span className="font-medium">Projeto:</span> {surveyData.projeto}
-              </div>
-            </div>
+            ) : (
+              <p>Carregando informações do registro...</p>
+            )}
           </div>
         </div>
       </div>
