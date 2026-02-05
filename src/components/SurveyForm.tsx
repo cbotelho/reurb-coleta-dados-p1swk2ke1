@@ -30,6 +30,16 @@ interface SurveyFormProps {
 }
 
 export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
+  // Validação defensiva para propertyId
+  if (!propertyId || typeof propertyId !== 'string' || propertyId.trim() === '') {
+    return (
+      <div className="p-8 text-center text-red-700 bg-red-50 border border-red-200 rounded-lg">
+        <h2 className="text-xl font-bold mb-2">Erro crítico: ID do imóvel não informado</h2>
+        <p>Não foi possível carregar o formulário de vistoria porque o <b>ID do imóvel (property_id)</b> está ausente ou inválido.<br />
+        Volte e selecione um lote válido antes de iniciar uma nova vistoria.</p>
+      </div>
+    );
+  }
   const [generatingIA, setGeneratingIA] = useState(false)
   const { toast } = useToast()
   const { isOnline, refreshStats } = useSync()
