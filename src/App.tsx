@@ -33,6 +33,42 @@ import React from 'react'
 import ReportPDFGenerator from './components/ReportPDFGenerator';
 import { StatusConexao } from './components/StatusConexao'
 
+// Em algum componente ou em App.tsx, adicione:
+import { useEffect } from 'react';
+import { supabase } from '@/lib/supabase/client'; // CORRIGIDO!
+
+function TestViewComponent() {
+  useEffect(() => {
+    const testView = async () => {
+      try {
+        console.log('🔍 Testando view vw_reurb_surveys_admin...');
+        
+        const { data, error } = await supabase
+          .from('vw_reurb_surveys_admin')
+          .select('*')
+          .limit(5);
+        
+        if (error) {
+          console.error('❌ Erro na view:', error);
+        } else {
+          console.log('✅ View funcionando! Registros:', data?.length || 0);
+          if (data && data.length > 0) {
+            console.log('📋 Primeiro registro:', data[0]);
+            console.log('📊 Colunas disponíveis:', Object.keys(data[0]));
+          }
+        }
+      } catch (err) {
+        console.error('💥 Erro inesperado:', err);
+      }
+    };
+    
+    testView();
+  }, []);
+  
+  return null;
+}
+
+// Use no App.tsx
 
 const LoadingSpinner = () => (
   <div className="h-screen flex items-center justify-center bg-slate-50">
