@@ -417,10 +417,11 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
         }
       })
 
-      // Remover campos que pertencem ao Lote, não à Vistoria
-      delete surveyPayload.address
-      delete surveyPayload.latitude
-      delete surveyPayload.longitude
+
+      // Remover campos que pertencem ao Lote, não à Vistoria (reforçado)
+      if ('address' in surveyPayload) delete surveyPayload.address;
+      if ('latitude' in surveyPayload) delete surveyPayload.latitude;
+      if ('longitude' in surveyPayload) delete surveyPayload.longitude;
 
       // 1. SALVAMENTO LOCAL IMEDIATO (Prioridade Máxima)
       // db.saveSurvey salva no LocalStorage (síncrono/rápido)
