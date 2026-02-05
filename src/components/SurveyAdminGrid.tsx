@@ -301,26 +301,66 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         pdf.text('__________________________', margin, y + 10);
       }
       
+     // ============ ASSINATURAS ============
+      // Título das assinaturas
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('ASSINATURAS', pageWidth / 2, y, { align: 'center' });
+      y += 10;
+
+      // Linha divisória
+      pdf.line(margin, y, pageWidth - margin, y);
+      y += 15;
+
+      // Container para assinaturas lado a lado
+      const signatureY = y;
+      const signatureWidth = 70; // Mais estreito
+      const signatureHeight = 20; // Mais baixo
+
+      // Assinatura do Vistoriador (esquerda)
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Vistoriador:', margin, signatureY);
+
+      if (record.assinatura_vistoriador && record.assinatura_vistoriador.trim() !== '') {
+        try {
+          const imgData = record.assinatura_vistoriador.includes(',') 
+            ? record.assinatura_vistoriador.split(',')[1] 
+            : record.assinatura_vistoriador;
+          // Tamanho compacto: 70x20
+          pdf.addImage(imgData, 'PNG', margin, signatureY + 5, signatureWidth, signatureHeight);
+        } catch (err) {
+          pdf.setFont('helvetica', 'normal');
+          pdf.text('(assinatura digital)', margin, signatureY + 10);
+        }
+      } else {
+        pdf.setFont('helvetica', 'normal');
+        // Linha para assinatura manual (menor)
+        pdf.line(margin, signatureY + 12, margin + 70, signatureY + 12);
+      }
+
       // Assinatura do Requerente (direita)
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Requerente:', pageWidth - margin - 80, y);
-      
+      pdf.text('Requerente:', pageWidth - margin - signatureWidth, signatureY);
+
       if (record.assinatura_requerente && record.assinatura_requerente.trim() !== '') {
         try {
           const imgData = record.assinatura_requerente.includes(',') 
             ? record.assinatura_requerente.split(',')[1] 
             : record.assinatura_requerente;
-          pdf.addImage(imgData, 'PNG', pageWidth - margin - 80, y + 5, 80, 30);
+          // Tamanho compacto: 70x20
+          pdf.addImage(imgData, 'PNG', pageWidth - margin - signatureWidth, signatureY + 5, signatureWidth, signatureHeight);
         } catch (err) {
           pdf.setFont('helvetica', 'normal');
-          pdf.text('(assinatura digital)', pageWidth - margin - 80, y + 10);
+          pdf.text('(assinatura digital)', pageWidth - margin - signatureWidth, signatureY + 10);
         }
       } else {
         pdf.setFont('helvetica', 'normal');
-        pdf.text('__________________________', pageWidth - margin - 80, y + 10);
+        // Linha para assinatura manual (menor)
+        pdf.line(pageWidth - margin - signatureWidth, signatureY + 12, pageWidth - margin, signatureY + 12);
       }
-      
-      y += 50;
+
+      y = signatureY + signatureHeight + 25;
       
       // ============ RODAPÉ ============
       pdf.setFontSize(8);
