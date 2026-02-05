@@ -65,7 +65,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       }
       
       // Selecionando APENAS as colunas solicitadas
-      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,Formulario,Projeto,Quadra,Lote,Requerente,CPF`;
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,formulario,projeto,quadra,lote,requerente,cpf`;
       
       // Ordenar por ID decrescente (mais recentes primeiro)
       url += '&order=id.desc';
