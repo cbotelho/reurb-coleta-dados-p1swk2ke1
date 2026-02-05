@@ -1,4 +1,4 @@
-// components/SurveyAdminGrid.tsx - VERSÃO COMPLETA E FUNCIONAL
+// components/SurveyAdminGrid.tsx - VERSÃO FINAL COM ASSINATURAS
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Printer, FileText, X, Download, AlertCircle, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -17,6 +17,18 @@ const ReportPDFModal: React.FC<{
   const hasProcessedRef = useRef<string>('');
 
   console.log('📄 Modal PDF, ID:', surveyId, 'Aberto:', isOpen);
+
+  // Função para converter base64 em dados da imagem
+  const getImageDataFromBase64 = (base64String: string) => {
+    if (!base64String) return null;
+    
+    // Remove prefixo se existir
+    const base64Data = base64String.includes(',') 
+      ? base64String.split(',')[1] 
+      : base64String;
+    
+    return base64Data;
+  };
 
   // Efeito para buscar dados COMPLETOS e gerar PDF
   useEffect(() => {
@@ -42,7 +54,7 @@ const ReportPDFModal: React.FC<{
           throw new Error("Configurações do Supabase não encontradas.");
         }
 
-        // CONSULTA COMPLETA
+        // CONSULTA COMPLETA incluindo assinaturas
         const fields = [
           'id', 'projeto', 'quadra', 'lote', 'formulario', 'requerente', 'cpf',
           'rg', 'estado_civil', 'profissao', 'renda_familiar', 'nis', 'endereco',
@@ -79,11 +91,17 @@ const ReportPDFModal: React.FC<{
         }
         
         const record = data[0];
+        console.log('📄 Registro com assinaturas:', {
+          id: record.id,
+          temAssinaturaVistoriador: !!record.assinatura_vistoriador,
+          temAssinaturaRequerente: !!record.assinatura_requerente
+        });
 
         // Gerar PDF
         const pdf = new jsPDF();
         let y = 20;
         
+        // Título
         pdf.setFontSize(16);
         pdf.text('RELATÓRIO DE VISTORIA REURB', 105, y, { align: 'center' });
         y += 15;
@@ -108,7 +126,7 @@ const ReportPDFModal: React.FC<{
           y += 8;
         };
 
-        // Dados
+        // Dados principais
         addRow('Projeto:', record.projeto, 'Formulário:', record.formulario);
         addRow('Quadra:', record.quadra, 'Lote:', record.lote);
         addRow('Requerente:', record.requerente, 'CPF:', record.cpf);
@@ -133,6 +151,7 @@ const ReportPDFModal: React.FC<{
         addRow('Cômodos:', record.comodos, 'Água:', record.agua);
         addRow('Energia:', record.energia, 'Esgoto:', record.esgoto);
         
+        // Análise técnica
         if (record.analise_ia) {
           y += 10;
           pdf.setFont('helvetica', 'bold');
@@ -141,12 +160,57 @@ const ReportPDFModal: React.FC<{
           pdf.setFont('helvetica', 'normal');
           const lines = pdf.splitTextToSize(record.analise_ia, 170);
           pdf.text(lines, 20, y);
+          y += (lines.length * 5);
+        }
+
+        // ASSINATURAS
+        y += 10;
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Assinaturas:', 20, y);
+        y += 8;
+        
+        // Assinatura do Vistoriador
+        if (record.assinatura_vistoriador) {
+          try {
+            const imgData = getImageDataFromBase64(record.assinatura_vistoriador);
+            if (imgData) {
+              pdf.text('Vistoriador:', 20, y);
+              pdf.addImage(imgData, 'PNG', 50, y - 5, 40, 20);
+              y += 25;
+            }
+          } catch (err) {
+            console.warn('❌ Erro ao processar assinatura do vistoriador:', err);
+            pdf.text('Vistoriador: Assinatura não disponível', 20, y);
+            y += 8;
+          }
+        } else {
+          pdf.text('Vistoriador: Não assinado', 20, y);
+          y += 8;
+        }
+        
+        // Assinatura do Requerente
+        if (record.assinatura_requerente) {
+          try {
+            const imgData = getImageDataFromBase64(record.assinatura_requerente);
+            if (imgData) {
+              pdf.text('Requerente:', 20, y);
+              pdf.addImage(imgData, 'PNG', 50, y - 5, 40, 20);
+              y += 25;
+            }
+          } catch (err) {
+            console.warn('❌ Erro ao processar assinatura do requerente:', err);
+            pdf.text('Requerente: Assinatura não disponível', 20, y);
+            y += 8;
+          }
+        } else {
+          pdf.text('Requerente: Não assinado', 20, y);
+          y += 8;
         }
 
         const blob = pdf.output('blob');
         const urlObj = URL.createObjectURL(blob);
         
-        console.log('✅ PDF gerado!');
+        console.log('✅ PDF gerado com assinaturas!');
         setPdfUrl(urlObj);
         
       } catch (err: any) {
@@ -165,6 +229,7 @@ const ReportPDFModal: React.FC<{
     };
   }, [isOpen, surveyId]);
 
+  // Não renderiza se não está aberto
   if (!isOpen) return null;
 
   return (
@@ -174,7 +239,7 @@ const ReportPDFModal: React.FC<{
           <div className="flex items-center gap-3">
             <FileText className="w-6 h-6 text-blue-600" />
             <div>
-              <h2 className="text-xl font-bold">Relatório de Vistoria</h2>
+              <h2 className="text-xl font-bold">Relatório de Vistoria REURB</h2>
               <p className="text-sm text-gray-500">ID: {surveyId?.substring(0, 8)}...</p>
             </div>
           </div>
@@ -187,7 +252,8 @@ const ReportPDFModal: React.FC<{
           {loading ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
-              <p>Gerando PDF com dados completos...</p>
+              <p className="text-gray-700">Gerando PDF com dados completos...</p>
+              <p className="text-sm text-gray-500 mt-2">Incluindo assinaturas</p>
             </div>
           ) : error ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
@@ -210,7 +276,7 @@ const ReportPDFModal: React.FC<{
                   onClick={() => {
                     const a = document.createElement('a');
                     a.href = pdfUrl;
-                    a.download = `Relatorio_${surveyId}.pdf`;
+                    a.download = `Relatorio_REURB_${surveyId}.pdf`;
                     a.click();
                   }}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700"
@@ -228,12 +294,12 @@ const ReportPDFModal: React.FC<{
                 ref={iframeRef}
                 src={pdfUrl}
                 className="flex-1 w-full border-0"
-                title={`Relatório - ${surveyId}`}
+                title={`Relatório REURB - ${surveyId}`}
               />
             </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
-              <p>Preparando...</p>
+              <p>Preparando visualização...</p>
             </div>
           )}
         </div>
@@ -242,7 +308,7 @@ const ReportPDFModal: React.FC<{
   );
 };
 
-// ==================== COMPONENTE GRID ====================
+// ==================== COMPONENTE GRID (SIMPLIFICADO) ====================
 interface SurveyAdmin {
   id: string;
   Formulario: string;
@@ -276,8 +342,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  
-  console.log('📊 Grid iniciada');
 
   const handlePrintClick = (surveyId: string) => {
     console.log('🖨️ Abrindo modal para:', surveyId);
@@ -286,26 +350,12 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     setModalOpen(true);
   };
 
-  const getHeaders = () => {
-    if (!SUPABASE_KEY) return {};
-    return {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-    };
-  };
-
-  // CONSULTA LEVE - APENAS PARA GRID
   const fetchSurveyData = async () => {
     setLoading(true);
     setError('');
     
     try {
-      console.log('🔄 Buscando dados LEVES para grid...');
-      
-      if (!SUPABASE_KEY) {
-        throw new Error('Chave do Supabase não configurada.');
-      }
+      if (!SUPABASE_KEY) throw new Error('Chave do Supabase não configurada.');
       
       let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
       const params = new URLSearchParams();
@@ -315,20 +365,18 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       url = `${url}?${params.toString()}`;
       
-      console.log('🌐 Consulta LEVE:', url);
-      
       const response = await fetch(url, {
         method: 'GET',
-        headers: getHeaders(),
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+        },
       });
       
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Erro ${response.status}`);
       
       const result = await response.json();
-      console.log(`✅ ${result.length} registros carregados`);
-      
       const formattedData = result.map((item: any) => ({
         id: String(item.id || ''),
         Formulario: item.formulario || '-',
@@ -342,7 +390,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       setData(formattedData);
       
     } catch (err: any) {
-      console.error('💥 Erro:', err);
       setError(err.message || 'Erro ao carregar dados');
     } finally {
       setLoading(false);
@@ -353,7 +400,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     fetchSurveyData();
   }, [projectId]);
 
-  // Filtro
   const filtered = data.filter(row => {
     if (!search.trim()) return true;
     const searchTerm = search.toLowerCase().trim();
@@ -367,7 +413,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     return fields.some(field => field.toLowerCase().includes(searchTerm));
   });
 
-  // Paginação
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
@@ -389,7 +434,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           </h2>
           <div className="text-sm text-gray-600">
             {loading ? 'Carregando...' : `${filtered.length} registro(s)`}
-            {projectId && ` para o projeto ${projectId}`}
           </div>
         </div>
         
@@ -412,12 +456,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-600">{error}</p>
-            <button
-              onClick={fetchSurveyData}
-              className="mt-2 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
-            >
-              Tentar novamente
-            </button>
           </div>
         )}
         
@@ -432,7 +470,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lote</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Requerente</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">CPF</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ação</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">PDF</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -507,6 +545,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         )}
       </div>
 
+      {/* APENAS UM MODAL - o correto */}
       <ReportPDFModal
         surveyId={selectedId}
         isOpen={modalOpen}
