@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Printer } from 'lucide-react';
-import { Button } from '../components/ui/button'; // ajuste conforme seu projeto
+import { Button } from '../components/ui/button';
 import SurveyAdminGrid from '../components/SurveyAdminGrid';
 
 interface SurveyAdmin {
@@ -23,9 +23,10 @@ const ReportConfig: React.FC = () => {
     setShowGrid(true);
   };
 
-  const handleSelectSurvey = (surveyData: SurveyAdmin) => {
-    setSelectedSurvey(surveyData);
-    setIsPdfModalOpen(true);
+  const handleSelectSurvey = (surveyId: string) => {
+    // Aqui você pode buscar os dados completos se necessário
+    // Por enquanto, apenas marcamos como selecionado
+    console.log('Survey selecionado:', surveyId);
   };
 
   const handleMarkPrinted = (id: string) => {
@@ -70,6 +71,11 @@ const ReportConfig: React.FC = () => {
             </Button>
           </div>
           
+          {/* COMPONENTE GRID AQUI! */}
+          <SurveyAdminGrid 
+            onSelect={handleSelectSurvey}
+            printedIds={printedIds}
+          />
         </div>
       )}
       
