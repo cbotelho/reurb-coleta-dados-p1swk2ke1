@@ -1,6 +1,6 @@
-// components/ReportPDFModal.tsx - VERSÃO CORRIGIDA E OTIMIZADA
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Download, Printer, FileText, AlertCircle, Loader2 } from 'lucide-react';
+// components/ReportPDFModal.tsx - VERSÃO ULTRA-RESILIENTE (CORREÇÃO DE TRAVAMENTO)
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Download, Printer, FileText, AlertCircle, Loader2, RefreshCcw } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 interface ReportPDFModalProps {
@@ -26,9 +26,9 @@ interface SurveyData {
   endereco: string;
   conjuge: string;
   cpf_conjuge: string;
-  num_moradores: number;
-  num_filhos: number;
-  filhos_menores: number;
+  num_moradores: any;
+  num_filhos: any;
+  filhos_menores: any;
   tempo_moradia: string;
   tipo_aquisicao: string;
   uso_imovel: string;
@@ -36,7 +36,7 @@ interface SurveyData {
   telhado: string;
   piso: string;
   divisa: string;
-  comodos: number;
+  comodos: any;
   agua: string;
   energia: string;
   esgoto: string;
@@ -60,354 +60,273 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
   const [pdfReady, setPdfReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // FUNÇÃO PARA BUSCAR DADOS DA VIEW vw_reurb_surveys_admin
-  const fetchSurveyData = async (id: string): Promise<SurveyData | null> => {
-    if (!id) {
-      setError('ID do registro não fornecido');
-      return null;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Configurações do banco de dados não encontradas.');
-      }
-      
-      // Consulta conforme especificado: select ... from vw_reurb_surveys_admin where id = '...'
-      const response = await fetch(
-        `${supabaseUrl}/rest/v1/vw_reurb_surveys_admin?id=eq.${id}&select=projeto,quadra,lote,formulario,requerente,cpf,rg,estado_civil,profissao,renda_familiar,nis,endereco,conjuge,cpf_conjuge,num_moradores,num_filhos,filhos_menores,tempo_moradia,tipo_aquisicao,uso_imovel,construcao,telhado,piso,divisa,comodos,agua,energia,esgoto,pavimentacao,analise_ia,assinatura_vistoriador,assinatura_requerente`,
-        {
-          method: 'GET',
-          headers: {
-            'apikey': supabaseKey,
-            'Authorization': `Bearer ${supabaseKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      if (!response.ok) {
-        throw new Error(`Erro na consulta: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data || data.length === 0) {
-        throw new Error('Registro não encontrado na base de dados.');
-      }
-      
-      const record = { ...data[0], id }; // Garantindo que o ID esteja no objeto
-      setSurveyData(record);
-      return record;
-      
-    } catch (err: any) {
-      console.error('Erro fetch:', err);
-      setError(err.message || 'Falha ao carregar dados do servidor');
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Formatação segura de valores
   const formatValue = (value: any): string => {
     if (value === null || value === undefined || value === '') return 'Não informado';
     if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
     return String(value);
   };
 
-  // GERAÇÃO DO DOCUMENTO PDF
-  const generatePDF = async (data: SurveyData) => {
+  // GERAÇÃO DO PDF (Separada para ser chamada após o fetch)
+  const generatePDF = useCallback(async (data: SurveyData) => {
+    console.log("Iniciando geração do PDF para:", data.id);
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+        putOnlyUsedFonts: true
+      });
+
       const margin = 20;
       const pageWidth = 210;
       const pageHeight = 297;
       let y = 20;
       
-      // Título e Cabeçalho
+      // Título
       pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(44, 62, 80);
       pdf.text('RELATÓRIO DE VISTORIA REURB', pageWidth / 2, y, { align: 'center' });
       
       y += 10;
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`ID do Registro: ${data.id}`, pageWidth / 2, y, { align: 'center' });
-      
-      y += 15;
-      pdf.setDrawColor(200, 200, 200);
-      pdf.line(margin, y, pageWidth - margin, y);
-      
-      // Seção 1: Identificação
-      y += 15;
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(44, 62, 80);
-      pdf.text('1. IDENTIFICAÇÃO DO PROJETO E REQUERENTE', margin, y);
+      pdf.text(`ID: ${data.id || 'N/A'}`, pageWidth / 2, y, { align: 'center' });
       
       y += 10;
+      pdf.setDrawColor(200);
+      pdf.line(margin, y, pageWidth - margin, y);
+      
+      // Dados principais
+      y += 15;
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('1. DADOS DO REGISTRO', margin, y);
+      
+      y += 8;
       pdf.setFontSize(10);
-      pdf.setTextColor(0, 0, 0);
-      
-      const col1 = margin;
-      const col2 = margin + 90;
-      
-      const rowHeight = 7;
-      
-      // Grid de dados 1
-      const basicInfo = [
+      const rows = [
         ['Projeto:', data.projeto, 'Formulário:', data.formulario],
         ['Quadra:', data.quadra, 'Lote:', data.lote],
         ['Requerente:', data.requerente, 'CPF:', data.cpf],
-        ['RG:', data.rg, 'Estado Civil:', data.estado_civil],
-        ['Profissão:', data.profissao, 'Renda Familiar:', data.renda_familiar],
-        ['NIS:', data.nis, 'Endereço:', data.endereco]
+        ['RG:', data.rg, 'Est. Civil:', data.estado_civil],
+        ['Endereço:', data.endereco, 'Renda:', data.renda_familiar]
       ];
 
-      basicInfo.forEach(row => {
+      rows.forEach(row => {
         pdf.setFont('helvetica', 'bold');
-        pdf.text(row[0], col1, y);
+        pdf.text(String(row[0]), margin, y);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(formatValue(row[1]), col1 + 25, y);
+        pdf.text(formatValue(row[1]), margin + 25, y);
         
         pdf.setFont('helvetica', 'bold');
-        pdf.text(row[2], col2, y);
+        pdf.text(String(row[2]), margin + 100, y);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(formatValue(row[3]), col2 + 25, y);
-        y += rowHeight;
+        pdf.text(formatValue(row[3]), margin + 125, y);
+        y += 7;
       });
 
-      // Cônjuge
-      y += 3;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Cônjuge:', col1, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(formatValue(data.conjuge), col1 + 25, y);
-      
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('CPF Cônjuge:', col2, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(formatValue(data.cpf_conjuge), col2 + 25, y);
-      
-      // Composição Familiar
-      y += 15;
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('2. COMPOSIÇÃO FAMILIAR E MORADIA', margin, y);
-      
+      // Características
       y += 10;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.text('2. CARACTERÍSTICAS DO IMÓVEL', margin, y);
+      y += 8;
       pdf.setFontSize(10);
-      const familyInfo = [
-        ['Nº Moradores:', data.num_moradores, 'Nº Filhos:', data.num_filhos],
-        ['Filhos Menores:', data.filhos_menores, 'Tempo Moradia:', data.tempo_moradia],
-        ['Tipo Aquisição:', data.tipo_aquisicao, 'Uso do Imóvel:', data.uso_imovel]
-      ];
 
-      familyInfo.forEach(row => {
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(row[0], col1, y);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(formatValue(row[1]), col1 + 35, y);
-        
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(row[2], col2, y);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(formatValue(row[3]), col2 + 35, y);
-        y += rowHeight;
-      });
-
-      // Características Físicas
-      y += 10;
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('3. CARACTERÍSTICAS FÍSICAS DO IMÓVEL', margin, y);
-      
-      y += 10;
-      pdf.setFontSize(10);
-      const physicalInfo = [
+      const caracteristicas = [
         ['Construção:', data.construcao, 'Telhado:', data.telhado],
         ['Piso:', data.piso, 'Divisa:', data.divisa],
-        ['Cômodos:', data.comodos, 'Pavimentação:', data.pavimentacao]
+        ['Cômodos:', data.comodos, 'Uso:', data.uso_imovel],
+        ['Água:', data.agua, 'Energia:', data.energia],
+        ['Esgoto:', data.esgoto, 'Pavimento:', data.pavimentacao]
       ];
 
-      physicalInfo.forEach(row => {
+      caracteristicas.forEach(row => {
         pdf.setFont('helvetica', 'bold');
-        pdf.text(row[0], col1, y);
+        pdf.text(String(row[0]), margin, y);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(formatValue(row[1]), col1 + 25, y);
+        pdf.text(formatValue(row[1]), margin + 25, y);
         
         pdf.setFont('helvetica', 'bold');
-        pdf.text(row[2], col2, y);
+        pdf.text(String(row[2]), margin + 100, y);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(formatValue(row[3]), col2 + 25, y);
-        y += rowHeight;
+        pdf.text(formatValue(row[3]), margin + 125, y);
+        y += 7;
       });
-
-      // Infraestrutura
-      y += 3;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Água:', col1, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(formatValue(data.agua), col1 + 25, y);
-      
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Energia:', col2, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(formatValue(data.energia), col2 + 25, y);
-      
-      y += rowHeight;
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Esgoto:', col1, y);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(formatValue(data.esgoto), col1 + 25, y);
 
       // Análise IA
       if (data.analise_ia) {
-        y += 15;
-        if (y > pageHeight - 60) { pdf.addPage(); y = 20; }
-        
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text('4. ANÁLISE TÉCNICA (IA)', margin, y);
-        
         y += 10;
-        pdf.setFontSize(10);
+        if (y > 240) { pdf.addPage(); y = 20; }
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('3. ANÁLISE TÉCNICA', margin, y);
+        y += 7;
         pdf.setFont('helvetica', 'normal');
-        const splitText = pdf.splitTextToSize(data.analise_ia, pageWidth - (margin * 2));
-        pdf.text(splitText, margin, y);
-        y += (splitText.length * 5) + 10;
+        const lines = pdf.splitTextToSize(data.analise_ia, pageWidth - (margin * 2));
+        pdf.text(lines, margin, y);
+        y += (lines.length * 5) + 10;
       }
 
       // Assinaturas
-      if (y > pageHeight - 60) { pdf.addPage(); y = 30; } else { y += 20; }
-      
-      pdf.setDrawColor(0);
-      pdf.line(margin, y, margin + 70, y);
-      pdf.line(pageWidth - margin - 70, y, pageWidth - margin, y);
-      
+      if (y > 250) { pdf.addPage(); y = 40; } else { y = 260; }
+      pdf.line(margin, y, margin + 60, y);
+      pdf.line(pageWidth - margin - 60, y, pageWidth - margin, y);
       y += 5;
-      pdf.setFontSize(9);
-      pdf.text('ASSINATURA DO REQUERENTE', margin + 35, y, { align: 'center' });
-      pdf.text('ASSINATURA DO VISTORIADOR', pageWidth - margin - 35, y, { align: 'center' });
-      
-      y += 5;
-      pdf.setFont('helvetica', 'italic');
-      pdf.text(formatValue(data.requerente), margin + 35, y, { align: 'center' });
-      
-      // Rodapé com data
-      const now = new Date().toLocaleString('pt-BR');
       pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(150, 150, 150);
-      pdf.text(`Documento gerado em ${now} • Sistema REURB Admin`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      pdf.text('REQUERENTE', margin + 30, y, { align: 'center' });
+      pdf.text('VISTORIADOR', pageWidth - margin - 30, y, { align: 'center' });
 
+      // Finalização
       const pdfBlob = pdf.output('blob');
       const url = URL.createObjectURL(pdfBlob);
+      
       setPdfUrl(url);
       setPdfReady(true);
+      console.log("PDF gerado com sucesso e URL criada.");
       
       if (onMarkPrinted) onMarkPrinted(data.id);
-      
     } catch (err) {
-      console.error('Erro PDF:', err);
-      setError('Erro ao gerar o arquivo PDF.');
+      console.error("Erro crítico na geração do PDF:", err);
+      setError("Falha ao processar o documento PDF.");
     }
-  };
+  }, [onMarkPrinted]);
 
+  // BUSCA DE DADOS
+  const fetchData = useCallback(async () => {
+    if (!surveyId) return;
+    
+    setLoading(true);
+    setError(null);
+    setPdfReady(false);
+    
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Configurações do banco de dados (Supabase) ausentes.");
+      }
+
+      console.log("Iniciando fetch para ID:", surveyId);
+      
+      // URL de consulta conforme sua regra
+      const queryUrl = `${supabaseUrl}/rest/v1/vw_reurb_surveys_admin?id=eq.${surveyId}&select=projeto,quadra,lote,formulario,requerente,cpf,rg,estado_civil,profissao,renda_familiar,nis,endereco,conjuge,cpf_conjuge,num_moradores,num_filhos,filhos_menores,tempo_moradia,tipo_aquisicao,uso_imovel,construcao,telhado,piso,divisa,comodos,agua,energia,esgoto,pavimentacao,analise_ia,assinatura_vistoriador,assinatura_requerente`;
+
+      const response = await fetch(queryUrl, {
+        method: 'GET',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Dados recebidos:", data);
+
+      if (!data || data.length === 0) {
+        throw new Error("Nenhum registro encontrado para este ID.");
+      }
+
+      const record = { ...data[0], id: surveyId };
+      setSurveyData(record);
+      
+      // Chamar a geração do PDF após um pequeno delay para garantir que o estado do dado foi processado
+      setTimeout(() => generatePDF(record), 100);
+
+    } catch (err: any) {
+      console.error("Erro na busca de dados:", err);
+      setError(err.message || "Ocorreu um erro ao carregar os dados.");
+      setLoading(false);
+    } finally {
+      setLoading(false);
+    }
+  }, [surveyId, generatePDF]);
+
+  // Efeito para abrir o modal
   useEffect(() => {
     if (isOpen && surveyId) {
-      setPdfUrl('');
-      setPdfReady(false);
-      setError(null);
-      
-      const init = async () => {
-        const data = await fetchSurveyData(surveyId);
-        if (data) await generatePDF(data);
-      };
-      
-      init();
+      fetchData();
     }
-  }, [isOpen, surveyId]);
-
-  useEffect(() => {
+    
     return () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+        setPdfUrl('');
+      }
     };
-  }, [pdfUrl]);
+  }, [isOpen, surveyId, fetchData]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300">
+        
         {/* Header */}
-        <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <FileText className="w-5 h-5 text-white" />
+        <div className="px-6 py-4 border-b flex items-center justify-between bg-white">
+          <div className="flex items-center gap-4">
+            <div className="bg-blue-50 p-2.5 rounded-xl">
+              <FileText className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">Visualização do Relatório</h2>
+              <h2 className="text-xl font-bold text-gray-900">Relatório de Vistoria</h2>
               <p className="text-xs text-gray-500 font-mono">ID: {surveyId}</p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
           >
             <X className="w-6 h-6 text-gray-500" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden flex flex-col bg-gray-100">
+        {/* Content Area */}
+        <div className="flex-1 bg-gray-50 overflow-hidden relative">
           {loading ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
-              <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-              <p className="text-gray-600 font-medium">Consultando base de dados...</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10">
+              <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
+              <p className="text-lg font-medium text-gray-700">Buscando dados no servidor...</p>
+              <p className="text-sm text-gray-500">Isso pode levar alguns segundos</p>
             </div>
           ) : error ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-              <div className="bg-red-100 p-4 rounded-full mb-4">
-                <AlertCircle className="w-12 h-12 text-red-600" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+              <div className="bg-red-50 p-6 rounded-full mb-6">
+                <AlertCircle className="w-16 h-16 text-red-500" />
               </div>
-              <h3 className="text-lg font-bold text-gray-800 mb-2">Ops! Algo deu errado</h3>
-              <p className="text-gray-600 max-w-md mb-6">{error}</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">Falha na Carregamento</h3>
+              <p className="text-gray-600 max-w-md mb-8">{error}</p>
               <button 
-                onClick={() => surveyId && fetchSurveyData(surveyId).then(d => d && generatePDF(d))}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={fetchData}
+                className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 font-semibold"
               >
-                Tentar Novamente
+                <RefreshCcw className="w-5 h-5" /> Tentar Novamente
               </button>
             </div>
           ) : pdfReady ? (
-            <div className="flex-1 flex flex-col">
-              <div className="p-3 bg-white border-b flex gap-3 justify-center">
+            <div className="h-full flex flex-col">
+              <div className="p-3 bg-white border-b flex gap-3 justify-center shadow-sm z-20">
                 <button 
                   onClick={() => {
                     const link = document.createElement('a');
                     link.href = pdfUrl;
-                    link.download = `Relatorio_${surveyData?.formulario || 'Vistoria'}.pdf`;
+                    link.download = `Relatorio_${surveyData?.formulario || 'REURB'}.pdf`;
                     link.click();
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-shadow shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all font-medium shadow-sm"
                 >
-                  <Download className="w-4 h-4" /> Baixar PDF
+                  <Download className="w-4 h-4" /> Baixar Relatório
                 </button>
                 <button 
-                  onClick={() => {
-                    if (iframeRef.current?.contentWindow) {
-                      iframeRef.current.contentWindow.print();
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-shadow shadow-sm"
+                  onClick={() => iframeRef.current?.contentWindow?.print()}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-sm"
                 >
                   <Printer className="w-4 h-4" /> Imprimir
                 </button>
@@ -416,13 +335,14 @@ const ReportPDFModal: React.FC<ReportPDFModalProps> = ({
                 ref={iframeRef}
                 src={pdfUrl} 
                 className="flex-1 w-full border-none"
-                title="Relatório PDF"
+                title="Visualização do PDF"
               />
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
-              <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-gray-600">Gerando documento...</p>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+              <p className="text-lg font-medium text-gray-700">Gerando documento...</p>
+              <p className="text-sm text-gray-500">Formatando dados para o PDF</p>
             </div>
           )}
         </div>
