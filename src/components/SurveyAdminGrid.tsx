@@ -1,196 +1,85 @@
-// components/SurveyAdminGrid.tsx - COM MODAL INTEGRADO
+// components/SurveyAdminGrid.tsx - VERSÃO COMPLETA E FUNCIONAL
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Printer, FileText, X, Download, AlertCircle, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 
-interface SurveyAdmin {
-  id: string;
-  Formulario: string;
-  Projeto: string;
-  Quadra: string;
-  Lote: string;
-  Requerente: string;
-  CPF: string;
-}
-
-interface SurveyAdminGridProps {
-  onSelect?: (surveyId: string) => void; // Opcional agora
-  printedIds: string[];
-  projectId?: string;
-}
-
-const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ 
-  onSelect, 
-  printedIds,
-  projectId 
-}) => {
-  // ============ ESTADOS DA GRID ============
-  const [data, setData] = useState<SurveyAdmin[]>([]);
-  const [search, setSearch] = useState('');
-  const [loadingGrid, setLoadingGrid] = useState(false);
-  const [errorGrid, setErrorGrid] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-
-  // ============ ESTADOS DO MODAL ============
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedSurveyId, setSelectedSurveyId] = useState<string>('');
+// ==================== COMPONENTE MODAL DE PDF ====================
+const ReportPDFModal: React.FC<{
+  surveyId: string;
+  isOpen: boolean;
+  onClose: () => void;
+}> = ({ surveyId, isOpen, onClose }) => {
   const [pdfUrl, setPdfUrl] = useState<string>('');
-  const [loadingPdf, setLoadingPdf] = useState(false);
-  const [errorPdf, setErrorPdf] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   
-  // Flag para controlar processamento
-  const processedIdRef = useRef<string>('');
+  const hasProcessedRef = useRef<string>('');
 
-  // Configurações do Supabase
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://mbcstctoikcnicmeyjgh.supabase.co';
-  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  
-  console.log('🔧 SurveyAdminGrid iniciado');
+  console.log('📄 Modal PDF, ID:', surveyId, 'Aberto:', isOpen);
 
-  // ============ FUNÇÕES DA GRID (EXISTENTES) ============
-  
-  const getHeaders = () => {
-    if (!SUPABASE_KEY) {
-      console.error('ERRO: Chave do Supabase não encontrada!');
-      return {};
-    }
-    
-    return {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-    };
-  };
-
-  const fetchSurveyData = async () => {
-    setLoadingGrid(true);
-    setErrorGrid('');
-    
-    try {
-      console.log('🔄 Buscando dados da view vw_reurb_surveys_admin...');
-      
-      if (!SUPABASE_KEY) {
-        throw new Error('Chave do Supabase não configurada. Verifique o arquivo .env');
-      }
-      
-      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
-      
-      const params = new URLSearchParams();
-      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf');
-      params.append('order', 'id.desc');
-      params.append('limit', '200');
-      
-      url = `${url}?${params.toString()}`;
-      
-      console.log('🌐 URL da requisição (resumida):', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: getHeaders(),
-      });
-      
-      console.log('📊 Status da resposta:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      console.log(`✅ ${result.length} registros carregados`);
-      
-      const formattedData = result.map((item: any) => ({
-        id: String(item.id || ''),
-        Formulario: item.formulario ? String(item.formulario) : '-',
-        Projeto: item.projeto ? String(item.projeto) : '-',
-        Quadra: item.quadra ? String(item.quadra) : '-',
-        Lote: item.lote ? String(item.lote) : '-',
-        Requerente: item.requerente ? String(item.requerente) : '-',
-        CPF: item.cpf ? String(item.cpf) : '-'
-      }));
-      
-      setData(formattedData);
-      
-    } catch (err: any) {
-      console.error('💥 Erro ao carregar dados:', err);
-      setErrorGrid(err.message || 'Erro desconhecido ao carregar dados');
-    } finally {
-      setLoadingGrid(false);
-    }
-  };
-
-  // ============ FUNÇÕES DO MODAL ============
-  
-  const handlePrintClick = (surveyId: string) => {
-    console.log('🖨️ Clicou no botão de impressão, ID:', surveyId);
-    
-    // Chama a função onSelect se existir (para compatibilidade)
-    if (onSelect) {
-      onSelect(surveyId);
-    }
-    
-    // Abre o modal
-    setSelectedSurveyId(surveyId);
-    setModalOpen(true);
-    setErrorPdf(null);
-    setPdfUrl('');
-    processedIdRef.current = ''; // Força novo processamento
-  };
-
-  const closeModal = () => {
-    console.log('❌ Fechando modal');
-    setModalOpen(false);
-    
-    // Limpa recursos do PDF
-    if (pdfUrl) {
-      URL.revokeObjectURL(pdfUrl);
-      setPdfUrl('');
-    }
-    
-    setLoadingPdf(false);
-    setErrorPdf(null);
-  };
-
-  // Efeito para gerar PDF quando modal abre
+  // Efeito para buscar dados COMPLETOS e gerar PDF
   useEffect(() => {
-    if (!modalOpen || !selectedSurveyId) return;
+    if (!isOpen || !surveyId) return;
     
-    // Se já processamos este ID, não gera novamente
-    if (processedIdRef.current === selectedSurveyId && pdfUrl) {
-      console.log('⏭️ PDF já gerado para este ID');
+    if (hasProcessedRef.current === surveyId) {
+      console.log('⏭️ Já processamos este ID');
       return;
     }
     
-    console.log('🚀 Iniciando geração de PDF para:', selectedSurveyId);
-    processedIdRef.current = selectedSurveyId;
-    setLoadingPdf(true);
-    setErrorPdf(null);
+    console.log('🚀 Buscando dados COMPLETOS para PDF');
+    hasProcessedRef.current = surveyId;
+    setLoading(true);
+    setError(null);
+    setPdfUrl('');
     
-    const generatePDFAsync = async () => {
+    const generatePDF = async () => {
       try {
-        // Buscar dados COMPLETOS para o PDF
-        const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${selectedSurveyId}`,
-          {
-            method: 'GET',
-            headers: getHeaders(),
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseKey) {
+          throw new Error("Configurações do Supabase não encontradas.");
+        }
+
+        // CONSULTA COMPLETA
+        const fields = [
+          'id', 'projeto', 'quadra', 'lote', 'formulario', 'requerente', 'cpf',
+          'rg', 'estado_civil', 'profissao', 'renda_familiar', 'nis', 'endereco',
+          'conjuge', 'cpf_conjuge', 'num_moradores', 'num_filhos', 'filhos_menores',
+          'tempo_moradia', 'tipo_aquisicao', 'uso_imovel', 'construcao', 'telhado',
+          'piso', 'divisa', 'comodos', 'agua', 'energia', 'esgoto', 'pavimentacao',
+          'analise_ia', 'assinatura_vistoriador', 'assinatura_requerente'
+        ];
+        
+        const query = `id=eq.${surveyId}&select=${fields.join(',')}`;
+        const url = `${supabaseUrl}/rest/v1/vw_reurb_surveys_admin?${query}`;
+        
+        console.log('🌐 Buscando dados COMPLETOS:', url);
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
           }
-        );
+        });
+
+        console.log('📊 Status:', response.status);
         
         if (!response.ok) {
-          throw new Error(`Erro ${response.status} ao buscar dados`);
+          throw new Error(`Erro ${response.status}`);
         }
         
         const data = await response.json();
         
         if (!data || data.length === 0) {
-          throw new Error('Registro não encontrado');
+          throw new Error("Registro não encontrado.");
         }
         
         const record = data[0];
-        
+
         // Gerar PDF
         const pdf = new jsPDF();
         let y = 20;
@@ -218,46 +107,255 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           pdf.text(formatValue(value2), 160, y);
           y += 8;
         };
-        
-        // Dados básicos
+
+        // Dados
         addRow('Projeto:', record.projeto, 'Formulário:', record.formulario);
         addRow('Quadra:', record.quadra, 'Lote:', record.lote);
         addRow('Requerente:', record.requerente, 'CPF:', record.cpf);
+        addRow('RG:', record.rg, 'Estado Civil:', record.estado_civil);
+        addRow('Profissão:', record.profissao, 'Renda:', record.renda_familiar);
+        addRow('Endereço:', record.endereco, 'NIS:', record.nis);
         
-        // Gerar blob
+        y += 5;
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Família:', 20, y);
+        y += 8;
+        addRow('Cônjuge:', record.conjuge, 'CPF Cônjuge:', record.cpf_conjuge);
+        addRow('Moradores:', record.num_moradores, 'Filhos:', record.num_filhos);
+        addRow('Filhos Menores:', record.filhos_menores, 'Tempo Moradia:', record.tempo_moradia);
+        
+        y += 5;
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Características do Imóvel:', 20, y);
+        y += 8;
+        addRow('Construção:', record.construcao, 'Telhado:', record.telhado);
+        addRow('Piso:', record.piso, 'Divisa:', record.divisa);
+        addRow('Cômodos:', record.comodos, 'Água:', record.agua);
+        addRow('Energia:', record.energia, 'Esgoto:', record.esgoto);
+        
+        if (record.analise_ia) {
+          y += 10;
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Análise Técnica:', 20, y);
+          y += 7;
+          pdf.setFont('helvetica', 'normal');
+          const lines = pdf.splitTextToSize(record.analise_ia, 170);
+          pdf.text(lines, 20, y);
+        }
+
         const blob = pdf.output('blob');
-        const url = URL.createObjectURL(blob);
+        const urlObj = URL.createObjectURL(blob);
         
-        console.log('✅ PDF gerado com sucesso');
-        setPdfUrl(url);
+        console.log('✅ PDF gerado!');
+        setPdfUrl(urlObj);
         
       } catch (err: any) {
-        console.error('❌ Erro ao gerar PDF:', err);
-        setErrorPdf(err.message || 'Erro ao gerar PDF');
-        processedIdRef.current = ''; // Permite tentar novamente
+        console.error('❌ Erro:', err);
+        setError(err.message || 'Erro ao gerar PDF');
+        hasProcessedRef.current = '';
       } finally {
-        setLoadingPdf(false);
+        setLoading(false);
       }
     };
     
-    generatePDFAsync();
+    generatePDF();
     
-    // Cleanup
     return () => {
-      console.log('🧹 Cleanup do efeito do PDF');
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     };
-  }, [modalOpen, selectedSurveyId]);
+  }, [isOpen, surveyId]);
 
-  // ============ CÓDIGO EXISTENTE DA GRID ============
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col">
+        <div className="px-6 py-4 border-b flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6 text-blue-600" />
+            <div>
+              <h2 className="text-xl font-bold">Relatório de Vistoria</h2>
+              <p className="text-sm text-gray-500">ID: {surveyId?.substring(0, 8)}...</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+            <X className="w-6 h-6 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="flex-1 bg-gray-50 relative">
+          {loading ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+              <p>Gerando PDF com dados completos...</p>
+            </div>
+          ) : error ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+              <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+              <p className="text-red-600 font-medium mb-4">{error}</p>
+              <button 
+                onClick={() => {
+                  hasProcessedRef.current = '';
+                  setError(null);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Tentar Novamente
+              </button>
+            </div>
+          ) : pdfUrl ? (
+            <div className="h-full flex flex-col">
+              <div className="p-4 bg-white border-b flex gap-3 justify-center">
+                <button 
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = pdfUrl;
+                    a.download = `Relatorio_${surveyId}.pdf`;
+                    a.click();
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700"
+                >
+                  <Download size={18} /> Baixar PDF
+                </button>
+                <button 
+                  onClick={() => iframeRef.current?.contentWindow?.print()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
+                >
+                  <Printer size={18} /> Imprimir
+                </button>
+              </div>
+              <iframe 
+                ref={iframeRef}
+                src={pdfUrl}
+                className="flex-1 w-full border-0"
+                title={`Relatório - ${surveyId}`}
+              />
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p>Preparando...</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ==================== COMPONENTE GRID ====================
+interface SurveyAdmin {
+  id: string;
+  Formulario: string;
+  Projeto: string;
+  Quadra: string;
+  Lote: string;
+  Requerente: string;
+  CPF: string;
+}
+
+interface SurveyAdminGridProps {
+  onSelect?: (surveyId: string) => void;
+  printedIds: string[];
+  projectId?: string;
+}
+
+const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({ 
+  onSelect, 
+  printedIds,
+  projectId 
+}) => {
+  const [data, setData] = useState<SurveyAdmin[]>([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string>('');
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  console.log('📊 Grid iniciada');
+
+  const handlePrintClick = (surveyId: string) => {
+    console.log('🖨️ Abrindo modal para:', surveyId);
+    if (onSelect) onSelect(surveyId);
+    setSelectedId(surveyId);
+    setModalOpen(true);
+  };
+
+  const getHeaders = () => {
+    if (!SUPABASE_KEY) return {};
+    return {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+    };
+  };
+
+  // CONSULTA LEVE - APENAS PARA GRID
+  const fetchSurveyData = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      console.log('🔄 Buscando dados LEVES para grid...');
+      
+      if (!SUPABASE_KEY) {
+        throw new Error('Chave do Supabase não configurada.');
+      }
+      
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
+      const params = new URLSearchParams();
+      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf');
+      params.append('order', 'id.desc');
+      params.append('limit', '200');
+      
+      url = `${url}?${params.toString()}`;
+      
+      console.log('🌐 Consulta LEVE:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getHeaders(),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log(`✅ ${result.length} registros carregados`);
+      
+      const formattedData = result.map((item: any) => ({
+        id: String(item.id || ''),
+        Formulario: item.formulario || '-',
+        Projeto: item.projeto || '-',
+        Quadra: item.quadra || '-',
+        Lote: item.lote || '-',
+        Requerente: item.requerente || '-',
+        CPF: item.cpf || '-'
+      }));
+      
+      setData(formattedData);
+      
+    } catch (err: any) {
+      console.error('💥 Erro:', err);
+      setError(err.message || 'Erro ao carregar dados');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchSurveyData();
   }, [projectId]);
 
-  // Filtro de pesquisa
+  // Filtro
   const filtered = data.filter(row => {
     if (!search.trim()) return true;
-    
     const searchTerm = search.toLowerCase().trim();
     const fields = [
       row.Formulario || '',
@@ -266,13 +364,10 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       row.Requerente || '',
       row.CPF || ''
     ];
-    
-    return fields.some(field => 
-      field.toString().toLowerCase().includes(searchTerm)
-    );
+    return fields.some(field => field.toLowerCase().includes(searchTerm));
   });
 
-  // Cálculos de paginação
+  // Paginação
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filtered.slice(indexOfFirstItem, indexOfLastItem);
@@ -284,31 +379,26 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     }
   };
 
-  // ============ RENDERIZAÇÃO ============
-  
   return (
     <>
-      {/* GRID (código existente) */}
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <FileText className="w-6 h-6 text-blue-600" />
             Relatórios de Vistorias
           </h2>
-          
           <div className="text-sm text-gray-600">
-            {loadingGrid ? 'Carregando...' : `${filtered.length} registro(s)`}
+            {loading ? 'Carregando...' : `${filtered.length} registro(s)`}
             {projectId && ` para o projeto ${projectId}`}
           </div>
         </div>
         
-        {/* Área de Pesquisa */}
         <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Pesquisar por Formulário, Quadra, Lote, Requerente ou CPF"
+              placeholder="Pesquisar..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -319,10 +409,9 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           </div>
         </div>
         
-        {/* Mensagem de Erro */}
-        {errorGrid && (
+        {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm text-red-600">{errorGrid}</p>
+            <p className="text-sm text-red-600">{error}</p>
             <button
               onClick={fetchSurveyData}
               className="mt-2 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
@@ -332,7 +421,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           </div>
         )}
         
-        {/* Tabela de Dados */}
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -348,7 +436,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loadingGrid ? (
+              {loading ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center">
                     <div className="flex flex-col items-center justify-center">
@@ -360,16 +448,14 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
               ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                    {search ? 'Nenhum registro encontrado para a pesquisa' : 'Nenhum registro disponível'}
+                    {search ? 'Nenhum registro encontrado' : 'Nenhum registro disponível'}
                   </td>
                 </tr>
               ) : (
                 currentItems.map((row) => (
                   <tr 
                     key={row.id}
-                    className={`hover:bg-gray-50 transition-colors ${
-                      printedIds.includes(row.id) ? 'bg-green-50' : ''
-                    }`}
+                    className={`hover:bg-gray-50 ${printedIds.includes(row.id) ? 'bg-green-50' : ''}`}
                   >
                     <td className="px-4 py-3 text-sm font-mono text-gray-900">
                       {row.id.substring(0, 8)}...
@@ -382,8 +468,8 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                     <td className="px-4 py-3 text-sm text-gray-700">{row.CPF}</td>
                     <td className="px-4 py-3">
                       <button
-                        title="Gerar PDF deste relatório"
-                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                        title="Gerar PDF"
+                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
                         onClick={() => handlePrintClick(row.id)}
                       >
                         <Printer className="w-5 h-5" />
@@ -396,7 +482,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
           </table>
         </div>
         
-        {/* Paginação */}
         {filtered.length > itemsPerPage && (
           <div className="flex items-center justify-between mt-6 px-4 py-3 border-t border-gray-200">
             <div className="text-sm text-gray-700">
@@ -422,91 +507,11 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         )}
       </div>
 
-      {/* MODAL DE PDF */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[90vh] flex flex-col">
-            
-            {/* Cabeçalho do Modal */}
-            <div className="px-6 py-4 border-b flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FileText className="w-6 h-6 text-blue-600" />
-                <div>
-                  <h2 className="text-xl font-bold">Relatório de Vistoria</h2>
-                  <p className="text-sm text-gray-500">
-                    ID: {selectedSurveyId.substring(0, 8)}...
-                  </p>
-                </div>
-              </div>
-              <button 
-                onClick={closeModal}
-                className="p-2 hover:bg-gray-100 rounded-full"
-              >
-                <X className="w-6 h-6 text-gray-500" />
-              </button>
-            </div>
-
-            {/* Conteúdo do Modal */}
-            <div className="flex-1 bg-gray-50 relative">
-              {loadingPdf ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
-                  <p className="text-gray-700">Gerando relatório...</p>
-                </div>
-              ) : errorPdf ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                  <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-                  <p className="text-red-600 font-medium mb-4">{errorPdf}</p>
-                  <button 
-                    onClick={() => {
-                      processedIdRef.current = '';
-                      setErrorPdf(null);
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Tentar Novamente
-                  </button>
-                </div>
-              ) : pdfUrl ? (
-                <div className="h-full flex flex-col">
-                  {/* Botões de ação */}
-                  <div className="p-4 bg-white border-b flex gap-3 justify-center">
-                    <button 
-                      onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = pdfUrl;
-                        a.download = `Relatorio_${selectedSurveyId}.pdf`;
-                        a.click();
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700"
-                    >
-                      <Download size={18} /> Baixar PDF
-                    </button>
-                    <button 
-                      onClick={() => iframeRef.current?.contentWindow?.print()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700"
-                    >
-                      <Printer size={18} /> Imprimir
-                    </button>
-                  </div>
-                  
-                  {/* Visualizador PDF */}
-                  <iframe 
-                    ref={iframeRef}
-                    src={pdfUrl}
-                    className="flex-1 w-full border-0"
-                    title={`Relatório - ${selectedSurveyId}`}
-                  />
-                </div>
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <p className="text-gray-500">Preparando...</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <ReportPDFModal
+        surveyId={selectedId}
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
     </>
   );
 };
