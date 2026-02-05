@@ -52,6 +52,59 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     };
   };
 
+  // Função para extrair ID de forma segura
+  const extractId = (item: any): string => {
+    if (!item || !item.id) {
+      return 'unknown';
+    }
+    
+    // Se o ID for um objeto, tenta extrair de diferentes formatos
+    if (typeof item.id === 'object') {
+      // Log para debug
+      console.log('⚠️ ID é um objeto:', item.id);
+      
+      // Tenta diferentes propriedades comuns
+      if (item.id.id) return String(item.id.id);
+      if (item.id.value) return String(item.id.value);
+      if (item.id[0]) return String(item.id[0]);
+      
+      // Se for um array, pega o primeiro elemento
+      if (Array.isArray(item.id) && item.id.length > 0) {
+        return String(item.id[0]);
+      }
+      
+      // Tenta converter para string
+      try {
+        return JSON.stringify(item.id);
+      } catch {
+        return 'invalid-id';
+      }
+    }
+    
+    // Se for string ou número, converte para string
+    return String(item.id);
+  };
+
+  // Função para formatar os dados recebidos
+  const formatSurveyData = (rawData: any[]): SurveyAdmin[] => {
+    return rawData.map(item => {
+      console.log('📋 Item bruto recebido:', item);
+      
+      const id = extractId(item);
+      
+      // Garante que todos os campos sejam strings
+      return {
+        id,
+        Formulario: item.formulario ? String(item.formulario) : '',
+        Projeto: item.projeto ? String(item.projeto) : '',
+        Quadra: item.quadra ? String(item.quadra) : '',
+        Lote: item.lote ? String(item.lote) : '',
+        Requerente: item.requerente ? String(item.requerente) : '',
+        CPF: item.cpf ? String(item.cpf) : '',
+      };
+    });
+  };
+
   // Buscar dados da view vw_reurb_surveys_admin
   const fetchSurveyData = async () => {
     setLoading(true);
@@ -64,8 +117,8 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         throw new Error('Chave do Supabase não configurada. Verifique o arquivo .env');
       }
       
-      // Selecionando APENAS as colunas solicitadas
-      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=id,formulario,projeto,quadra,lote,requerente,cpf`;
+      // ALTERADO: Selecionando TODAS as colunas para debug
+      let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?select=*`;
       
       // Ordenar por ID decrescente (mais recentes primeiro)
       url += '&order=id.desc';
@@ -94,12 +147,17 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       const result = await response.json();
       console.log(`✅ ${result.length} registros carregados`);
-      console.log('📋 Primeiro registro:', result[0]);
+      console.log('📋 Estrutura do primeiro registro:', Object.keys(result[0]));
+      console.log('📋 Primeiro registro completo:', result[0]);
+      
+      // Formatar os dados
+      const formattedData = formatSurveyData(result);
+      console.log('📋 Dados formatados:', formattedData[0]);
       
       // Filtrar por projeto se especificado
-      let filteredData = result;
+      let filteredData = formattedData;
       if (projectId) {
-        filteredData = result.filter((item: SurveyAdmin) => 
+        filteredData = formattedData.filter((item: SurveyAdmin) => 
           item.Projeto && item.Projeto.toString().includes(projectId)
         );
       }
@@ -244,7 +302,9 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                     printedIds.includes(row.id) ? 'bg-green-50' : ''
                   }`}
                 >
-                  <td className="px-4 py-3 text-sm font-mono text-gray-900">{row.id}</td>
+                  <td className="px-4 py-3 text-sm font-mono text-gray-900">
+                    {row.id.length > 20 ? `${row.id.substring(0, 20)}...` : row.id}
+                  </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.Formulario || '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{row.Projeto || '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{row.Quadra || '-'}</td>
@@ -255,7 +315,10 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                     <button
                       title="Gerar PDF deste relatório"
                       className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={() => onSelect(row)}
+                      onClick={() => {
+                        console.log('📋 Dados sendo enviados para PDF:', row);
+                        onSelect(row);
+                      }}
                       disabled={loading}
                     >
                       <Printer className="w-5 h-5" />
