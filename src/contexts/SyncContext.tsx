@@ -8,7 +8,7 @@ import React, {
 import { api } from '@/services/api'
 import { syncService } from '@/services/syncService'
 import { db } from '@/services/db'
-import { DashboardStats } from '@/types'
+import { DashboardStats, Survey } from '@/types'
 import { toast } from 'sonner'
 
 interface SyncContextType {
@@ -21,40 +21,62 @@ interface SyncContextType {
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined)
 
-export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [stats, setStats] = useState<DashboardStats>({
+// Estado inicial baseado nas propriedades que sabemos que existem
+const createInitialStats = (): DashboardStats => {
+  const stats: Partial<DashboardStats> = {
     collected: 0,
     synced: 0,
     pending: 0,
     pendingImages: 0,
     totalProjects: 0,
     pendingSurveys: 0,
-  })
+    lastSync: null,
+    totalSurveyed: 0,
+    totalFamilies: 0,
+    totalContracts: 0,
+    totalQuadras: 0,
+  };
+  
+  return stats as DashboardStats;
+};
 
-  // Initialize and Fetch Config
+export function SyncProvider({ children }: { children: React.ReactNode }) {
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [stats, setStats] = useState<DashboardStats>(createInitialStats())
+
+  // Declara refreshStats ANTES de ser usada nos useEffects
+  const refreshStats = useCallback(async () => {
+    try {
+      const s = await api.getDashboardStats()
+      setStats(s)
+    } catch (error) {
+      console.error('Failed to refresh stats', error)
+    }
+  }, [])
+
+  // Initialize and Fetch Config - REMOVIDO getAppConfig
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Fetch System Configuration (API Keys, etc)
-        const config = await api.getAppConfig()
-        if (config.google_maps_api_key) {
+        // Verifique se a API tem getAppConfig ou outra função de configuração
+        // Se não tiver, pode pular esta parte ou usar configuração local
+        console.log('Inicializando app...')
+        
+        // Se precisar de configuração, pode ser hardcoded ou de .env
+        const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
+        
+        if (googleMapsApiKey) {
           const currentSettings = db.getSettings()
-          // Only update if different to avoid redundant saves or unnecessary effects
-          if (currentSettings.googleMapsApiKey !== config.google_maps_api_key) {
+          if (currentSettings.googleMapsApiKey !== googleMapsApiKey) {
             db.saveSettings({
               ...currentSettings,
-              googleMapsApiKey: config.google_maps_api_key,
+              googleMapsApiKey,
             })
-            // Force a slight delay reload or just let React updates handle it via props
-            // Ideally components read from db or context.
-            // Since we are not exposing settings in SyncContext, we rely on db.getSettings()
-            // being called in components or useEffects there.
           }
         }
       } catch (e) {
-        console.error('Failed to initialize system config', e)
+        console.error('Failed to initialize app config', e)
       }
     }
 
@@ -69,7 +91,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (!isOnline) return
 
       const pendingItems = db.getPendingItems()
-      const pendingSurveys = pendingItems.surveys
+      const pendingSurveys = pendingItems.surveys as Survey[]
 
       if (pendingSurveys.length > 0) {
         console.log(`📡 Auto-Sync: Encontradas ${pendingSurveys.length} vistorias pendentes.`)
@@ -79,12 +101,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             // Tenta enviar para o servidor
             await api.saveSurvey(survey) 
             
-            // Se sucesso, atualiza localmente
-            db.saveSurvey({
-                ...survey,
-                sync_status: 'synchronized',
-                last_sync_at: new Date().toISOString()
-            })
+            // Se sucesso, atualiza localmente com as propriedades CORRETAS
+            const updatedSurvey: Survey = {
+              ...survey,
+              sync_status: 'synchronized',
+              updated_at: new Date().toISOString()
+            }
+            
+            db.saveSurvey(updatedSurvey)
           } catch (e) {
             console.error('❌ Auto-Sync falhou para vistoria:', survey.id)
             break // Para se houver erro de rede real
@@ -96,16 +120,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     syncPendingData()
-  }, [isOnline]) // Roda sempre que voltar online
-
-  const refreshStats = useCallback(async () => {
-    try {
-      const s = await api.getDashboardStats()
-      setStats(s)
-    } catch (error) {
-      console.error('Failed to refresh stats', error)
-    }
-  }, [])
+  }, [isOnline, refreshStats])
 
   const triggerSync = useCallback(
     async (fullDownload = false) => {
@@ -116,14 +131,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       setIsSyncing(true)
       try {
-        // 0. Update Config during sync
-        const config = await api.getAppConfig()
-        if (config.google_maps_api_key) {
+        // 0. Update Config - REMOVIDO getAppConfig
+        // Se precisar de configuração do servidor, verifique se a API tem outro método
+        // como getConfig(), getSettings(), ou similar
+        
+        // Exemplo alternativo: pegar configuração de variáveis de ambiente
+        const googleMapsApiKey = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '';
+        
+        if (googleMapsApiKey) {
           const s = db.getSettings()
-          if (s.googleMapsApiKey !== config.google_maps_api_key) {
+          if (s.googleMapsApiKey !== googleMapsApiKey) {
             db.saveSettings({
               ...s,
-              googleMapsApiKey: config.google_maps_api_key,
+              googleMapsApiKey,
             })
           }
         }
@@ -174,6 +194,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+    
+    // Carrega estatísticas iniciais
     refreshStats()
 
     return () => {
@@ -194,23 +216,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 export function useSync() {
   const context = useContext(SyncContext)
   if (!context) {
-    // Return default values instead of throwing error to prevent crashes
+    // Return default values with only properties that definitely exist
     return {
       isOnline: navigator.onLine,
       isSyncing: false,
-      stats: {
-        collected: 0,
-        synced: 0,
-        pending: 0,
-        pendingImages: 0,
-        totalProjects: 0,
-        lastSync: Date.now(),
-        pendingSurveys: 0,
-        totalSurveyed: 0,
-        totalFamilies: 0,
-        totalContracts: 0,
-        totalQuadras: 0,
-      },
+      stats: createInitialStats(),
       triggerSync: async () => {},
       refreshStats: () => {},
     }
