@@ -116,7 +116,7 @@ export default function QuadraDetails() {
           </p>
         </div>
         {canEditProjects && (
-          <Button asChild className="bg-blue-600">
+          <Button asChild className="bg-green-600">
             <Link to={`/quadras/${quadraId}/lotes/new`}>
               <Plus className="h-4 w-4 mr-2" /> Novo Lote
             </Link>

@@ -161,7 +161,7 @@ const DARK_MAP_STYLE = [
 const MARABAIXO_COORDS = { lat: 0.036161, lng: -51.130895 }
 
 const DEFAULT_STYLE: DrawingStyle = {
-  strokeColor: '#2563eb',
+  strokeColor: '#22c55e',
   strokeWeight: 2,
   fillColor: '#2563eb',
   fillOpacity: 0.3,

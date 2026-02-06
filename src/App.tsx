@@ -73,7 +73,7 @@ function TestViewComponent() {
 const LoadingSpinner = () => (
   <div className="h-screen flex items-center justify-center bg-slate-50">
     <div className="flex flex-col items-center gap-4">
-      <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="h-8 w-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
       <p className="text-gray-500 font-medium">Carregando...</p>
     </div>
   </div>
@@ -142,7 +142,7 @@ const App = () => (
               <Route path="/lotes/:loteId/editar" element={<LoteEdit />} />
               <Route
                 path="/quadras/:quadraId/lotes/new"
-                element={<LoteForm />}
+                element={<LoteFormUpdated />}
               />
               <Route path="/sincronizacao" element={<SyncStatus />} />
               <Route path="/mapa" element={<MapPage />} />
