@@ -75,313 +75,305 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
 
   // ==================== FUNÇÃO PARA GERAR PDF ====================
   const generateFormattedPDF = async (surveyId: string) => {
-    try {
-      if (!SUPABASE_URL || !SUPABASE_KEY) {
-        throw new Error("Configurações do Supabase não encontradas.");
-      }
+  try {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      throw new Error("Configurações do Supabase não encontradas.");
+    }
 
-      // Função auxiliar para carregar imagens
-      const loadImage = (src: string): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const img = new Image();
-          img.crossOrigin = 'Anonymous';
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx?.drawImage(img, 0, 0);
-            resolve(canvas.toDataURL('image/jpeg'));
-          };
-          img.onerror = reject;
-          img.src = src;
-        });
-      };
-
-      const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${surveyId}`;
-      
-      console.log('🌐 Buscando dados em:', url);
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json'
-        }
+    // Função auxiliar para carregar imagens
+    const loadImage = (src: string): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg'));
+        };
+        img.onerror = reject;
+        img.src = src;
       });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status} ao buscar dados`);
+    };
+
+    const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${surveyId}`;
+    
+    console.log('🌐 Buscando dados em:', url);
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
       }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erro ${response.status} ao buscar dados`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data || data.length === 0) {
+      throw new Error("Registro não encontrado.");
+    }
+    
+    const record = data[0];
+    
+    // Criar PDF com layout oficial
+    const pdf = new jsPDF();
+    
+    // ============ CONFIGURAÇÕES GERAIS ============
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 15; // Margem reduzida
+    let y = margin;
+    
+    // ============ CABEÇALHO COM LOGOS ============
+    // Logo GEA (esquerda)
+    try {
+      const geaLogo = await loadImage('/gea_logo.jpg');
+      pdf.addImage(geaLogo, 'JPEG', margin, y, 25, 25); // Tamanho reduzido
+    } catch (e) {
+      console.log('Logo GEA não carregada');
+    }
+    
+    // Logo Amapá Terras (direita)
+    try {
+      const amapaLogo = await loadImage('/amapaTerra.jpeg');
+      pdf.addImage(amapaLogo, 'JPEG', pageWidth - margin - 25, y, 25, 25); // Tamanho reduzido
+    } catch (e) {
+      console.log('Logo Amapá Terras não carregada');
+    }
+    
+    // Título centralizado - FONTE REDUZIDA
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('GOVERNO DO ESTADO DO AMAPÁ', pageWidth / 2, y + 8, { align: 'center' });
+    pdf.text('Amapá Terras - Instituto de Terras do Amapá', pageWidth / 2, y + 14, { align: 'center' });
+    
+    y += 30;
+    
+    // ============ TÍTULO PRINCIPAL ============
+    pdf.setFontSize(14);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('RELATÓRIO DE VISTORIA REURB', pageWidth / 2, y, { align: 'center' });
+    
+    y += 8;
+    
+    // Linha divisória fina
+    pdf.setDrawColor(0, 0, 0);
+    pdf.setLineWidth(0.3);
+    pdf.line(margin, y, pageWidth - margin, y);
+    
+    y += 12;
+    
+    // ============ DADOS DO PROJETO ============
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Projeto:', margin, y);
+    pdf.setFont('helvetica', 'normal');
+    
+    // Projeto com quebra de linha se necessário
+    const projetoText = record.projeto || 'Não informado';
+    const projetoLines = pdf.splitTextToSize(projetoText, pageWidth - margin - 50);
+    pdf.text(projetoLines, margin + 20, y);
+    
+    // Ajustar Y baseado no número de linhas do projeto
+    y += projetoLines.length * 5 + 8;
+    
+    // ============ DADOS PRINCIPAIS (2 COLUNAS ORGANIZADAS) ============
+    const col1X = margin;
+    const col2X = pageWidth / 2;
+    const labelWidth = 35; // Largura fixa para labels
+    const valueXOffset = labelWidth + 5;
+    
+    // Função para adicionar linha de dado COM CONTROLE DE ESPAÇAMENTO
+    const addDataLine = (label: string, value: any, col: number, currentY: number): number => {
+      const x = col === 1 ? col1X : col2X;
       
-      const data = await response.json();
-      
-      if (!data || data.length === 0) {
-        throw new Error("Registro não encontrado.");
-      }
-      
-      const record = data[0];
-      
-      // Criar PDF com layout oficial
-      const pdf = new jsPDF();
-      
-      // ============ CONFIGURAÇÕES GERAIS ============
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 20;
-      let y = margin;
-      
-      // ============ CABEÇALHO COM LOGOS ============
-      // Logo GEA (esquerda)
-      try {
-        const geaLogo = await loadImage('/gea_logo.jpg');
-        pdf.addImage(geaLogo, 'JPEG', margin, y, 30, 30);
-      } catch (e) {
-        console.log('Logo GEA não carregada');
-      }
-      
-      // Logo Amapá Terras (direita)
-      try {
-        const amapaLogo = await loadImage('/amapaTerra.jpeg');
-        pdf.addImage(amapaLogo, 'JPEG', pageWidth - margin - 30, y, 30, 30);
-      } catch (e) {
-        console.log('Logo Amapá Terras não carregada');
-      }
-      
-      // Título centralizado
-      pdf.setFontSize(14);
+      pdf.setFontSize(9);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('GOVERNO DO ESTADO DO AMAPÁ', pageWidth / 2, y + 10, { align: 'center' });
-      pdf.text('Amapá Terras - Instituto de Terras do Amapá', pageWidth / 2, y + 18, { align: 'center' });
+      pdf.text(`${label}:`, x, currentY);
       
-      y += 35;
-      
-      // ============ TÍTULO PRINCIPAL ============
-      pdf.setFontSize(16);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('RELATÓRIO DE VISTORIA REURB', pageWidth / 2, y, { align: 'center' });
-      
-      y += 10;
-      
-      // Linha divisória
-      pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.5);
-      pdf.line(margin, y, pageWidth - margin, y);
-      
-      y += 15;
-      
-      // ============ DADOS DO PROJETO ============
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Projeto:', margin, y);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(record.projeto || 'Não informado', margin + 25, y);
+      const formattedValue = formatValue(value);
+      const maxWidth = (pageWidth / 2) - margin - 10;
       
-      y += 8;
+      // Se o texto for muito longo, quebra em múltiplas linhas
+      const lines = pdf.splitTextToSize(formattedValue, maxWidth);
+      pdf.text(lines, x + valueXOffset, currentY);
       
-      // ============ DADOS PRINCIPAIS (2 COLUNAS) ============
-      const col1X = margin;
-      const col2X = pageWidth / 2;
-      
-      // Função para adicionar linha de dado
-      const addDataLine = (label: string, value: any, col: number, currentY: number) => {
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(label + ':', col === 1 ? col1X : col2X, currentY);
+      // Retorna nova posição Y baseado no número de linhas
+      return currentY + (lines.length * 4.5);
+    };
+    
+    const formatValue = (value: any): string => {
+      if (value === null || value === undefined || value === '') return 'Não informado';
+      if (value === true) return 'Sim';
+      if (value === false) return 'Não';
+      return String(value);
+    };
+    
+    // DADOS DA COLUNA 1
+    let yCol1 = y;
+    yCol1 = addDataLine('Formulário', record.formulario, 1, yCol1);
+    yCol1 = addDataLine('Quadra', record.quadra, 1, yCol1);
+    yCol1 = addDataLine('Lote', record.lote, 1, yCol1);
+    yCol1 = addDataLine('Requerente', record.requerente, 1, yCol1);
+    yCol1 = addDataLine('RG', record.rg, 1, yCol1);
+    yCol1 = addDataLine('Estado Civil', record.estado_civil, 1, yCol1);
+    yCol1 = addDataLine('CPF', record.cpf, 1, yCol1);
+    yCol1 = addDataLine('Profissão', record.profissao, 1, yCol1);
+    
+    // DADOS DA COLUNA 2
+    let yCol2 = y;
+    // REMOVENDO A LINHA DUPLICADA - APENAS UM "REURB Nº"
+    const reurbNum = record.id ? `00156/2025` : 'Não informado'; // Exemplo - ajuste conforme sua lógica
+    yCol2 = addDataLine('REURB Nº', reurbNum, 2, yCol2);
+    yCol2 = addDataLine('TIPO REURB', record.tipo_reurb || 'REURB-S', 2, yCol2);
+    yCol2 = addDataLine('NIS', record.nis, 2, yCol2);
+    yCol2 = addDataLine('Cônjuge', record.conjuge, 2, yCol2);
+    yCol2 = addDataLine('Renda Familiar', record.renda_familiar, 2, yCol2);
+    yCol2 = addDataLine('CPF Cônjuge', record.cpf_conjuge, 2, yCol2);
+    yCol2 = addDataLine('Moradores', record.num_moradores, 2, yCol2);
+    yCol2 = addDataLine('Filhos', record.num_filhos, 2, yCol2);
+    
+    // Ajustar Y para a próxima seção (pega o maior Y entre as colunas)
+    y = Math.max(yCol1, yCol2) + 10;
+    
+    // ============ DADOS DO IMÓVEL ============
+    // Linha divisória
+    pdf.setDrawColor(200, 200, 200);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 8;
+    
+    // Título da seção
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('DADOS DO IMÓVEL', margin, y);
+    y += 8;
+    
+    // Reset para 2 colunas
+    yCol1 = y;
+    yCol2 = y;
+    
+    yCol1 = addDataLine('Endereço', record.endereco, 1, yCol1);
+    yCol1 = addDataLine('Tempo Moradia', record.tempo_moradia, 1, yCol1);
+    yCol1 = addDataLine('Tipo Aquisição', record.tipo_aquisicao, 1, yCol1);
+    yCol1 = addDataLine('Uso Imóvel', record.uso_imovel, 1, yCol1);
+    yCol1 = addDataLine('Construção', record.construcao, 1, yCol1);
+    yCol1 = addDataLine('Telhado', record.telhado, 1, yCol1);
+    
+    yCol2 = addDataLine('Filhos Menores', record.filhos_menores, 2, yCol2);
+    yCol2 = addDataLine('Piso', record.piso, 2, yCol2);
+    yCol2 = addDataLine('Divisa', record.divisa, 2, yCol2);
+    yCol2 = addDataLine('Comodos', record.comodos, 2, yCol2);
+    yCol2 = addDataLine('Água', record.agua, 2, yCol2);
+    yCol2 = addDataLine('Energia', record.energia, 2, yCol2);
+    
+    y = Math.max(yCol1, yCol2) + 10;
+    
+    // ============ INFRAESTRUTURA ============
+    // Reset para 2 colunas
+    yCol1 = y;
+    yCol2 = y;
+    
+    yCol1 = addDataLine('Esgoto', record.esgoto, 1, yCol1);
+    yCol1 = addDataLine('Pavimentação', record.pavimentacao, 1, yCol1);
+    
+    yCol2 = addDataLine('Análise IA', record.analise_ia, 2, yCol2);
+    
+    y = Math.max(yCol1, yCol2) + 15;
+    
+    // Verificar se ainda cabe na página
+    if (y > pageHeight - 60) {
+      // Se não couber, adiciona nova página
+      pdf.addPage();
+      y = margin;
+    }
+    
+    // ============ ASSINATURAS ============
+    // Título das assinaturas
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('ASSINATURAS', pageWidth / 2, y, { align: 'center' });
+    y += 8;
+    
+    // Linha divisória
+    pdf.setDrawColor(0, 0, 0);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 10;
+    
+    // Container para assinaturas lado a lado
+    const signatureY = y;
+    const signatureWidth = 70;
+    const signatureHeight = 20;
+    
+    // Assinatura do Vistoriador (esquerda)
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('VISTORIADOR:', margin, signatureY);
+    
+    if (record.assinatura_vistoriador && record.assinatura_vistoriador.trim() !== '') {
+      try {
+        const imgData = record.assinatura_vistoriador.includes(',') 
+          ? record.assinatura_vistoriador.split(',')[1] 
+          : record.assinatura_vistoriador;
+        pdf.addImage(imgData, 'PNG', margin, signatureY + 5, signatureWidth, signatureHeight);
+      } catch (err) {
         pdf.setFont('helvetica', 'normal');
-        const textX = col === 1 ? col1X + 40 : col2X + 40;
-        const formattedValue = formatValue(value);
-        // Quebra de linha se necessário
-        if (formattedValue.length > 30) {
-          const lines = pdf.splitTextToSize(formattedValue, 70);
-          pdf.text(lines, textX, currentY);
-          return currentY + (lines.length * 7);
-        } else {
-          pdf.text(formattedValue, textX, currentY);
-          return currentY + 7;
-        }
-      };
-      
-      const formatValue = (value: any): string => {
-        if (value === null || value === undefined || value === '') return 'Não informado';
-        return String(value);
-      };
-      
-      // Coluna 1
-      y = addDataLine('Formulário', record.formulario, 1, y);
-      y = addDataLine('REURB Nº', record.id ? `REURB Nº.: ${record.id}` : 'Não informado', 1, y);
-      y = addDataLine('TIPO DE REURB', record.tipo_reurb || 'REURB-S', 1, y);
-      y = addDataLine('Quadra', record.quadra, 1, y);
-      y = addDataLine('Lote', record.lote, 1, y);
-      y = addDataLine('Requerente', record.requerente, 1, y);
-      y = addDataLine('RG', record.rg, 1, y);
-      
-      // Coluna 2 (reset Y para começar na mesma altura)
-      let yCol2 = y - (7 * 6); // Voltar para mesma altura da coluna 1
-      yCol2 = addDataLine('CPF', record.cpf, 2, yCol2);
-      yCol2 = addDataLine('Profissão', record.profissao, 2, yCol2);
-      yCol2 = addDataLine('NIS', record.nis, 2, yCol2);
-      yCol2 = addDataLine('Estado Civil', record.estado_civil, 2, yCol2);
-      yCol2 = addDataLine('Cônjuge', record.conjuge, 2, yCol2);
-      yCol2 = addDataLine('Renda Familiar', record.renda_familiar, 2, yCol2);
-      
-      // Ajustar Y para a próxima seção
-      y = Math.max(y, yCol2) + 10;
-      
-      // ============ DADOS DO IMÓVEL E FAMILIARES ============
-      // Reset para 2 colunas
-      let yTemp = y;
-      
-      yTemp = addDataLine('Moradores', record.num_moradores, 1, yTemp);
-      yTemp = addDataLine('Endereço', record.endereco, 1, yTemp);
-      yTemp = addDataLine('CPF Cônjuge', record.cpf_conjuge, 1, yTemp);
-      yTemp = addDataLine('Tempo Moradia', record.tempo_moradia, 1, yTemp);
-      yTemp = addDataLine('Construção', record.construcao, 1, yTemp);
-      yTemp = addDataLine('Filhos', record.num_filhos, 1, yTemp);
-      
-      yTemp = y; // Reset para coluna 2
-      yTemp = addDataLine('Filhos Menores', record.filhos_menores, 2, yTemp);
-      yTemp = addDataLine('Tipo Aquisição', record.tipo_aquisicao, 2, yTemp);
-      yTemp = addDataLine('Uso Imóvel', record.uso_imovel, 2, yTemp);
-      yTemp = addDataLine('Telhado', record.telhado, 2, yTemp);
-      yTemp = addDataLine('Piso', record.piso, 2, yTemp);
-      yTemp = addDataLine('Divisa', record.divisa, 2, yTemp);
-      
-      y = Math.max(yTemp, yTemp) + 10;
-      
-      // ============ INFRAESTRUTURA ============
-      // Título da seção
-      pdf.setFont('helvetica', 'bold');
-      pdf.setFontSize(11);
-      pdf.text('INFRAESTRUTURA:', margin, y);
-      y += 8;
-      
-      // Infraestrutura em 2 colunas
-      let yInfra = y;
-      
-      yInfra = addDataLine('Água', record.agua, 1, yInfra);
-      yInfra = addDataLine('Esgoto', record.esgoto, 1, yInfra);
-      yInfra = addDataLine('Pavimentação', record.pavimentacao, 1, yInfra);
-      
-      yInfra = y; // Reset para coluna 2
-      yInfra = addDataLine('Energia', record.energia, 2, yInfra);
-      yInfra = addDataLine('Comodos', record.comodos, 2, yInfra);
-      yInfra = addDataLine('Análise IA', record.analise_ia, 2, yInfra);
-      
-      y = Math.max(yInfra, yInfra) + 15;
-      
-      // ============ ASSINATURAS ============
-      // Título das assinaturas
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('ASSINATURAS', pageWidth / 2, y, { align: 'center' });
-      y += 10;
-      
-      // Linha divisória
-      pdf.line(margin, y, pageWidth - margin, y);
-      y += 5;
-      
-      // Assinatura do Vistoriador (esquerda)
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Vistoriador:', margin, y);
-      
-      if (record.assinatura_vistoriador && record.assinatura_vistoriador.trim() !== '') {
-        try {
-          const imgData = record.assinatura_vistoriador.includes(',') 
-            ? record.assinatura_vistoriador.split(',')[1] 
-            : record.assinatura_vistoriador;
-          pdf.addImage(imgData, 'PNG', margin, y + 5, 80, 30);
-        } catch (err) {
-          pdf.setFont('helvetica', 'normal');
-          pdf.text('(assinatura digital)', margin, y + 10);
-        }
-      } else {
-        pdf.setFont('helvetica', 'normal');
-        pdf.text('__________________________', margin, y + 10);
+        pdf.line(margin, signatureY + 12, margin + signatureWidth, signatureY + 12);
       }
-      
-     // ============ ASSINATURAS ============
-      // Título das assinaturas
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('ASSINATURAS', pageWidth / 2, y, { align: 'center' });
-      y += 10;
-
-      // Linha divisória
-      pdf.line(margin, y, pageWidth - margin, y);
-      y += 15;
-
-      // Container para assinaturas lado a lado
-      const signatureY = y;
-      const signatureWidth = 70; // Mais estreito
-      const signatureHeight = 20; // Mais baixo
-
-      // Assinatura do Vistoriador (esquerda)
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Vistoriador:', margin, signatureY);
-
-      if (record.assinatura_vistoriador && record.assinatura_vistoriador.trim() !== '') {
-        try {
-          const imgData = record.assinatura_vistoriador.includes(',') 
-            ? record.assinatura_vistoriador.split(',')[1] 
-            : record.assinatura_vistoriador;
-          // Tamanho compacto: 70x20
-          pdf.addImage(imgData, 'PNG', margin, signatureY + 5, signatureWidth, signatureHeight);
-        } catch (err) {
-          pdf.setFont('helvetica', 'normal');
-          pdf.text('(assinatura digital)', margin, signatureY + 10);
-        }
-      } else {
+    } else {
+      pdf.setFont('helvetica', 'normal');
+      pdf.line(margin, signatureY + 12, margin + signatureWidth, signatureY + 12);
+    }
+    
+    // Assinatura do Requerente (direita)
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('REQUERENTE:', pageWidth - margin - signatureWidth, signatureY);
+    
+    if (record.assinatura_requerente && record.assinatura_requerente.trim() !== '') {
+      try {
+        const imgData = record.assinatura_requerente.includes(',') 
+          ? record.assinatura_requerente.split(',')[1] 
+          : record.assinatura_requerente;
+        pdf.addImage(imgData, 'PNG', pageWidth - margin - signatureWidth, signatureY + 5, signatureWidth, signatureHeight);
+      } catch (err) {
         pdf.setFont('helvetica', 'normal');
-        // Linha para assinatura manual (menor)
-        pdf.line(margin, signatureY + 12, margin + 70, signatureY + 12);
-      }
-
-      // Assinatura do Requerente (direita)
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Requerente:', pageWidth - margin - signatureWidth, signatureY);
-
-      if (record.assinatura_requerente && record.assinatura_requerente.trim() !== '') {
-        try {
-          const imgData = record.assinatura_requerente.includes(',') 
-            ? record.assinatura_requerente.split(',')[1] 
-            : record.assinatura_requerente;
-          // Tamanho compacto: 70x20
-          pdf.addImage(imgData, 'PNG', pageWidth - margin - signatureWidth, signatureY + 5, signatureWidth, signatureHeight);
-        } catch (err) {
-          pdf.setFont('helvetica', 'normal');
-          pdf.text('(assinatura digital)', pageWidth - margin - signatureWidth, signatureY + 10);
-        }
-      } else {
-        pdf.setFont('helvetica', 'normal');
-        // Linha para assinatura manual (menor)
         pdf.line(pageWidth - margin - signatureWidth, signatureY + 12, pageWidth - margin, signatureY + 12);
       }
-
-      y = signatureY + signatureHeight + 25;
-      
-      // ============ RODAPÉ ============
-      pdf.setFontSize(8);
+    } else {
       pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(100, 100, 100);
-      const footerY = pageHeight - 10;
-      pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, footerY, { align: 'center' });
-      pdf.text(`ID do Registro: ${record.id}`, pageWidth / 2, footerY - 5, { align: 'center' });
-      
-      // Converter para blob e URL
-      const blob = pdf.output('blob');
-      const urlObj = URL.createObjectURL(blob);
-      
-      console.log('✅ PDF formatado gerado com sucesso!');
-      return urlObj;
-      
-    } catch (err: any) {
-      console.error('❌ Erro ao gerar PDF:', err);
-      throw err;
+      pdf.line(pageWidth - margin - signatureWidth, signatureY + 12, pageWidth - margin, signatureY + 12);
     }
-  };
+    
+    y = signatureY + signatureHeight + 20;
+    
+    // ============ RODAPÉ ============
+    pdf.setFontSize(7);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(100, 100, 100);
+    const footerY = pageHeight - 8;
+    pdf.text(`ID do Registro: ${record.id}`, pageWidth / 2, footerY - 5, { align: 'center' });
+    pdf.text(`Documento gerado em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, footerY, { align: 'center' });
+    
+    // Converter para blob e URL
+    const blob = pdf.output('blob');
+    const urlObj = URL.createObjectURL(blob);
+    
+    console.log('✅ PDF formatado gerado com sucesso!');
+    return urlObj;
+    
+  } catch (err: any) {
+    console.error('❌ Erro ao gerar PDF:', err);
+    throw err;
+  }
+};
 
   // ==================== EFEITO PARA GERAR PDF ====================
   useEffect(() => {
