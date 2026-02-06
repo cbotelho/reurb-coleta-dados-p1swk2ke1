@@ -28,7 +28,7 @@
 - **Build:** `npm run build` (produção).
 - **Lint/Format:** `npm run lint:fix` (oxlint) e `npm run format` (prettier).
 - **Testes:** Não há test runner; validação é manual ou via lint.
-
+ 
 ## Dicas Práticas
 - **Depuração Local:** Use `console.table(db.getPendingItems())` para pendências.
 - **Cota de Memória:** `db.ts` limpa logs/vistorias sincronizadas se o `localStorage` exceder o limite.

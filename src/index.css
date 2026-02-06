@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 🟢 TEMA VERDE PRINCIPAL - MODO CLARO */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    
+    /* Verde principal - tons profissionais */
+    --primary: 142.1 76.2% 36.3%;          /* #16a34a */
+    --primary-foreground: 0 0% 100%;
+    
+    /* Verde secundário mais claro */
+    --secondary: 120 14.3% 97.3%;          /* #f0f9f0 */
+    --secondary-foreground: 240 5.9% 10%;
+    
+    /* Cores neutras */
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    
+    --accent: 120 14.3% 97.3%;             /* Verde bem suave */
+    --accent-foreground: 240 5.9% 10%;
+    
+    /* Cores de estado (mantidas contrastantes) */
+    --destructive: 0 84.2% 60.2%;          /* Vermelho para destaque */
+    --destructive-foreground: 0 0% 98%;
+    
+    /* Bordas e inputs */
+    --border: 240 5.9% 90%;
+    --input: 0 0% 100%;
+    --ring: 142.1 76.2% 36.3%;             /* Anel de foco verde */
+    
+    --radius: 0.5rem;
+    
+    /* 🟢 SIDEBAR EM TONS DE VERDE */
+    --sidebar-background: 120 14.3% 97.3%; /* Verde muito claro */
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 142.1 76.2% 36.3%;  /* Verde principal */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 120 20% 94%;         /* Verde super claro */
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 120 10% 90%;
+    --sidebar-ring: 142.1 76.2% 36.3%;
+  }
+
+  .dark {
+    /* 🟢 TEMA VERDE - MODO ESCURO */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    
+    /* Verde mais vibrante no escuro */
+    --primary: 142.1 70.6% 45.3%;          /* Verde mais claro para contraste */
+    --primary-foreground: 144.9 80.4% 10%;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 142.1 76.2% 36.3%;
+    
+    /* Sidebar dark mode */
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 142.1 76.2% 36.3%;
+    --sidebar-primary-foreground: 355.7 100% 97.3%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 142.1 76.2% 36.3%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Estilos adicionais para botões verdes */
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+}
+
+/* Animações suaves */
+@layer utilities {
+  .animate-in {
+    animation: animate-in 0.3s ease-out;
+  }
+  
+  @keyframes animate-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
