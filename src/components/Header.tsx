@@ -21,7 +21,7 @@ export function Header() {
   const { user, logout } = useAuth()
 
   const isRoot =
-    location.pathname === '/' ||
+    location.pathname === '/Dashboard' ||
     location.pathname === '/projetos' ||
     location.pathname === '/sincronizacao' ||
     location.pathname === '/mapa'
