@@ -129,14 +129,14 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     // ============ CONFIGURAÇÕES GERAIS ============
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 15; // Margem reduzida
+    const margin = 15;
     let y = margin;
     
     // ============ CABEÇALHO COM LOGOS ============
     // Logo GEA (esquerda)
     try {
       const geaLogo = await loadImage('/gea_logo.jpg');
-      pdf.addImage(geaLogo, 'JPEG', margin, y, 25, 25); // Tamanho reduzido
+      pdf.addImage(geaLogo, 'JPEG', margin, y, 25, 25);
     } catch (e) {
       console.log('Logo GEA não carregada');
     }
@@ -144,12 +144,12 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     // Logo Amapá Terras (direita)
     try {
       const amapaLogo = await loadImage('/amapaTerra.jpeg');
-      pdf.addImage(amapaLogo, 'JPEG', pageWidth - margin - 25, y, 25, 25); // Tamanho reduzido
+      pdf.addImage(amapaLogo, 'JPEG', pageWidth - margin - 25, y, 25, 25);
     } catch (e) {
       console.log('Logo Amapá Terras não carregada');
     }
     
-    // Título centralizado - FONTE REDUZIDA
+    // Título centralizado
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.text('GOVERNO DO ESTADO DO AMAPÁ', pageWidth / 2, y + 8, { align: 'center' });
@@ -162,37 +162,33 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     pdf.setFont('helvetica', 'bold');
     pdf.text('RELATÓRIO DE VISTORIA REURB', pageWidth / 2, y, { align: 'center' });
     
-    y += 8;
+    y += 10;
     
-    // Linha divisória fina
+    // Linha divisória
     pdf.setDrawColor(0, 0, 0);
     pdf.setLineWidth(0.3);
     pdf.line(margin, y, pageWidth - margin, y);
     
-    y += 12;
+    y += 15;
     
     // ============ DADOS DO PROJETO ============
-    pdf.setFontSize(10);
+    pdf.setFontSize(11);
     pdf.setFont('helvetica', 'bold');
     pdf.text('Projeto:', margin, y);
     pdf.setFont('helvetica', 'normal');
     
-    // Projeto com quebra de linha se necessário
     const projetoText = record.projeto || 'Não informado';
-    const projetoLines = pdf.splitTextToSize(projetoText, pageWidth - margin - 50);
-    pdf.text(projetoLines, margin + 20, y);
+    const projetoLines = pdf.splitTextToSize(projetoText, 120);
+    pdf.text(projetoLines, margin + 22, y);
+    y += projetoLines.length * 5 + 10;
     
-    // Ajustar Y baseado no número de linhas do projeto
-    y += projetoLines.length * 5 + 8;
-    
-    // ============ DADOS PRINCIPAIS (2 COLUNAS ORGANIZADAS) ============
+    // ============ DADOS PRINCIPAIS (LAYOUT EM 2 COLUNAS FIXAS) ============
     const col1X = margin;
-    const col2X = pageWidth / 2;
-    const labelWidth = 35; // Largura fixa para labels
-    const valueXOffset = labelWidth + 5;
+    const col2X = 110; // Posição fixa para segunda coluna
+    const lineHeight = 6;
     
-    // Função para adicionar linha de dado COM CONTROLE DE ESPAÇAMENTO
-    const addDataLine = (label: string, value: any, col: number, currentY: number): number => {
+    // Função otimizada para adicionar dados
+    const addField = (label: string, value: any, col: number, currentY: number) => {
       const x = col === 1 ? col1X : col2X;
       
       pdf.setFontSize(9);
@@ -201,14 +197,16 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       pdf.setFont('helvetica', 'normal');
       const formattedValue = formatValue(value);
-      const maxWidth = (pageWidth / 2) - margin - 10;
       
-      // Se o texto for muito longo, quebra em múltiplas linhas
+      // Calcula largura máxima para o valor
+      const maxWidth = col === 1 ? 80 : 85;
       const lines = pdf.splitTextToSize(formattedValue, maxWidth);
-      pdf.text(lines, x + valueXOffset, currentY);
       
-      // Retorna nova posição Y baseado no número de linhas
-      return currentY + (lines.length * 4.5);
+      // Adiciona o valor
+      pdf.text(lines, x + 22, currentY);
+      
+      // Retorna nova posição Y
+      return currentY + (Math.max(1, lines.length) * lineHeight);
     };
     
     const formatValue = (value: any): string => {
@@ -218,31 +216,40 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       return String(value);
     };
     
-    // DADOS DA COLUNA 1
-    let yCol1 = y;
-    yCol1 = addDataLine('Formulário', record.formulario, 1, yCol1);
-    yCol1 = addDataLine('Quadra', record.quadra, 1, yCol1);
-    yCol1 = addDataLine('Lote', record.lote, 1, yCol1);
-    yCol1 = addDataLine('Requerente', record.requerente, 1, yCol1);
-    yCol1 = addDataLine('RG', record.rg, 1, yCol1);
-    yCol1 = addDataLine('Estado Civil', record.estado_civil, 1, yCol1);
-    yCol1 = addDataLine('CPF', record.cpf, 1, yCol1);
-    yCol1 = addDataLine('Profissão', record.profissao, 1, yCol1);
-    
-    // DADOS DA COLUNA 2
-    let yCol2 = y;
-    // Extrai o número REURB do campo formulario (ex: "REURB N°.: 5979/2026")
-    let reurbNum = 'Não informado';
+    // Extrair número REURB do formulário
+    let reurbNumber = 'Não informado';
     if (record.formulario) {
-      // Tenta extrair o número do formulário
-      const match = record.formulario.match(/REURB\s*N[°\.:]\s*[:]?\s*([\d\/]+)/i);
-      reurbNum = match ? match[1] : record.formulario;
+      // Remove "REURB N°.:" e pega só o número
+      reurbNumber = record.formulario.replace(/REURB\s*N[°\.:]\s*[:]?\s*/i, '').trim();
     }
-
-    yCol2 = addDataLine('REURB Nº', reurbNum, 2, yCol2);
-    // Usa o campo correto para tipo de REURB (da análise IA ou tipo_reurb)
-    const tipoReurb = record.analise_ia || record.tipo_reurb || 'REURB-S';
-    yCol2 = addDataLine('TIPO REURB', tipoReurb, 2, yCol2);
+    
+    // Tipo de REURB (usa análise_ia se disponível)
+    const tipoReurb = record.analise_ia || 'REURB-S';
+    
+    // ===== COLUNA 1 =====
+    let y1 = y;
+    y1 = addField('Formulário', 'REURB', 1, y1);
+    y1 = addField('REURB Nº', reurbNumber, 1, y1);
+    y1 = addField('TIPO DE REURB', tipoReurb, 1, y1);
+    y1 = addField('Quadra', record.quadra, 1, y1);
+    y1 = addField('Lote', record.lote, 1, y1);
+    y1 = addField('Requerente', record.requerente, 1, y1);
+    y1 = addField('RG', record.rg, 1, y1);
+    y1 = addField('CPF', record.cpf, 1, y1);
+    
+    // ===== COLUNA 2 =====
+    let y2 = y;
+    y2 = addField('Profissão', record.profissao, 2, y2);
+    y2 = addField('NIS', record.nis, 2, y2);
+    y2 = addField('Estado Civil', record.estado_civil, 2, y2);
+    y2 = addField('Cônjuge', record.conjuge, 2, y2);
+    y2 = addField('Renda Familiar', record.renda_familiar, 2, y2);
+    y2 = addField('Moradores', record.num_moradores, 2, y2);
+    y2 = addField('Filhos', record.num_filhos, 2, y2);
+    y2 = addField('Filhos Menores', record.filhos_menores, 2, y2);
+    
+    // Ajusta Y para a maior coluna
+    y = Math.max(y1, y2) + 12;
     
     // ============ DADOS DO IMÓVEL ============
     // Linha divisória
@@ -254,48 +261,39 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'bold');
     pdf.text('DADOS DO IMÓVEL', margin, y);
-    y += 8;
+    y += 10;
     
-    // Reset para 2 colunas
-    yCol1 = y;
-    yCol2 = y;
+    // Reset Y para as colunas
+    y1 = y;
+    y2 = y;
     
-    yCol1 = addDataLine('Endereço', record.endereco, 1, yCol1);
-    yCol1 = addDataLine('Tempo Moradia', record.tempo_moradia, 1, yCol1);
-    yCol1 = addDataLine('Tipo Aquisição', record.tipo_aquisicao, 1, yCol1);
-    yCol1 = addDataLine('Uso Imóvel', record.uso_imovel, 1, yCol1);
-    yCol1 = addDataLine('Construção', record.construcao, 1, yCol1);
-    yCol1 = addDataLine('Telhado', record.telhado, 1, yCol1);
+    // Coluna 1 - Dados do imóvel
+    y1 = addField('Endereço', record.endereco, 1, y1);
+    y1 = addField('Tempo Moradia', record.tempo_moradia, 1, y1);
+    y1 = addField('Tipo Aquisição', record.tipo_aquisicao, 1, y1);
+    y1 = addField('Uso Imóvel', record.uso_imovel, 1, y1);
+    y1 = addField('Construção', record.construcao, 1, y1);
+    y1 = addField('Telhado', record.telhado, 1, y1);
     
-    yCol2 = addDataLine('Filhos Menores', record.filhos_menores, 2, yCol2);
-    yCol2 = addDataLine('Piso', record.piso, 2, yCol2);
-    yCol2 = addDataLine('Divisa', record.divisa, 2, yCol2);
-    yCol2 = addDataLine('Comodos', record.comodos, 2, yCol2);
-    yCol2 = addDataLine('Água', record.agua, 2, yCol2);
-    yCol2 = addDataLine('Energia', record.energia, 2, yCol2);
+    // Coluna 2 - Mais dados do imóvel
+    y2 = addField('Piso', record.piso, 2, y2);
+    y2 = addField('Divisa', record.divisa, 2, y2);
+    y2 = addField('Comodos', record.comodos, 2, y2);
+    y2 = addField('Água', record.agua, 2, y2);
+    y2 = addField('Energia', record.energia, 2, y2);
+    y2 = addField('Esgoto', record.esgoto, 2, y2);
+    y2 = addField('Pavimentação', record.pavimentacao, 2, y2);
+    y2 = addField('Análise IA', record.analise_ia, 2, y2);
     
-    y = Math.max(yCol1, yCol2) + 10;
+    y = Math.max(y1, y2) + 15;
     
-    // ============ INFRAESTRUTURA ============
-    // Reset para 2 colunas
-    yCol1 = y;
-    yCol2 = y;
-    
-    yCol1 = addDataLine('Esgoto', record.esgoto, 1, yCol1);
-    yCol1 = addDataLine('Pavimentação', record.pavimentacao, 1, yCol1);
-    
-    yCol2 = addDataLine('Análise IA', record.analise_ia, 2, yCol2);
-    
-    y = Math.max(yCol1, yCol2) + 15;
-    
-    // Verificar se ainda cabe na página
+    // ============ ASSINATURAS ============
+    // Verifica se ainda cabe na página
     if (y > pageHeight - 60) {
-      // Se não couber, adiciona nova página
       pdf.addPage();
       y = margin;
     }
     
-    // ============ ASSINATURAS ============
     // Título das assinaturas
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'bold');
@@ -305,9 +303,9 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     // Linha divisória
     pdf.setDrawColor(0, 0, 0);
     pdf.line(margin, y, pageWidth - margin, y);
-    y += 10;
+    y += 12;
     
-    // Container para assinaturas lado a lado
+    // Assinaturas lado a lado
     const signatureY = y;
     const signatureWidth = 70;
     const signatureHeight = 20;
