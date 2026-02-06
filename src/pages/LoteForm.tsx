@@ -51,11 +51,11 @@ function GPSButton({
 
   return (
     <div style={{
-      border: '3px solid #3b82f6',
+      border: '3px solid #22c55e',
       borderRadius: '12px',
       padding: '20px',
       margin: '20px 0',
-      background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)'
+      background: 'linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%)'
     }}>
       <div style={{
         display: 'flex',

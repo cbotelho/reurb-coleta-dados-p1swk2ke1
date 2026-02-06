@@ -800,17 +800,17 @@ export default function LoteForm() {
           {currentLote ? (
             <div className="space-y-4">
               {/* Informações do lote */}
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h3 className="font-semibold text-blue-900 mb-2">Informações do Lote</h3>
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <h3 className="font-semibold text-green-900 mb-2">Informações do Lote</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                   <div>
-                    <span className="text-blue-700 font-medium">Lote:</span> {currentLote.name}
+                    <span className="text-green-700 font-medium">Lote:</span> {currentLote.name}
                   </div>
                   <div>
-                    <span className="text-blue-700 font-medium">Área:</span> {currentLote.area} m²
+                    <span className="text-green-700 font-medium">Área:</span> {currentLote.area} m²
                   </div>
                   <div>
-                    <span className="text-blue-700 font-medium">Status:</span>{' '}
+                    <span className="text-green-700 font-medium">Status:</span>{' '}
                     <span className="capitalize">{currentLote.status?.replace('_', ' ')}</span>
                   </div>
                 </div>

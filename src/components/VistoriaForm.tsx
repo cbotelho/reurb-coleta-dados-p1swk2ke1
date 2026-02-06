@@ -185,7 +185,7 @@ const VistoriaForm: React.FC = () => {
         {/* Header */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-            <FileText className="w-8 h-8 text-blue-600" />
+            <FileText className="w-8 h-8 text-green-600" />
             Formulário de Vistoria REURB
           </h1>
           <p className="text-gray-600 mt-2">Preencha os dados da vistoria técnica</p>
@@ -211,7 +211,7 @@ const VistoriaForm: React.FC = () => {
           {step === 1 && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                <MapPin className="w-6 h-6 text-blue-600" />
+                <MapPin className="w-6 h-6 text-green-600" />
                 1. Seleção do Lote
               </h2>
               
@@ -258,8 +258,8 @@ const VistoriaForm: React.FC = () => {
               </div>
 
               {selectedLote && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-bold text-blue-800 mb-2">Lote Selecionado</h3>
+                <div className="mt-6 p-4 bg-green-50 rounded-lg">
+                  <h3 className="font-bold text-green-800 mb-2">Lote Selecionado</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-sm text-gray-600">Nome</div>
@@ -285,7 +285,7 @@ const VistoriaForm: React.FC = () => {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                   disabled={!selectedLote}
                 >
                   Continuar

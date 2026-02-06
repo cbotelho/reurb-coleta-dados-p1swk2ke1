@@ -1,9 +1,9 @@
 import { MapDrawing, DrawingStyle, Lote, Project } from '@/types'
 
 export const DEFAULT_STYLE: DrawingStyle = {
-  strokeColor: '#2563eb',
+  strokeColor: '#22c55e',
   strokeWeight: 2,
-  fillColor: '#2563eb',
+  fillColor: '#22c55e',
   fillOpacity: 0.3,
   markerIcon: 'circle',
   markerSize: 1,
