@@ -14,7 +14,7 @@ import QuadraDetails from './pages/QuadraDetails'
 import QuadraNew from './pages/QuadraNew'
 import QuadraEdit from './pages/QuadraEdit'
 import LoteForm from './pages/LoteForm'
-// import LoteFormUpdated from './pages/LoteFormUpdated'
+import LoteFormUpdated from './pages/LoteFormUpdated'
 import LoteEdit from './pages/LoteEdit'
 import CSVImport from './pages/CSVImport'
 import SyncStatus from './pages/SyncStatus'
@@ -138,7 +138,7 @@ const App = () => (
               <Route path="/projetos/:projectId/quadras/nova" element={<QuadraNew />} />
               <Route path="/quadras/:quadraId" element={<QuadraDetails />} />
               <Route path="/quadras/:quadraId/editar" element={<QuadraEdit />} />
-              <Route path="/lotes/:loteId" element={<LoteForm />} />
+              <Route path="/lotes/:loteId" element={<LoteFormUpdated />} />
               <Route path="/lotes/:loteId/editar" element={<LoteEdit />} />
               <Route
                 path="/quadras/:quadraId/lotes/new"

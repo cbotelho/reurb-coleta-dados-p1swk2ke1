@@ -34,6 +34,7 @@ import {
   CloudOff,
   FileText,
   Image,
+  MapPin,
 } from 'lucide-react'
 import {
   AlertDialog,
@@ -233,6 +234,64 @@ export default function LoteForm() {
     } catch (error) {
       console.error('Erro ao carregar parecer social:', error)
     }
+  }
+
+  // 📍 Função para capturar coordenadas
+  const captureCoordinates = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: 'Geolocalização não suportada',
+        description: 'Seu navegador não suporta geolocalização.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    toast({
+      title: 'Obtendo localização...',
+      description: 'Por favor, aguarde.',
+    })
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude.toString()
+        const lng = position.coords.longitude.toString()
+        
+        form.setValue('latitude', lat)
+        form.setValue('longitude', lng)
+        
+        toast({
+          title: 'Coordenadas capturadas!',
+          description: `Latitude: ${lat.substring(0, 10)}..., Longitude: ${lng.substring(0, 10)}...`,
+        })
+      },
+      (error) => {
+        let errorMessage = 'Erro ao obter localização.'
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Permissão de localização negada. Por favor, permita o acesso à localização.'
+            break
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Informação de localização indisponível.'
+            break
+          case error.TIMEOUT:
+            errorMessage = 'Tempo limite para obter localização excedido.'
+            break
+        }
+        
+        toast({
+          title: 'Falha na captura',
+          description: errorMessage,
+          variant: 'destructive'
+        })
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      }
+    )
   }
 
   // 💾 Salvar formulário
@@ -558,43 +617,58 @@ export default function LoteForm() {
                 )}
               />
 
-              {/* 📍 Coordenadas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="latitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Latitude</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Ex: -0.036161"
-                          {...field}
-                          disabled={!canEdit}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* 📍 Coordenadas com botão de captura */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium">Coordenadas Geográficas</h3>
+                  <Button
+                    type="button"
+                    onClick={captureCoordinates}
+                    disabled={!canEdit}
+                    className="flex items-center gap-2"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    Capturar Coordenadas
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="latitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Latitude</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Ex: -0.036161"
+                            {...field}
+                            disabled={!canEdit}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="longitude"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Longitude</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Ex: -51.130895"
-                          {...field}
-                          disabled={!canEdit}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="longitude"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Longitude</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Ex: -51.130895"
+                            {...field}
+                            disabled={!canEdit}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
 
               {/* 📸 Fotos */}
