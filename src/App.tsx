@@ -43,9 +43,9 @@ function TestViewComponent() {
       try {
         console.log('🔍 Testando view vw_reurb_surveys_admin...');
         
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from('vw_reurb_surveys_admin')
-          .select('*')
+          .select('*') 
           .limit(5);
         
         if (error) {
