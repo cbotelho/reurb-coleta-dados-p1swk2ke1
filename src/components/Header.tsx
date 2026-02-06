@@ -26,7 +26,7 @@ export function Header() {
     location.pathname === '/sincronizacao' ||
     location.pathname === '/mapa'
 
-  let title = 'REURB'
+  let title = 'NEXTREURB'
   if (location.pathname === '/') title = 'Dashboard'
   else if (location.pathname.startsWith('/projetos')) title = 'Projetos'
   else if (location.pathname.startsWith('/quadras'))
@@ -38,14 +38,15 @@ export function Header() {
 
   return (
     <>
-      <header className="fixed top-0 left-0 right-0 h-14 md:h-16 bg-blue-600 text-white z-40 flex items-center justify-between px-4 shadow-md">
+      {/* 🟢 MUDANÇA PRINCIPAL: bg-primary em vez de bg-blue-600 */}
+      <header className="fixed top-0 left-0 right-0 h-14 md:h-16 bg-primary text-primary-foreground z-40 flex items-center justify-between px-4 shadow-md">
         <div className="flex items-center gap-3">
           {/* Botão de menu lateral nas rotas principais */}
           {isRoot ? (
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:bg-blue-700"
+              className="text-primary-foreground hover:bg-primary/90"
               onClick={() => setIsDrawerOpen(true)}
               title="Abrir menu"
             >
@@ -57,7 +58,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-blue-700"
+                className="text-primary-foreground hover:bg-primary/90"
                 onClick={() => navigate('/')}
                 title="Ir para o Dashboard"
               >
@@ -67,7 +68,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-blue-700"
+                className="text-primary-foreground hover:bg-primary/90"
                 onClick={() => navigate(-1)}
                 title="Voltar"
               >
@@ -87,7 +88,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-blue-700 rounded-full"
+                className="text-primary-foreground hover:bg-primary/90 rounded-full"
               >
                 <User className="h-5 w-5" />
               </Button>
