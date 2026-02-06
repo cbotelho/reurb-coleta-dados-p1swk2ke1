@@ -231,19 +231,18 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     
     // DADOS DA COLUNA 2
     let yCol2 = y;
-    // REMOVENDO A LINHA DUPLICADA - APENAS UM "REURB Nº"
-    const reurbNum = record.id ? `00156/2025` : 'Não informado'; // Exemplo - ajuste conforme sua lógica
+    // Extrai o número REURB do campo formulario (ex: "REURB N°.: 5979/2026")
+    let reurbNum = 'Não informado';
+    if (record.formulario) {
+      // Tenta extrair o número do formulário
+      const match = record.formulario.match(/REURB\s*N[°\.:]\s*[:]?\s*([\d\/]+)/i);
+      reurbNum = match ? match[1] : record.formulario;
+    }
+
     yCol2 = addDataLine('REURB Nº', reurbNum, 2, yCol2);
-    yCol2 = addDataLine('TIPO REURB', record.tipo_reurb || 'REURB-S', 2, yCol2);
-    yCol2 = addDataLine('NIS', record.nis, 2, yCol2);
-    yCol2 = addDataLine('Cônjuge', record.conjuge, 2, yCol2);
-    yCol2 = addDataLine('Renda Familiar', record.renda_familiar, 2, yCol2);
-    yCol2 = addDataLine('CPF Cônjuge', record.cpf_conjuge, 2, yCol2);
-    yCol2 = addDataLine('Moradores', record.num_moradores, 2, yCol2);
-    yCol2 = addDataLine('Filhos', record.num_filhos, 2, yCol2);
-    
-    // Ajustar Y para a próxima seção (pega o maior Y entre as colunas)
-    y = Math.max(yCol1, yCol2) + 10;
+    // Usa o campo correto para tipo de REURB (da análise IA ou tipo_reurb)
+    const tipoReurb = record.analise_ia || record.tipo_reurb || 'REURB-S';
+    yCol2 = addDataLine('TIPO REURB', tipoReurb, 2, yCol2);
     
     // ============ DADOS DO IMÓVEL ============
     // Linha divisória
