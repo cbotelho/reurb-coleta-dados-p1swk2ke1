@@ -74,20 +74,20 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
-        chart: {
-          1: 'hsl(var(--chart-1))',
-          2: 'hsl(var(--chart-2))',
-          3: 'hsl(var(--chart-3))',
-          4: 'hsl(var(--chart-4))',
-          5: 'hsl(var(--chart-5))',
+        theme: {
+          extend: {
+            colors: {
+              primary: '#10b981', // verde principal
+              secondary: '#22c55e', // verde claro
+              accent: '#16a34a', // verde escuro
+              chart: {
+                1: '#10b981', // verde
+                2: '#22c55e', // verde claro
+                3: '#16a34a', // verde escuro
+              },
+            },
+          },
         },
-      },
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      transitionProperty: {
         width: 'width',
         height: 'height',
       },
