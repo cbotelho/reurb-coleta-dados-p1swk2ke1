@@ -1,7 +1,7 @@
-// LoteForm.tsx - VERSÃO COM GPS INTEGRADO
+// LoteForm.tsx - VERSÃO COMPLETA E CORRIGIDA COM GPS
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 // Componente de GPS INTEGRADO ao formulário
@@ -553,7 +553,7 @@ export default function LoteForm() {
               ⚠️ Modo de demonstração - Os dados são apenas visuais
             </p>
           </div>
-        </div> {/* ← ADICIONE ESTA LINHA! */}
+        </div>
 
         {/* Informações */}
         <div style={{
