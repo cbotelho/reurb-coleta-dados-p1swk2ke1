@@ -130,7 +130,7 @@ const App = () => (
                 </PrivateRoute>
               }
             >
-              <Route path="/" element={<Navigate to="/projetos" replace />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/projetos" element={<Projetos />} />
               <Route path="/projetos/novo" element={<ProjetoNew />} />
