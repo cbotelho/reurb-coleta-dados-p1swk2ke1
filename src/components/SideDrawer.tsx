@@ -18,7 +18,7 @@ import {
   PieChart,
   Bell,
 } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -29,6 +29,7 @@ interface SideDrawerProps {
 
 export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { logout, user, hasPermission } = useAuth()
 
   const NavItem = ({
@@ -40,16 +41,25 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
     icon: any
     label: string
   }) => {
-    const isActive = location.pathname === to
+    const isActive = 
+      location.pathname === to || 
+      (to === '/projetos' && location.pathname.startsWith('/projetos')) ||
+      (to === '/users' && location.pathname.startsWith('/users')) ||
+      (to === '/groups' && location.pathname.startsWith('/groups')) ||
+      (to === '/configuracoes' && location.pathname.startsWith('/configuracoes'))
+    
     return (
-      <Link to={to} onClick={onClose}>
+      <Link 
+        to={to} 
+        onClick={onClose}
+      >
         <Button
           variant="ghost"
           className={cn(
-            'w-full justify-start gap-3 text-base h-12',
+            'w-full justify-start gap-3 text-base h-12 px-4',
             isActive
-              ? 'bg-blue-50 text-blue-600 font-semibold'
-              : 'text-gray-600 hover:bg-gray-50',
+              ? 'bg-primary/10 text-primary font-semibold'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
           )}
         >
           <Icon className="h-5 w-5" />
@@ -63,21 +73,91 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
   const canManageGroups = hasPermission('all') || hasPermission('manage_groups')
   const canViewReports = hasPermission('all') || hasPermission('view_reports')
 
+  // Função para navegar para dashboard
+  const handleDashboardClick = () => {
+    // Navega para dashboard se não estiver lá
+    if (location.pathname !== '/' && location.pathname !== '/Dashboard') {
+      navigate('/')
+    }
+    onClose()
+  }
+
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent
         side="left"
-        className="w-[80%] sm:w-[300px] p-0 flex flex-col"
+        className="w-[80%] sm:w-[300px] p-0 flex flex-col border-r bg-background"
       >
-        <SheetHeader className="p-6 bg-blue-600 text-white text-left">
-          <SheetTitle className="text-white text-xl">REURB Coleta</SheetTitle>
-          <SheetDescription className="text-blue-100">
-            Logado como: {user?.name}
-          </SheetDescription>
+        {/* Cabeçalho com logo */}
+        <SheetHeader className="p-6 bg-primary text-primary-foreground text-left border-b">
+          <div className="flex flex-col space-y-4">
+            {/* Logo do sistema */}
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-lg overflow-hidden bg-primary-foreground/10 flex items-center justify-center p-1">
+                <img 
+                  src="/NextReurb_Logo.png" 
+                  alt="NEXTREURB Logo"
+                  className="h-full w-full object-contain"
+                  onError={(e) => {
+                    // Fallback se a imagem não carregar
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent) {
+                      parent.innerHTML = `
+                        <div class="h-full w-full flex items-center justify-center">
+                          <span class="text-primary-foreground font-bold text-xl">R</span>
+                        </div>
+                      `
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <SheetTitle className="text-primary-foreground text-xl font-bold">
+                  NEXTREURB
+                </SheetTitle>
+                <SheetDescription className="text-primary-foreground/80 text-sm">
+                  Coleta de Dados
+                </SheetDescription>
+              </div>
+            </div>
+            
+            {/* Informação do usuário */}
+            <div className="pt-3 border-t border-primary-foreground/20">
+              <p className="text-primary-foreground/90 text-sm font-medium truncate">
+                {user?.name || 'Usuário'}
+              </p>
+              <p className="text-primary-foreground/70 text-xs truncate">
+                {user?.username || user?.email || ''}
+              </p>
+              {user?.role && (
+                <p className="text-primary-foreground/60 text-xs mt-1">
+                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                </p>
+              )}
+            </div>
+          </div>
         </SheetHeader>
 
-        <div className="flex flex-col gap-1 p-4 overflow-y-auto">
-          <NavItem to="/" icon={Home} label="Dashboard" />
+        {/* Menu de navegação */}
+        <nav className="flex flex-col gap-1 p-4 overflow-y-auto flex-1">
+          {/* Dashboard - item especial */}
+          <Button
+            variant="ghost"
+            className={cn(
+              'w-full justify-start gap-3 text-base h-12 px-4 mb-1',
+              location.pathname === '/' || location.pathname === '/Dashboard'
+                ? 'bg-primary/10 text-primary font-semibold'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+            onClick={handleDashboardClick}
+          >
+            <Home className="h-5 w-5" />
+            Dashboard
+          </Button>
+
+          {/* Demais itens do menu */}
           <NavItem to="/projetos" icon={Folder} label="Projetos" />
           <NavItem to="/mapa" icon={Map} label="Mapa Interativo" />
           <NavItem to="/geo-alerts" icon={Bell} label="Alertas Geográficos" />
@@ -99,14 +179,15 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
           {canManageGroups && (
             <NavItem to="/groups" icon={Shield} label="Grupos de Usuários" />
           )}
-        </div>
+        </nav>
 
-        <div className="mt-auto border-t p-4 space-y-2">
+        {/* Rodapé com configurações e sair */}
+        <div className="mt-auto border-t p-4 space-y-2 bg-muted/30">
           <NavItem to="/configuracoes" icon={Settings} label="Configurações" />
 
           <Button
             variant="ghost"
-            className="w-full justify-start gap-3 text-red-500 hover:text-red-600 hover:bg-red-50"
+            className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 h-12 px-4"
             onClick={() => {
               onClose()
               logout()
