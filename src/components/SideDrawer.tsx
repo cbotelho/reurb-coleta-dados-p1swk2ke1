@@ -76,10 +76,8 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
 
   // Função para navegar para dashboard
   const handleDashboardClick = () => {
-    // Navega para dashboard se não estiver lá
-    if (location.pathname !== '/' && location.pathname !== '/Dashboard') {
-      navigate('/')
-    }
+    // Navega sempre para '/' (dashboard)
+    navigate('/')
     onClose()
   }
 
