@@ -131,6 +131,7 @@ const App = () => (
               }
             >
               <Route path="/" element={<Navigate to="/projetos" replace />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/projetos" element={<Projetos />} />
               <Route path="/projetos/novo" element={<ProjetoNew />} />
               <Route path="/projetos/:projectId" element={<ProjetoDetails />} />
