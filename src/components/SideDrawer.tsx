@@ -41,9 +41,9 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
     icon: any
     label: string
   }) => {
+    // Verificação corrigida para rotas ativas
     const isActive = 
       location.pathname === to || 
-      (to === '/dashboard' && location.pathname.startsWith('/dashboard')) ||
       (to === '/projetos' && location.pathname.startsWith('/projetos')) ||
       (to === '/users' && location.pathname.startsWith('/users')) ||
       (to === '/groups' && location.pathname.startsWith('/groups')) ||
@@ -74,12 +74,18 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
   const canManageGroups = hasPermission('all') || hasPermission('manage_groups')
   const canViewReports = hasPermission('all') || hasPermission('view_reports')
 
-  // Função para navegar para dashboard
+  // Função para navegar para dashboard - CORRIGIDA
   const handleDashboardClick = () => {
     // Navega sempre para '/' (dashboard)
     navigate('/')
     onClose()
   }
+
+  // Verifica se está na página do dashboard
+  const isDashboardActive = 
+    location.pathname === '/' || 
+    location.pathname === '/Dashboard' || 
+    location.pathname === '/dashboard'
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -141,12 +147,12 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
 
         {/* Menu de navegação */}
         <nav className="flex flex-col gap-1 p-4 overflow-y-auto flex-1">
-          {/* Dashboard - item especial */}
+          {/* Dashboard - item especial CORRIGIDO */}
           <Button
             variant="ghost"
             className={cn(
               'w-full justify-start gap-3 text-base h-12 px-4 mb-1',
-              location.pathname === '/' || location.pathname === '/Dashboard'
+              isDashboardActive
                 ? 'bg-primary/10 text-primary font-semibold'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             )}
