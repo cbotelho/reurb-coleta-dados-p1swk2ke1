@@ -43,6 +43,7 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
   }) => {
     const isActive = 
       location.pathname === to || 
+      (to === '/dashboard' && location.pathname.startsWith('/dashboard')) ||
       (to === '/projetos' && location.pathname.startsWith('/projetos')) ||
       (to === '/users' && location.pathname.startsWith('/users')) ||
       (to === '/groups' && location.pathname.startsWith('/groups')) ||
