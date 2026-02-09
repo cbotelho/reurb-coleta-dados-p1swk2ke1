@@ -12,6 +12,7 @@ interface SurveyAdmin {
   lote: string;
   requerente: string;
   cpf: string;
+  vistoriador?: string;
 }
 
 interface ReportPDFGeneratorProps {
@@ -47,7 +48,7 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
       y += 10;
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      pdf.text('Sistema NEXTREURB - Governo do Estado do Amapá', 105, y, { align: 'center' });
+      pdf.text('Sistema NextReurb - Governo do Estado do Amapá', 105, y, { align: 'center' });
       
       y += 15;
       
@@ -96,19 +97,23 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
       pdf.setFont('helvetica', 'bold');
       pdf.text('2. CONCLUSÃO E ASSINATURAS', 20, y);
       y += 10;
-      
+
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
+      // Substituído: Análise IA -> Vistoriador
+      pdf.text(`Vistoriador: ${surveyData.vistoriador || 'N/A'}`, 20, y);
+      y += 10;
+
       pdf.text('Vistoria realizada conforme normativas do REURB - Regularização Fundiária Urbana.', 20, y);
       y += 15;
-      
+
       // Linha para assinatura do vistoriador
       pdf.line(20, y, 100, y);
       pdf.text('Assinatura do Vistoriador', 20, y + 5);
-      
+
       pdf.line(110, y, 190, y);
       pdf.text('Assinatura do Responsável', 110, y + 5);
-      
+
       y += 25;
       
       // Data e local

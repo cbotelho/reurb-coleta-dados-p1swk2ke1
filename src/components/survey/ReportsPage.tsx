@@ -1,7 +1,7 @@
 // pages/ReportsPage.tsx ou no componente onde está o botão
 import React, { useState } from 'react';
 import SurveyAdminGrid from '../../components/SurveyAdminGrid';
-import ReportPDFModal from '../../components/ReportPDFModal';
+import ReportPDFModal from '../../components/ReportPDFGenerator';
 import { FileText } from 'lucide-react';
 
 const ReportsPage: React.FC = () => {
