@@ -60,13 +60,17 @@ export function Header() {
             </Button>
           ) : (
             <>
-              {/* Botão dashboard nas rotas secundárias */}
+              {/* Botão de menu lateral nas rotas secundárias */}
               <Button
                 variant="ghost"
                 size="icon"
                 className="text-primary-foreground hover:bg-primary/90"
-                onClick={() => navigate('/')}
-                title="Ir para o Dashboard"
+                onClick={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDrawerOpen(true)
+                }}
+                title="Abrir menu"
                 type="button"
                 tabIndex={0}
               >
