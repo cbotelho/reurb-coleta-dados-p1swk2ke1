@@ -124,7 +124,7 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
               </div>
               <div>
                 <SheetTitle className="text-primary-foreground text-xl font-bold">
-                  NEXTREURB
+                  NextReurb
                 </SheetTitle>
                 <SheetDescription className="text-primary-foreground/80 text-sm">
                   Coleta de Dados
