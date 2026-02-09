@@ -51,6 +51,21 @@ export function SurveyGeneralTab({
         )} />
       </div>
 
+      {/* 2.1 Campo Nome do Vistoriador */}
+      <FormField
+        control={form.control}
+        name="surveyor_name"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Nome do Vistoriador</FormLabel>
+            <FormControl>
+              <Input {...field} disabled={!canEdit} placeholder="Ex: João da Silva" />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
       {/* 3. BLOCO DE ASSINATURA DO VISTORIADOR */}
       <div className="bg-white p-4 rounded-lg border-2 border-slate-100 space-y-3">
         <h3 className="font-semibold text-sm border-b pb-2 text-slate-700 flex items-center gap-2">
