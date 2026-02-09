@@ -26,7 +26,7 @@ export function Header() {
     location.pathname === '/sincronizacao' ||
     location.pathname === '/mapa'
 
-  let title = 'NEXTREURB'
+  let title = 'NextReurb v. 1.0.10'
   if (location.pathname === '/') title = 'Dashboard'
   else if (location.pathname.startsWith('/projetos')) title = 'Projetos'
   else if (location.pathname.startsWith('/quadras'))
