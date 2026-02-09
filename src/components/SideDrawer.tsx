@@ -161,8 +161,8 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             )}
             onClick={handleDashboardClick}
-            tabIndex={0}
             type="button"
+            autoFocus={false}
           >
             <Home className="h-5 w-5" />
             Dashboard
