@@ -55,7 +55,32 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
   
   const openPdfModal = (surveyId: string) => {
     console.log('🖨️ ABRINDO MODAL ÚNICO para:', surveyId);
-    if (onSelect) onSelect(surveyId);
+    // Buscar dados completos da viewer antes de abrir o modal
+    (async () => {
+      try {
+        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+        const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${surveyId}`;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!response.ok) throw new Error('Erro ao buscar dados detalhados');
+        const data = await response.json();
+        if (data && data.length > 0) {
+          if (onSelect) onSelect(data[0]);
+        } else {
+          if (onSelect) onSelect({ id: surveyId });
+        }
+      } catch (e) {
+        console.error('Erro ao buscar dados detalhados para PDF:', e);
+        if (onSelect) onSelect({ id: surveyId });
+      }
+    })();
     setSelectedSurveyId(surveyId);
     setModalOpen(true);
     setErrorPdf(null);
