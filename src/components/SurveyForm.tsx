@@ -196,67 +196,49 @@ export function SurveyForm({ propertyId, canEdit }: SurveyFormProps) {
           console.warn('⚠️ Nenhum lote encontrado para ID:', propertyId)
         }
 
-        if (surveyData) {
+        if (surveyData && typeof surveyData === 'object') {
           setSurveyId(surveyData.id)
-          form.reset({
-            form_number: (surveyData as any).form_number ?? '',
-            survey_date: (surveyData as any).survey_date
-              ? String((surveyData as any).survey_date).split('T')[0]
-              : '',
-            city: (surveyData as any).city ?? 'Macapá',
-            state: (surveyData as any).state ?? 'AP',
-            surveyor_name: (surveyData as any).surveyor_name ?? '',
-            surveyor_signature: (surveyData as any).surveyor_signature ?? '',
-
-            applicant_name: (surveyData as any).applicant_name ?? '',
-            applicant_cpf: (surveyData as any).applicant_cpf ?? '',
-            applicant_rg: (surveyData as any).applicant_rg ?? '',
-            applicant_civil_status: (surveyData as any).applicant_civil_status ?? '',
-            applicant_profession: (surveyData as any).applicant_profession ?? '',
-            applicant_income:
-              (surveyData as any).applicant_income === null ||
-              (surveyData as any).applicant_income === undefined
-                ? ''
-                : String((surveyData as any).applicant_income),
-            applicant_nis: (surveyData as any).applicant_nis ?? '',
-            spouse_name: (surveyData as any).spouse_name ?? '',
-            spouse_cpf: (surveyData as any).spouse_cpf ?? '',
-
-            residents_count:
-              (surveyData as any).residents_count === null ||
-              (surveyData as any).residents_count === undefined
-                ? 0
-                : Number((surveyData as any).residents_count),
-            has_children: Boolean((surveyData as any).has_children),
-
-            occupation_time: (surveyData as any).occupation_time ?? '',
-            acquisition_mode: (surveyData as any).acquisition_mode ?? '',
-            property_use: (surveyData as any).property_use ?? '',
-            construction_type: (surveyData as any).construction_type ?? '',
-            roof_type: (surveyData as any).roof_type ?? '',
-            floor_type: (surveyData as any).floor_type ?? '',
-            rooms_count:
-              (surveyData as any).rooms_count === null ||
-              (surveyData as any).rooms_count === undefined
-                ? 0
-                : Number((surveyData as any).rooms_count),
-            conservation_state: (surveyData as any).conservation_state ?? '',
-            fencing: (surveyData as any).fencing ?? '',
-
-            water_supply: (surveyData as any).water_supply ?? '',
-            energy_supply: (surveyData as any).energy_supply ?? '',
-            sanitation: (surveyData as any).sanitation ?? '',
-            street_paving: (surveyData as any).street_paving ?? '',
-
-            observations: (surveyData as any).observations ?? '',
-            assinatura_requerente: (surveyData as any).assinatura_requerente ?? '',
-            documents: (surveyData as any).documents ?? [],
-            analise_ia_classificacao: (surveyData as any).analise_ia_classificacao ?? '',
-            analise_ia_parecer: (surveyData as any).analise_ia_parecer ?? '',
-            analise_ia_proximo_passo: (surveyData as any).analise_ia_proximo_passo ?? '',
-            analise_ia_gerada_em: (surveyData as any).analise_ia_gerada_em ?? '',
-          } as any)
-          console.log('✅ Formulário preenchido com dados da vistoria existente')
+          // Só faz reset se realmente veio dado preenchido
+          const resetObj: any = {}
+          if ('form_number' in surveyData) resetObj.form_number = surveyData.form_number ?? ''
+          if ('survey_date' in surveyData) resetObj.survey_date = surveyData.survey_date ? String(surveyData.survey_date).split('T')[0] : ''
+          if ('city' in surveyData) resetObj.city = surveyData.city ?? 'Macapá'
+          if ('state' in surveyData) resetObj.state = surveyData.state ?? 'AP'
+          if ('surveyor_name' in surveyData) resetObj.surveyor_name = surveyData.surveyor_name ?? ''
+          if ('surveyor_signature' in surveyData) resetObj.surveyor_signature = surveyData.surveyor_signature ?? ''
+          if ('applicant_name' in surveyData) resetObj.applicant_name = surveyData.applicant_name ?? ''
+          if ('applicant_cpf' in surveyData) resetObj.applicant_cpf = surveyData.applicant_cpf ?? ''
+          if ('applicant_rg' in surveyData) resetObj.applicant_rg = surveyData.applicant_rg ?? ''
+          if ('applicant_civil_status' in surveyData) resetObj.applicant_civil_status = surveyData.applicant_civil_status ?? ''
+          if ('applicant_profession' in surveyData) resetObj.applicant_profession = surveyData.applicant_profession ?? ''
+          if ('applicant_income' in surveyData) resetObj.applicant_income = (surveyData.applicant_income === null || surveyData.applicant_income === undefined) ? '' : String(surveyData.applicant_income)
+          if ('applicant_nis' in surveyData) resetObj.applicant_nis = surveyData.applicant_nis ?? ''
+          if ('spouse_name' in surveyData) resetObj.spouse_name = surveyData.spouse_name ?? ''
+          if ('spouse_cpf' in surveyData) resetObj.spouse_cpf = surveyData.spouse_cpf ?? ''
+          if ('residents_count' in surveyData) resetObj.residents_count = (surveyData.residents_count === null || surveyData.residents_count === undefined) ? 0 : Number(surveyData.residents_count)
+          if ('has_children' in surveyData) resetObj.has_children = Boolean(surveyData.has_children)
+          if ('occupation_time' in surveyData) resetObj.occupation_time = surveyData.occupation_time ?? ''
+          if ('acquisition_mode' in surveyData) resetObj.acquisition_mode = surveyData.acquisition_mode ?? ''
+          if ('property_use' in surveyData) resetObj.property_use = surveyData.property_use ?? ''
+          if ('construction_type' in surveyData) resetObj.construction_type = surveyData.construction_type ?? ''
+          if ('roof_type' in surveyData) resetObj.roof_type = surveyData.roof_type ?? ''
+          if ('floor_type' in surveyData) resetObj.floor_type = surveyData.floor_type ?? ''
+          if ('rooms_count' in surveyData) resetObj.rooms_count = (surveyData.rooms_count === null || surveyData.rooms_count === undefined) ? 0 : Number(surveyData.rooms_count)
+          if ('conservation_state' in surveyData) resetObj.conservation_state = surveyData.conservation_state ?? ''
+          if ('fencing' in surveyData) resetObj.fencing = surveyData.fencing ?? ''
+          if ('water_supply' in surveyData) resetObj.water_supply = surveyData.water_supply ?? ''
+          if ('energy_supply' in surveyData) resetObj.energy_supply = surveyData.energy_supply ?? ''
+          if ('sanitation' in surveyData) resetObj.sanitation = surveyData.sanitation ?? ''
+          if ('street_paving' in surveyData) resetObj.street_paving = surveyData.street_paving ?? ''
+          if ('observations' in surveyData) resetObj.observations = surveyData.observations ?? ''
+          if ('assinatura_requerente' in surveyData) resetObj.assinatura_requerente = surveyData.assinatura_requerente ?? ''
+          if ('documents' in surveyData) resetObj.documents = surveyData.documents ?? []
+          if ('analise_ia_classificacao' in surveyData) resetObj.analise_ia_classificacao = surveyData.analise_ia_classificacao ?? ''
+          if ('analise_ia_parecer' in surveyData) resetObj.analise_ia_parecer = surveyData.analise_ia_parecer ?? ''
+          if ('analise_ia_proximo_passo' in surveyData) resetObj.analise_ia_proximo_passo = surveyData.analise_ia_proximo_passo ?? ''
+          if ('analise_ia_gerada_em' in surveyData) resetObj.analise_ia_gerada_em = surveyData.analise_ia_gerada_em ?? ''
+          form.reset(resetObj)
+          console.log('✅ Formulário preenchido com dados da vistoria existente', resetObj)
         }
       } catch (e) {
         console.error('❌ Erro ao carregar dados:', e)
