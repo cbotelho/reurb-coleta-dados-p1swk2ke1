@@ -47,8 +47,14 @@ export function Header() {
               variant="ghost"
               size="icon"
               className="text-primary-foreground hover:bg-primary/90"
-              onClick={() => setIsDrawerOpen(true)}
+              onClick={e => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsDrawerOpen(true)
+              }}
               title="Abrir menu"
+              type="button"
+              tabIndex={0}
             >
               <Menu className="h-6 w-6" />
             </Button>
@@ -61,6 +67,8 @@ export function Header() {
                 className="text-primary-foreground hover:bg-primary/90"
                 onClick={() => navigate('/')}
                 title="Ir para o Dashboard"
+                type="button"
+                tabIndex={0}
               >
                 <Menu className="h-6 w-6" />
               </Button>
@@ -71,6 +79,8 @@ export function Header() {
                 className="text-primary-foreground hover:bg-primary/90"
                 onClick={() => navigate(-1)}
                 title="Voltar"
+                type="button"
+                tabIndex={0}
               >
                 <ArrowLeft className="h-6 w-6" />
               </Button>

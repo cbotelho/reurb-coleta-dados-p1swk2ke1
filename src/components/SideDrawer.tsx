@@ -74,9 +74,13 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
   const canManageGroups = hasPermission('all') || hasPermission('manage_groups')
   const canViewReports = hasPermission('all') || hasPermission('view_reports')
 
-  // Função para navegar para dashboard - CORRIGIDA
-  const handleDashboardClick = () => {
-    // Navega sempre para '/' (dashboard)
+  // Função para navegar para dashboard
+  const handleDashboardClick = (e?: React.MouseEvent) => {
+    // Evita navegação automática por foco ou propagação indevida
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     navigate('/')
     onClose()
   }
@@ -157,6 +161,8 @@ export function SideDrawer({ isOpen, onClose }: SideDrawerProps) {
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             )}
             onClick={handleDashboardClick}
+            tabIndex={0}
+            type="button"
           >
             <Home className="h-5 w-5" />
             Dashboard
