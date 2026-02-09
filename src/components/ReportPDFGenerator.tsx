@@ -14,7 +14,7 @@ interface SurveyAdmin {
   cpf: string;
   vistoriador?: string;
 }
-
+ 
 interface ReportPDFGeneratorProps {
   surveyData: SurveyAdmin;
   isOpen: boolean;
