@@ -25,6 +25,7 @@ export const surveySchema = z.object({
   applicant_nis: z.string().default(''),
   spouse_name: z.string().default(''),
   spouse_cpf: z.string().default(''),
+  spouse_profession: z.string().default(''),
   
   // Numéricos - Usamos coerce para transformar string de input em number
   residents_count: z.coerce.number().min(0).default(0),

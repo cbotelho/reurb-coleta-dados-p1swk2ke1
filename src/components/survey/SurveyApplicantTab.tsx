@@ -211,6 +211,19 @@ export function SurveyApplicantTab({
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="spouse_profession"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Profissão do Cônjuge</FormLabel>
+                  <FormControl>
+                    <Input {...field} disabled={!canEdit} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </div>
       )}

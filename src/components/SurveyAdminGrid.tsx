@@ -19,7 +19,7 @@ interface SurveyAdmin {
 }
 
 interface SurveyAdminGridProps {
-  onSelect?: (surveyId: string) => void;
+  onSelect?: (survey: SurveyAdmin) => void;
   printedIds: string[];
   projectId?: string;
 }
@@ -74,11 +74,27 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         if (data && data.length > 0) {
           if (onSelect) onSelect(data[0]);
         } else {
-          if (onSelect) onSelect({ id: surveyId });
+          if (onSelect) onSelect({
+            id: surveyId,
+            Formulario: '',
+            Projeto: '',
+            Quadra: '',
+            Lote: '',
+            Requerente: '',
+            CPF: ''
+          });
         }
       } catch (e) {
         console.error('Erro ao buscar dados detalhados para PDF:', e);
-        if (onSelect) onSelect({ id: surveyId });
+        if (onSelect) onSelect({
+          id: surveyId,
+          Formulario: '',
+          Projeto: '',
+          Quadra: '',
+          Lote: '',
+          Requerente: '',
+          CPF: ''
+        });
       }
     })();
     setSelectedSurveyId(surveyId);
