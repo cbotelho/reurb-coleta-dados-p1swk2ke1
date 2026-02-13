@@ -32,7 +32,12 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
 }) => {
   // Estados da GRID
   const [data, setData] = useState<SurveyAdmin[]>([]);
-  const [search, setSearch] = useState('');
+  // Estados de pesquisa por campo
+  const [searchId, setSearchId] = useState('');
+  const [searchQuadra, setSearchQuadra] = useState('');
+  const [searchLote, setSearchLote] = useState('');
+  const [searchNome, setSearchNome] = useState('');
+  const [searchCpf, setSearchCpf] = useState('');
   const [loadingGrid, setLoadingGrid] = useState(false);
   const [errorGrid, setErrorGrid] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -676,16 +681,13 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
 
   // Filtro
   const filtered = data.filter(row => {
-    if (!search.trim()) return true;
-    const searchTerm = search.toLowerCase().trim();
-    const fields = [
-      row.Formulario || '',
-      row.Quadra || '',
-      row.Lote || '',
-      row.Requerente || '',
-      row.CPF || ''
-    ];
-    return fields.some(field => field.toLowerCase().includes(searchTerm));
+    // Pesquisa combinada por campo
+    const matchId = searchId.trim() ? row.id.toLowerCase().includes(searchId.toLowerCase().trim()) : true;
+    const matchQuadra = searchQuadra.trim() ? row.Quadra.toLowerCase().includes(searchQuadra.toLowerCase().trim()) : true;
+    const matchLote = searchLote.trim() ? row.Lote.toLowerCase().includes(searchLote.toLowerCase().trim()) : true;
+    const matchNome = searchNome.trim() ? row.Requerente.toLowerCase().includes(searchNome.toLowerCase().trim()) : true;
+    const matchCpf = searchCpf.trim() ? row.CPF.toLowerCase().includes(searchCpf.toLowerCase().trim()) : true;
+    return matchId && matchQuadra && matchLote && matchNome && matchCpf;
   });
 
   // Paginação
@@ -717,17 +719,41 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         </div>
         
         <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-2">
             <input
               type="text"
-              placeholder="Pesquisar por formulário, quadra, lote, requerente ou CPF..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="ID"
+              value={searchId}
+              onChange={e => { setSearchId(e.target.value); setCurrentPage(1); }}
+              className="pl-3 pr-2 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Quadra"
+              value={searchQuadra}
+              onChange={e => { setSearchQuadra(e.target.value); setCurrentPage(1); }}
+              className="pl-3 pr-2 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Lote"
+              value={searchLote}
+              onChange={e => { setSearchLote(e.target.value); setCurrentPage(1); }}
+              className="pl-3 pr-2 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Requerente (Like)"
+              value={searchNome}
+              onChange={e => { setSearchNome(e.target.value); setCurrentPage(1); }}
+              className="pl-3 pr-2 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="CPF"
+              value={searchCpf}
+              onChange={e => { setSearchCpf(e.target.value); setCurrentPage(1); }}
+              className="pl-3 pr-2 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
@@ -765,7 +791,9 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
               ) : currentItems.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                    {search ? 'Nenhum registro encontrado' : 'Nenhum registro disponível'}
+                    {searchId || searchQuadra || searchLote || searchNome || searchCpf
+                      ? 'Nenhum registro encontrado'
+                      : 'Nenhum registro disponível'}
                   </td>
                 </tr>
               ) : (
