@@ -57,7 +57,7 @@ export function DocumentUpload({
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes'
-    const k = 1024
+    const k = 2048
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
@@ -98,7 +98,7 @@ export function DocumentUpload({
         }
 
         // Validar tamanho
-        const maxSizeBytes = maxSizeMB * 1024 * 1024
+        const maxSizeBytes = maxSizeMB * 2048 * 2048
         if (file.size > maxSizeBytes) {
           alert(
             `Arquivo muito grande: ${file.name}. Tamanho máximo: ${maxSizeMB}MB`
