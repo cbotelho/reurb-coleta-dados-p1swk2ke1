@@ -37,8 +37,8 @@ interface DocumentUploadProps {
 export function DocumentUpload({
   initialDocuments = [],
   onDocumentsChange,
-  maxFiles = 10,
-  maxSizeMB = 10,
+  maxFiles = 20,
+  maxSizeMB = 20,
   acceptedTypes = [
     'application/pdf',
     'image/jpeg',
