@@ -27,7 +27,7 @@ export function SurveyDocsTab({ form, canEdit }: SurveyDocsTabProps) {
           console.log('📎 documentos atualizados:', docs)
         }}
         maxFiles={20}
-        maxSizeMB={10}
+        maxSizeMB={20}
         disabled={!canEdit}
       />
     </div>
