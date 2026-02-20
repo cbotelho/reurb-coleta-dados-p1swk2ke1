@@ -637,7 +637,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       const params = new URLSearchParams();
       params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf');
       params.append('order', 'id.desc');
-      params.append('limit', '200');
+      params.append('limit', '500');
       
       url = `${url}?${params.toString()}`;
       
