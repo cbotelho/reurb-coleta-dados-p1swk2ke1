@@ -13,6 +13,7 @@ interface SurveyAdmin {
   requerente: string;
   cpf: string;
   vistoriador?: string;
+  Data_Vistoria?: string;
 }
  
 interface ReportPDFGeneratorProps {
@@ -114,12 +115,26 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
       pdf.line(110, y, 190, y);
       pdf.text('Assinatura do Responsável', 110, y + 5);
 
+      // Data da Vistoria centralizada antes das assinaturas
+      y += 10;
+      const dataVistoria = surveyData.Data_Vistoria || '';
+      if (dataVistoria) {
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Macapá/AP, ${dataVistoria}`, 105, y, { align: 'center' });
+        pdf.setFont('helvetica', 'normal');
+        y += 15;
+      } else {
+        y += 5;
+      }
+      // Depois, as linhas de assinatura
+      pdf.line(20, y, 100, y);
+      pdf.text('Assinatura do Vistoriador', 20, y + 5);
+      pdf.line(110, y, 190, y);
+      pdf.text('Assinatura do Responsável', 110, y + 5);
       y += 25;
-      
-      // Data e local
+      // Data e local (mantém para histórico, mas pode ser removido se não quiser duplicidade)
       const dataAtual = new Date().toLocaleDateString('pt-BR');
       const horaAtual = new Date().toLocaleTimeString('pt-BR');
-      
       pdf.text(`Local: Governo do Estado do Amapá`, 20, y);
       pdf.text(`Data: ${dataAtual}`, 20, y + 6);
       pdf.text(`Hora: ${horaAtual}`, 20, y + 12);
