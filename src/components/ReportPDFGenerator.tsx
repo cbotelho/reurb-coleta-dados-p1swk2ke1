@@ -115,7 +115,7 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
       pdf.line(110, y, 190, y);
       pdf.text('Assinatura do Responsável', 110, y + 5);
 
-      // Data da Vistoria centralizada antes das assinaturas
+      // Nao estava saindo a Data da Vistoria centralizada antes das assinaturas
       y += 10;
       const dataVistoria = surveyData.Data_Vistoria || '';
       if (dataVistoria) {
