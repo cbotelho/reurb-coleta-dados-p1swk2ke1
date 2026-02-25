@@ -16,6 +16,7 @@ interface SurveyAdmin {
   Lote: string;
   Requerente: string;
   CPF: string;
+  Data_Vistoria?: string;
 }
 
 interface SurveyAdminGridProps {
@@ -635,7 +636,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
       const params = new URLSearchParams();
-      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf');
+      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf,Data_Vistoria');
       params.append('order', 'id.desc');
       params.append('limit', '500');
       
@@ -662,7 +663,8 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         Quadra: item.quadra || '-',
         Lote: item.lote || '-',
         Requerente: item.requerente || '-',
-        CPF: item.cpf || '-'
+        CPF: item.cpf || '-',
+        Data_Vistoria: item.Data_Vistoria || ''
       }));
       
       setData(formattedData);
