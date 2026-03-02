@@ -125,6 +125,7 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
         y += 15;
       } else {
         y += 5;
+        
       }
       // Depois, as linhas de assinatura
       pdf.line(20, y, 100, y);
