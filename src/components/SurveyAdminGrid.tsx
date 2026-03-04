@@ -1,4 +1,4 @@
-// components/SurveyAdminGrid.tsx - VERSÃO COMPLETA E CORRIGIDA
+// components/SurveyAdminGrid.tsx - VERSÃO CORRIGIDA
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Printer, FileText, X, Download, AlertCircle, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -10,13 +10,13 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // ==================== INTERFACES ====================
 interface SurveyAdmin {
   id: string;
-  Formulario: string;
-  Projeto: string;
-  Quadra: string;
-  Lote: string;
-  Requerente: string;
-  CPF: string;
-  Data_Vistoria?: string;
+  formulario: string;
+  projeto: string;
+  quadra: string;
+  lote: string;
+  requerente: string;
+  cpf: string;
+  data_vistoria?: string;  // ← CORRIGIDO: agora em minúsculo
 }
 
 interface SurveyAdminGridProps {
@@ -64,8 +64,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
     // Buscar dados completos da viewer antes de abrir o modal
     (async () => {
       try {
-        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-        const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
         const url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin?id=eq.${surveyId}`;
         const response = await fetch(url, {
           method: 'GET',
@@ -82,24 +80,24 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
         } else {
           if (onSelect) onSelect({
             id: surveyId,
-            Formulario: '',
-            Projeto: '',
-            Quadra: '',
-            Lote: '',
-            Requerente: '',
-            CPF: ''
+            formulario: '',
+            projeto: '',
+            quadra: '',
+            lote: '',
+            requerente: '',
+            cpf: ''
           });
         }
       } catch (e) {
         console.error('Erro ao buscar dados detalhados para PDF:', e);
         if (onSelect) onSelect({
           id: surveyId,
-          Formulario: '',
-          Projeto: '',
-          Quadra: '',
-          Lote: '',
-          Requerente: '',
-          CPF: ''
+          formulario: '',
+          projeto: '',
+          quadra: '',
+          lote: '',
+          requerente: '',
+          cpf: ''
         });
       }
     })();
@@ -248,7 +246,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       // ============ DADOS PRINCIPAIS (LAYOUT EM 2 COLUNAS FIXAS) ============
       const col1X = margin;
-      const col2X = 110; // Posição fixa para segunda coluna
+      const col2X = 110;
       const lineHeight = 6;
       
       // Função otimizada para adicionar dados
@@ -283,11 +281,10 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       // Extrair número REURB do formulário
       let reurbNumber = 'Não informado';
       if (record.formulario) {
-        // Remove "REURB N°.:" e pega só o número
         reurbNumber = record.formulario.replace(/REURB\s*N[°\.:]\s*[:]?\s*/i, '').trim();
       }
       
-      // Tipo de REURB (usa análise_ia se disponível)
+      // Tipo de REURB (usa analise_ia se disponível)
       const tipoReurb = record.analise_ia || 'REURB-S';
       
       // ===== COLUNA 1 =====
@@ -351,7 +348,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       y = Math.max(y1, y2) + 15;
       
-      // ============ DOCUMENTOS DA VISTORIA (SE HOUVER) ============
+      // ============ DOCUMENTOS DA VISTORIA ============
       let documentosText = 'Nenhum documento anexado';
       if (record.documentos_vistoria) {
         try {
@@ -360,7 +357,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
             : record.documentos_vistoria;
           
           if (Array.isArray(documentos) && documentos.length > 0) {
-            documentosText = `Documentos anexados (${documentos.length}): ${documentos.join(', ')}`;
+            documentosText = `Documentos anexados (${documentos.length}): ${documentos.map((d: any) => d.name || 'Arquivo').join(', ')}`;
           } else if (typeof documentos === 'object' && documentos !== null) {
             documentosText = `Documentos: ${Object.keys(documentos).join(', ')}`;
           }
@@ -442,7 +439,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       y = signatureY + signatureHeight + 25;
       
-      // ============ FOTOS DE FACHADA (3 COLUNAS NO RODAPÉ) ============
+      // ============ FOTOS DE FACHADA ============
       // Verifica se precisa de nova página para as fotos
       if (y > pageHeight - 100) {
         pdf.addPage();
@@ -466,7 +463,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       if (record.fotos_fachada) {
         try {
-          // Tentar parsear como JSON
           const fotos = typeof record.fotos_fachada === 'string' 
             ? JSON.parse(record.fotos_fachada)
             : record.fotos_fachada;
@@ -477,7 +473,6 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
             fotosArray = [fotos];
           }
         } catch (e) {
-          // Se não for JSON, trata como string única
           if (typeof record.fotos_fachada === 'string' && record.fotos_fachada.trim() !== '') {
             fotosArray = [record.fotos_fachada];
           }
@@ -485,7 +480,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       }
       
       // Configurações para layout de 3 colunas
-      const fotoWidth = (pageWidth - 2 * margin - 20) / 3; // 20px de espaçamento
+      const fotoWidth = (pageWidth - 2 * margin - 20) / 3;
       const fotoHeight = 50;
       const fotoSpacing = 10;
       
@@ -636,7 +631,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       
       let url = `${SUPABASE_URL}/rest/v1/vw_reurb_surveys_admin`;
       const params = new URLSearchParams();
-      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf,Data_Vistoria');
+      params.append('select', 'id,projeto,quadra,lote,formulario,requerente,cpf,data_vistoria');  // ← CORRIGIDO: agora em minúsculo
       params.append('order', 'id.desc');
       params.append('limit', '500');
       
@@ -658,13 +653,13 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       const result = await response.json();
       const formattedData = result.map((item: any) => ({
         id: String(item.id || ''),
-        Formulario: item.formulario || '-',
-        Projeto: item.projeto || '-',
-        Quadra: item.quadra || '-',
-        Lote: item.lote || '-',
-        Requerente: item.requerente || '-',
-        CPF: item.cpf || '-',
-        Data_Vistoria: item.Data_Vistoria || ''
+        formulario: item.formulario || '-',     // ← CORRIGIDO: minúsculo
+        projeto: item.projeto || '-',            // ← CORRIGIDO: minúsculo
+        quadra: item.quadra || '-',              // ← CORRIGIDO: minúsculo
+        lote: item.lote || '-',                   // ← CORRIGIDO: minúsculo
+        requerente: item.requerente || '-',       // ← CORRIGIDO: minúsculo
+        cpf: item.cpf || '-',                     // ← CORRIGIDO: minúsculo
+        data_vistoria: item.data_vistoria || ''   // ← CORRIGIDO: minúsculo
       }));
       
       setData(formattedData);
@@ -683,12 +678,11 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
 
   // Filtro
   const filtered = data.filter(row => {
-    // Pesquisa combinada por campo
     const matchId = searchId.trim() ? row.id.toLowerCase().includes(searchId.toLowerCase().trim()) : true;
-    const matchQuadra = searchQuadra.trim() ? row.Quadra.toLowerCase().includes(searchQuadra.toLowerCase().trim()) : true;
-    const matchLote = searchLote.trim() ? row.Lote.toLowerCase().includes(searchLote.toLowerCase().trim()) : true;
-    const matchNome = searchNome.trim() ? row.Requerente.toLowerCase().includes(searchNome.toLowerCase().trim()) : true;
-    const matchCpf = searchCpf.trim() ? row.CPF.toLowerCase().includes(searchCpf.toLowerCase().trim()) : true;
+    const matchQuadra = searchQuadra.trim() ? row.quadra.toLowerCase().includes(searchQuadra.toLowerCase().trim()) : true;
+    const matchLote = searchLote.trim() ? row.lote.toLowerCase().includes(searchLote.toLowerCase().trim()) : true;
+    const matchNome = searchNome.trim() ? row.requerente.toLowerCase().includes(searchNome.toLowerCase().trim()) : true;
+    const matchCpf = searchCpf.trim() ? row.cpf.toLowerCase().includes(searchCpf.toLowerCase().trim()) : true;
     return matchId && matchQuadra && matchLote && matchNome && matchCpf;
   });
 
@@ -745,7 +739,7 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
             />
             <input
               type="text"
-              placeholder="Requerente (Like)"
+              placeholder="Requerente"
               value={searchNome}
               onChange={e => { setSearchNome(e.target.value); setCurrentPage(1); }}
               className="pl-3 pr-2 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -807,12 +801,12 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
                     <td className="px-4 py-3 text-sm font-mono text-gray-900">
                       {row.id.substring(0, 8)}...
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.Formulario}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.Projeto}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.Quadra}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.Lote}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.Requerente}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.CPF}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{row.formulario}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.projeto}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.quadra}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.lote}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.requerente}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.cpf}</td>
                     <td className="px-4 py-3">
                       <button
                         title="Gerar PDF"
@@ -946,5 +940,4 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
   );
 };
 
-// ==================== EXPORTAÇÃO ====================
 export default SurveyAdminGrid;
