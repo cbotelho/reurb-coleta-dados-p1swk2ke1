@@ -244,6 +244,26 @@ const SurveyAdminGrid: React.FC<SurveyAdminGridProps> = ({
       pdf.text(projetoLines, margin + 22, y);
       y += projetoLines.length * 5 + 10;
       
+      // ============ DATA DA VISTORIA ============
+      if (record.data_vistoria) {
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Data da Vistoria:', margin, y);
+        pdf.setFont('helvetica', 'normal');
+        
+        // Formatar a data
+        const data = new Date(record.data_vistoria);
+        const dataFormatada = data.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        
+        pdf.text(dataFormatada, margin + 35, y);
+        y += 8;
+      }
       // ============ DADOS PRINCIPAIS (LAYOUT EM 2 COLUNAS FIXAS) ============
       const col1X = margin;
       const col2X = 110;
