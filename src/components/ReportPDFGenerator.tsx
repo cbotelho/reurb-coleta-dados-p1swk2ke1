@@ -13,7 +13,7 @@ interface SurveyAdmin {
   requerente: string;
   cpf: string;
   vistoriador?: string;
-  Data_Vistoria?: string;
+  data_vistoria?: string;  // ← CORRIGIDO: agora em minúsculo
 }
  
 interface ReportPDFGeneratorProps {
@@ -77,15 +77,15 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
         { label: 'CPF:', value: surveyData.cpf }
       ];
       
-      dados.forEach((item, index) => {
+      dados.forEach((item) => {
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`${item.label}`, 20, y);
+        pdf.text(item.label, 20, y);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(`${item.value || 'N/A'}`, 70, y);
+        pdf.text(item.value || 'N/A', 70, y);
         y += 6;
         
         // Quebra de página se necessário
-        if (y > 250 && index < dados.length - 1) {
+        if (y > 250) {
           pdf.addPage();
           y = 20;
         }
@@ -93,55 +93,64 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
       
       y += 10;
       
-      // Seção de observações/assinaturas
+      // Seção de conclusão
       pdf.setFontSize(12);
       pdf.setFont('helvetica', 'bold');
       pdf.text('2. CONCLUSÃO E ASSINATURAS', 20, y);
       y += 10;
 
+      // Data da Vistoria (agora usando data_vistoria)
       pdf.setFontSize(10);
       pdf.setFont('helvetica', 'normal');
-      // Substituído: Análise IA -> Vistoriador
-      pdf.text(`Vistoriador: ${surveyData.vistoriador || 'N/A'}`, 20, y);
-      y += 10;
+      
+      // Formatar a data se existir
+      if (surveyData.data_vistoria) {
+        const data = new Date(surveyData.data_vistoria);
+        const dataFormatada = data.toLocaleDateString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Macapá/AP, ${dataFormatada}`, 105, y, { align: 'center' });
+        y += 10;
+      }
 
-      pdf.text('Vistoria realizada conforme normativas do REURB - Regularização Fundiária Urbana.', 20, y);
+      // Vistoriador
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Vistoriador:', 20, y);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(surveyData.vistoriador || 'N/A', 50, y);
       y += 15;
 
-      // Linha para assinatura do vistoriador
+      // Texto padrão
+      pdf.setFontSize(9);
+      pdf.text('Vistoria realizada conforme normativas do REURB - Regularização Fundiária Urbana.', 20, y);
+      y += 20;
+
+      // Linhas de assinatura
+      pdf.setLineWidth(0.5);
       pdf.line(20, y, 100, y);
+      pdf.setFontSize(8);
       pdf.text('Assinatura do Vistoriador', 20, y + 5);
 
       pdf.line(110, y, 190, y);
       pdf.text('Assinatura do Responsável', 110, y + 5);
+      
+      y += 20;
 
-      // Nao estava saindo a Data da Vistoria centralizada antes das assinaturas
-      y += 10;
-      const dataVistoria = surveyData.Data_Vistoria || '';
-      if (dataVistoria) {
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`Macapá/AP, ${dataVistoria}`, 105, y, { align: 'center' });
-        pdf.setFont('helvetica', 'normal');
-        y += 15;
-      } else {
-        y += 5;
-        
-      }
-      // Depois, as linhas de assinatura
-      pdf.line(20, y, 100, y);
-      pdf.text('Assinatura do Vistoriador', 20, y + 5);
-      pdf.line(110, y, 190, y);
-      pdf.text('Assinatura do Responsável', 110, y + 5);
-      y += 25;
-      // Data e local (mantém para histórico, mas pode ser removido se não quiser duplicidade)
+      // Local e data de emissão
       const dataAtual = new Date().toLocaleDateString('pt-BR');
       const horaAtual = new Date().toLocaleTimeString('pt-BR');
-      pdf.text(`Local: Governo do Estado do Amapá`, 20, y);
-      pdf.text(`Data: ${dataAtual}`, 20, y + 6);
-      pdf.text(`Hora: ${horaAtual}`, 20, y + 12);
+      
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Local e data da emissão:', 20, y);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Governo do Estado do Amapá, ${dataAtual} às ${horaAtual}`, 20, y + 6);
       
       // Rodapé
-      pdf.setFontSize(8);
+      pdf.setFontSize(7);
       pdf.setTextColor(128, 128, 128);
       pdf.text(`Documento gerado em: ${dataAtual} às ${horaAtual}`, 105, 280, { align: 'center' });
       pdf.text(`ID do documento: ${surveyData.id}`, 105, 285, { align: 'center' });
@@ -190,7 +199,7 @@ const ReportPDFGenerator: React.FC<ReportPDFGeneratorProps> = ({
     if (isOpen && surveyData && !pdfGenerated) {
       generatePDF();
     }
-  }, [isOpen, surveyData]);
+  }, [isOpen, surveyData, pdfGenerated]);
 
   useEffect(() => {
     return () => {
