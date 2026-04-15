@@ -10,8 +10,11 @@ steps:
     args: ['run', 'build']
 
   # 3. Deploy para o Firebase Hosting
-  # Nota: Você precisará ter o Firebase inicializado no projeto
   - name: 'gcr.io/$PROJECT_ID/firebase'
     args: ['deploy', '--only', 'hosting', '--project', '$PROJECT_ID']
+
+# Opções de log (fora da lista de steps)
+options:
+  logging: CLOUD_LOGGING_ONLY
 
 timeout: '1200s'
