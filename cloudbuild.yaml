@@ -9,14 +9,13 @@ steps:
     entrypoint: npm
     args: ['run', 'build']
 
-  # 3. Deploy com Token de Acesso
+  # 3. Deploy (O Firebase Tools vai usar a identidade do Cloud Build automaticamente)
   - name: 'node:20'
     entrypoint: /bin/sh
     args:
       - -c
       - |
-        npx firebase-tools deploy --only hosting --project $PROJECT_ID --token $(gcloud auth print-access-token) --non-interactive
+        npx firebase-tools deploy --only hosting --project $PROJECT_ID --non-interactive
 
-# ESTE BLOCO É O QUE RESOLVE O ERRO DO GATILHO
 options:
   logging: CLOUD_LOGGING_ONLY
